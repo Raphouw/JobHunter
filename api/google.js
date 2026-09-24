@@ -1,0 +1,221 @@
+import { createCipheriv, createDecipheriv, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://seacseklrbucmgxaykgc.supabase.co';
+const PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_wQCX6LA7JVPRaL5cE-Lfsw_oUxISayf';
+const SCOPES = [
+  'openid', 'email',
+  'https://www.googleapis.com/auth/spreadsheets',
+  'https://www.googleapis.com/auth/gmail.readonly',
+];
+
+function config() {
+  const origin = (process.env.PUBLIC_APP_URL || 'https://job-hunter-three-chi.vercel.app').replace(/\/$/, '');
+  const key = Buffer.from(process.env.GOOGLE_TOKEN_ENCRYPTION_KEY || '', 'base64');
+  return {
+    origin, key,
+    clientId: process.env.GOOGLE_CLIENT_ID || process.env.GOOGLE_OAUTH_CLIENT_ID || '',
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET || process.env.GOOGLE_OAUTH_CLIENT_SECRET || '',
+    serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
+    ready: key.length === 32 && !!(process.env.GOOGLE_CLIENT_ID || process.env.GOOGLE_OAUTH_CLIENT_ID)
+      && !!(process.env.GOOGLE_CLIENT_SECRET || process.env.GOOGLE_OAUTH_CLIENT_SECRET)
+      && !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+  };
+}
+
+function base64url(value) { return Buffer.from(value).toString('base64url'); }
+function redirectUri(settings) { return `${settings.origin}/api/google?action=callback`; }
+function signState(data, key) {
+  const payload = base64url(JSON.stringify(data));
+  const signature = createHmac('sha256', key).update(payload).digest('base64url');
+  return `${payload}.${signature}`;
+}
+function readState(state, key) {
+  const [payload, signature, extra] = String(state || '').split('.');
+  if (!payload || !signature || extra) throw new Error('État OAuth invalide');
+  const expected = createHmac('sha256', key).update(payload).digest();
+  const received = Buffer.from(signature, 'base64url');
+  if (received.length !== expected.length || !timingSafeEqual(received, expected)) throw new Error('État OAuth invalide');
+  const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+  if (!data.userId || !data.expires || data.expires < Date.now()) throw new Error('Connexion expirée');
+  return data;
+}
+function encrypt(value, key) {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', key, iv);
+  const body = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
+  return [iv, cipher.getAuthTag(), body].map((part) => part.toString('base64url')).join('.');
+}
+function decrypt(value, key) {
+  const [iv, tag, body] = String(value).split('.').map((part) => Buffer.from(part, 'base64url'));
+  if (!iv || !tag || !body) throw new Error('Jeton Google invalide');
+  const cipher = createDecipheriv('aes-256-gcm', key, iv);
+  cipher.setAuthTag(tag);
+  return Buffer.concat([cipher.update(body), cipher.final()]).toString('utf8');
+}
+
+async function googleAccess(userId, settings) {
+  const rows = await database(`hunter_google_connections?user_id=eq.${encodeURIComponent(userId)}&select=encrypted_refresh_token`, settings);
+  if (!rows?.length) throw new Error('Compte Google non connecté');
+  const refresh = decrypt(rows[0].encrypted_refresh_token, settings.key);
+  const result = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ client_id: settings.clientId, client_secret: settings.clientSecret,
+      refresh_token: refresh, grant_type: 'refresh_token' }),
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!result.ok) throw new Error(`Renouvellement Google HTTP ${result.status}`);
+  const tokens = await result.json();
+  if (!tokens.access_token) throw new Error('Jeton Google absent');
+  return tokens.access_token;
+}
+
+async function googleApi(path, token, options = {}) {
+  const result = await fetch(`https://sheets.googleapis.com/v4/${path}`, {
+    ...options,
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...(options.headers || {}) },
+    signal: AbortSignal.timeout(20000),
+  });
+  if (!result.ok) throw new Error(`Google Sheets HTTP ${result.status}`);
+  return result.status === 204 ? null : result.json();
+}
+
+async function ownedProfile(userId, profileId, settings) {
+  if (!/^[0-9a-f-]{36}$/i.test(String(profileId))) throw new Error('Profil invalide');
+  const rows = await database(`hunter_profiles?id=eq.${encodeURIComponent(profileId)}&user_id=eq.${encodeURIComponent(userId)}&select=id,name,config`, settings);
+  if (!rows?.length) throw new Error('Profil introuvable');
+  return rows[0];
+}
+
+async function authenticatedUser(request) {
+  const token = /^Bearer (.+)$/i.exec(request.headers.authorization || '')?.[1];
+  if (!token) return null;
+  const result = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+    headers: { apikey: PUBLISHABLE_KEY, Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(10000),
+  });
+  return result.ok ? await result.json() : null;
+}
+
+async function database(path, settings, options = {}) {
+  const result = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...options,
+    headers: {
+      apikey: settings.serviceKey,
+      Authorization: `Bearer ${settings.serviceKey}`,
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    },
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!result.ok) throw new Error(`Supabase HTTP ${result.status}`);
+  return result.status === 204 ? null : result.json();
+}
+
+export default async function handler(request, response) {
+  const settings = config();
+  const action = new URL(request.url, settings.origin).searchParams.get('action') || 'status';
+  if (!settings.ready) {
+    return response.status(503).json({ configured: false, connected: false,
+      error: 'Connexion Google à configurer dans Vercel.' });
+  }
+
+  try {
+    if (action === 'callback' && request.method === 'GET') {
+      const params = new URL(request.url, settings.origin).searchParams;
+      if (params.has('error')) return response.redirect(302, `${settings.origin}/?google=denied`);
+      const state = readState(params.get('state'), settings.key);
+      const code = params.get('code');
+      if (!code) throw new Error('Code OAuth absent');
+      const exchange = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ code, client_id: settings.clientId,
+          client_secret: settings.clientSecret, redirect_uri: redirectUri(settings), grant_type: 'authorization_code' }),
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!exchange.ok) throw new Error(`Google OAuth HTTP ${exchange.status}`);
+      const tokens = await exchange.json();
+      if (!tokens.refresh_token || !tokens.access_token) throw new Error('Jeton de renouvellement absent');
+      const identity = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+        headers: { Authorization: `Bearer ${tokens.access_token}` }, signal: AbortSignal.timeout(10000),
+      });
+      if (!identity.ok) throw new Error('Identité Google indisponible');
+      const googleUser = await identity.json();
+      if (!googleUser.sub || !googleUser.email) throw new Error('Identité Google incomplète');
+      await database('hunter_google_connections?on_conflict=user_id', settings, {
+        method: 'POST',
+        headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify({ user_id: state.userId, google_subject: googleUser.sub,
+          google_email: googleUser.email, encrypted_refresh_token: encrypt(tokens.refresh_token, settings.key),
+          granted_scopes: String(tokens.scope || '').split(' ').filter(Boolean),
+          connected_at: new Date().toISOString(), updated_at: new Date().toISOString() }),
+      });
+      return response.redirect(302, `${settings.origin}/?google=connected`);
+    }
+
+    const user = await authenticatedUser(request);
+    if (!user?.id) return response.status(401).json({ error: 'Session expirée. Reconnecte-toi.' });
+    if (action === 'status' && request.method === 'GET') {
+      const rows = await database(`hunter_google_connections?user_id=eq.${encodeURIComponent(user.id)}&select=google_email,granted_scopes,connected_at`, settings);
+      return response.status(200).json({ configured: true, connected: !!rows?.length,
+        email: rows?.[0]?.google_email || null, scopes: rows?.[0]?.granted_scopes || [],
+        connectedAt: rows?.[0]?.connected_at || null });
+    }
+    if (action === 'start' && request.method === 'POST') {
+      const state = signState({ userId: user.id, expires: Date.now() + 10 * 60_000,
+        nonce: randomBytes(16).toString('hex') }, settings.key);
+      const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+      url.search = new URLSearchParams({ client_id: settings.clientId, redirect_uri: redirectUri(settings),
+        response_type: 'code', scope: SCOPES.join(' '), access_type: 'offline',
+        prompt: 'consent', include_granted_scopes: 'true', state }).toString();
+      return response.status(200).json({ url: url.toString() });
+    }
+    if (action === 'disconnect' && request.method === 'POST') {
+      await database(`hunter_google_connections?user_id=eq.${encodeURIComponent(user.id)}`, settings,
+        { method: 'DELETE' });
+      return response.status(200).json({ connected: false });
+    }
+    if (['create-sheet', 'sync-sheet'].includes(action) && request.method === 'POST') {
+      const profile = await ownedProfile(user.id, request.body?.profileId, settings);
+      const token = await googleAccess(user.id, settings);
+      const google = profile.config?.integrations?.google || {};
+      let sheetId = String(google.sheet_id || '').trim();
+      if (action === 'create-sheet') {
+        const created = await googleApi('spreadsheets', token, { method: 'POST',
+          body: JSON.stringify({ properties: { title: `Stage Hunter — ${profile.name}` } }) });
+        sheetId = created.spreadsheetId;
+        const config = { ...profile.config, integrations: { ...profile.config?.integrations,
+          google: { ...google, sheet_id: sheetId, sheets_enabled: true } } };
+        await database(`hunter_profiles?id=eq.${encodeURIComponent(profile.id)}&user_id=eq.${encodeURIComponent(user.id)}`,
+          settings, { method: 'PATCH', body: JSON.stringify({ config }) });
+        return response.status(200).json({ sheetId, url: `https://docs.google.com/spreadsheets/d/${sheetId}` });
+      }
+      const match = /\/spreadsheets\/d\/([\w-]+)/.exec(sheetId);
+      if (match) sheetId = match[1];
+      if (!/^[\w-]{20,}$/.test(sheetId)) return response.status(400).json({ error: 'Crée un Sheet ou indique son identifiant dans le profil.' });
+      const tab = String(google.opportunity_tab || 'Opportunités').slice(0, 90);
+      const sheet = await googleApi(`spreadsheets/${encodeURIComponent(sheetId)}?fields=sheets.properties.title`, token);
+      if (!sheet.sheets?.some((item) => item.properties?.title === tab)) {
+        await googleApi(`spreadsheets/${encodeURIComponent(sheetId)}:batchUpdate`, token, { method: 'POST',
+          body: JSON.stringify({ requests: [{ addSheet: { properties: { title: tab } } }] }) });
+      }
+      const offers = await database(`hunter_offers?profile_id=eq.${encodeURIComponent(profile.id)}&user_id=eq.${encodeURIComponent(user.id)}&review_decision=eq.keep&select=id,score,confidence,company,title,location,canton,language,duration,start_date,domain_category,skills_found,reasons,source,url,discovered_at&order=score.desc&limit=1000`, settings);
+      const values = [['Action', 'Score /100', 'Confiance', 'Entreprise', 'Offre', 'Ville / lieu', 'Canton', 'Langue', 'Durée', 'Début', 'Domaine', 'Compétences détectées', 'Pourquoi', 'Source', 'Lien', 'Date découverte', 'ID Stage Hunter'],
+        ...offers.map((item) => ['Garder', item.score, item.confidence, item.company, item.title, item.location,
+          item.canton, item.language, item.duration, item.start_date, item.domain_category,
+          item.skills_found, item.reasons, item.source, item.url, item.discovered_at, item.id])];
+      const range = `'${tab.replaceAll("'", "''")}'!A1:Q`;
+      await googleApi(`spreadsheets/${encodeURIComponent(sheetId)}/values/${encodeURIComponent(range)}:clear`, token,
+        { method: 'POST', body: '{}' });
+      await googleApi(`spreadsheets/${encodeURIComponent(sheetId)}/values/${encodeURIComponent(range)}?valueInputOption=RAW`, token,
+        { method: 'PUT', body: JSON.stringify({ values }) });
+      return response.status(200).json({ exported: offers.length, sheetId,
+        url: `https://docs.google.com/spreadsheets/d/${sheetId}` });
+    }
+    return response.status(405).json({ error: 'Action non prise en charge.' });
+  } catch (error) {
+    console.error('Google connection:', error.message);
+    if (action === 'callback') return response.redirect(302, `${settings.origin}/?google=error`);
+    return response.status(502).json({ error: 'Connexion Google indisponible. Réessaie plus tard.' });
+  }
+}

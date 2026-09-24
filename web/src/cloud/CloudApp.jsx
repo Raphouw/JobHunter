@@ -6,6 +6,7 @@ import { DashboardView } from '../components/Dashboard/DashboardView';
 import { ResultsView } from '../components/Results/ResultsView';
 import { DiagnosticView } from '../components/Diagnostic/DiagnosticView';
 import { CloudSearchView, CloudConnectionsView, CloudAutomationView } from './CloudFeatureViews';
+import { DeleteProfileDialog, ProfileSwitcher } from './ProfileSwitcher';
 import { supabase, unwrap } from './client';
 
 const EMPTY_CONFIG = {
@@ -87,6 +88,8 @@ export function CloudApp() {
   const [profileId, setProfileId] = useState('');
   const [offers, setOffers] = useState([]);
   const [scanJobs, setScanJobs] = useState([]);
+  const [scanEvents, setScanEvents] = useState([]);
+  const [workerReady, setWorkerReady] = useState(false);
   const [page, setPage] = useState('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -94,6 +97,8 @@ export function CloudApp() {
   const [notice, setNotice] = useState('');
   const [newName, setNewName] = useState('');
   const [lastDecision, setLastDecision] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteOfferCount, setDeleteOfferCount] = useState(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data, error: authError }) => {
@@ -124,8 +129,26 @@ export function CloudApp() {
 
   useEffect(() => { loadProfiles(); }, [loadProfiles]);
 
+  useEffect(() => {
+    if (!session) return;
+    fetch('/api/scan').then((result) => result.json()).then((status) => setWorkerReady(!!status.ready))
+      .catch(() => setWorkerReady(false));
+  }, [session?.user?.id]);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const google = url.searchParams.get('google');
+    if (!google) return;
+    setPage('connections');
+    if (google === 'connected') setNotice('Compte Google connecté.');
+    else if (google === 'denied') setError('L’autorisation Google a été refusée.');
+    else setError('La connexion Google a échoué. Réessaie depuis la page Connexions Google.');
+    url.searchParams.delete('google');
+    window.history.replaceState({}, '', url);
+  }, []);
+
   const loadData = useCallback(async () => {
-    if (!profileId) { setOffers([]); setScanJobs([]); return; }
+    if (!profileId) { setOffers([]); setScanJobs([]); setScanEvents([]); return; }
     try {
       const [offerRows, jobRows] = await Promise.all([
         supabase.from('hunter_offers').select('*').eq('profile_id', profileId)
@@ -136,7 +159,13 @@ export function CloudApp() {
           .order('created_at', { ascending: false }).limit(10),
       ]);
       setOffers(unwrap(offerRows) || []);
-      setScanJobs(unwrap(jobRows) || []);
+      const jobs = unwrap(jobRows) || [];
+      setScanJobs(jobs);
+      if (jobs[0]) {
+        const events = unwrap(await supabase.from('hunter_scan_events').select('id,created_at,level,message')
+          .eq('job_id', jobs[0].id).order('id', { ascending: false }).limit(60));
+        setScanEvents(events || []);
+      } else setScanEvents([]);
     } catch (loadError) {
       setError(loadError.message);
     }
@@ -157,17 +186,51 @@ export function CloudApp() {
     finally { setBusy(false); }
   };
 
-  const createProfile = (event) => {
-    event.preventDefault();
-    if (!newName.trim()) return;
+  const createProfile = (name) => {
+    if (!name.trim()) return;
     run(async () => {
       unwrap(await supabase.from('hunter_profiles').insert({
-        user_id: session.user.id, name: newName.trim(), config: EMPTY_CONFIG,
+        user_id: session.user.id, name: name.trim(), config: EMPTY_CONFIG,
       }));
       setNewName('');
       await loadProfiles();
     }, 'Profil créé.');
   };
+
+  const submitNewProfile = (event) => { event.preventDefault(); createProfile(newName); };
+
+  const prepareDeleteProfile = async (target) => {
+    setError('');
+    try {
+      const [offerCount, activeJobs] = await Promise.all([
+        supabase.from('hunter_offers').select('id', { count: 'exact', head: true }).eq('profile_id', target.id),
+        supabase.from('hunter_scan_jobs').select('id').eq('profile_id', target.id)
+          .in('status', ['queued', 'running']).limit(1),
+      ]);
+      unwrap(offerCount); unwrap(activeJobs);
+      if (activeJobs.data?.length) {
+        setError('Ce profil possède un scan actif. Annule-le ou attends sa fin avant de supprimer le profil.');
+        return;
+      }
+      setDeleteOfferCount(offerCount.count);
+      setDeleteTarget(target);
+    } catch (deleteError) { setError(deleteError.message); }
+  };
+
+  const deleteProfile = () => run(async () => {
+    if (!deleteTarget) return;
+    const targetId = deleteTarget.id;
+    const activeJobs = unwrap(await supabase.from('hunter_scan_jobs').select('id')
+      .eq('profile_id', targetId).in('status', ['queued', 'running']).limit(1));
+    if (activeJobs?.length) throw new Error('Un scan a démarré sur ce profil. Annule-le avant de supprimer le profil.');
+    const deleted = unwrap(await supabase.from('hunter_profiles').delete()
+      .eq('id', targetId).select('id'));
+    if (!deleted?.length) throw new Error('La suppression du profil n’a pas été confirmée par la base de données.');
+    setDeleteTarget(null);
+    setDeleteOfferCount(null);
+    await loadProfiles();
+    if (targetId === profileId) { setOffers([]); setScanJobs([]); setLastDecision(null); }
+  }, 'Profil et données associées supprimés.');
 
   const saveProfile = (form) => run(async () => {
     const { id, name, ...config } = form;
@@ -175,6 +238,27 @@ export function CloudApp() {
       .update({ name, config }).eq('id', profileId));
     await loadProfiles();
   }, 'Profil enregistré.');
+
+  const startScan = (mode) => run(async () => {
+    if (!workerReady) throw new Error('Le worker Python doit être configuré avant le lancement.');
+    if (scanJobs.some((job) => ['queued', 'running'].includes(job.status)))
+      throw new Error('Un scan est déjà actif sur ce profil.');
+    const jobs = unwrap(await supabase.from('hunter_scan_jobs').insert({
+      user_id: session.user.id, profile_id: profileId, mode,
+    }).select('id'));
+    await loadData();
+    if (jobs?.[0]?.id) {
+      fetch('/api/scan', { method: 'POST', headers: { Authorization: `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobs[0].id }) })
+        .then(() => loadData()).catch(() => {});
+    }
+  }, 'Scan ajouté à la file. Le traitement démarre et reprendra automatiquement.');
+
+  const cancelScan = (jobId) => run(async () => {
+    unwrap(await supabase.from('hunter_scan_jobs').update({ cancel_requested: true })
+      .eq('id', jobId).eq('profile_id', profileId));
+    await loadData();
+  }, 'Annulation demandée.');
 
   const decide = async (offer, decision) => {
     setBusy(true); setError('');
@@ -224,7 +308,7 @@ export function CloudApp() {
     ? { ...EMPTY_CONFIG, ...activeProfile.config, id: activeProfile.id, name: activeProfile.name }
     : null, [activeProfile]);
   const latestScan = scanJobs[0];
-  const scan = { cloud: true, available: false, running: ['queued', 'running'].includes(latestScan?.status) };
+  const scan = { cloud: true, available: workerReady, running: ['queued', 'running'].includes(latestScan?.status) };
   const dashboardStats = { ...stats, ready: stats.keep };
   const latestCompleted = scanJobs.find((job) => job.status === 'completed' && job.summary?.metrics);
   const metrics = latestCompleted?.summary?.metrics;
@@ -273,14 +357,10 @@ export function CloudApp() {
                 <strong>{NAV_ITEMS.find(([id]) => id === page)?.[1] || 'Accueil'}</strong></div>
               <div className="sh-topbar-actions">
                 <div className={`sh-scan-status-pill ${scan.running ? 'active' : ''}`}>
-                  <span className="sh-scan-dot" /><span>{scan.running ? 'Scan en cours' : 'Scans web en préparation'}</span>
+                  <span className="sh-scan-dot" /><span>{scan.running ? 'Scan en cours' : workerReady ? 'Moteur prêt' : 'Moteur à configurer'}</span>
                 </div>
-                <label className="sh-profile-dropdown" title="Changer de profil actif">
-                  <div className="brand-avatar xs">{(profile?.name || '?').slice(0, 1).toUpperCase()}</div>
-                  <select aria-label="Profil actif" value={profileId} onChange={(event) => setProfileId(event.target.value)}>
-                    {profiles.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
-                  </select>
-                </label>
+                <ProfileSwitcher profiles={profiles} activeId={profileId} onSelect={setProfileId}
+                  onCreate={createProfile} onDelete={prepareDeleteProfile} busy={busy} />
                 <button className="sh-btn-secondary" onClick={() => supabase.auth.signOut()}>Déconnexion</button>
               </div>
             </header>
@@ -288,7 +368,7 @@ export function CloudApp() {
               {!profile ? <section className="sh-view">
                 <h1>Créer mon premier profil</h1>
                 <p>Chaque profil et ses offres seront visibles uniquement depuis ton compte.</p>
-                <form className="cloud-create-form" onSubmit={createProfile}>
+                <form className="cloud-create-form" onSubmit={submitNewProfile}>
                   <input aria-label="Nom du profil" placeholder="Nom du profil" required maxLength={120}
                     value={newName} onChange={(event) => setNewName(event.target.value)} />
                   <button className="sh-btn-primary" disabled={busy}>Créer</button>
@@ -305,20 +385,25 @@ export function CloudApp() {
                   <section className="sh-form-section"><div className="sh-section-header"><div>
                     <h2>Mes profils de recherche</h2><p>Chaque profil possède ses critères et ses offres.</p>
                   </div></div>
-                    <form className="cloud-create-form" onSubmit={createProfile}>
+                    <form className="cloud-create-form" onSubmit={submitNewProfile}>
                       <input aria-label="Nouveau profil" placeholder="Ajouter un autre profil" required maxLength={120}
                         value={newName} onChange={(event) => setNewName(event.target.value)} />
                       <button className="sh-btn-secondary" disabled={busy}>Ajouter</button>
                     </form>
                   </section>
                 </div>}
-                {page === 'search' && <CloudSearchView scanJobs={scanJobs} onRefresh={loadData} busy={busy} />}
+                {page === 'search' && <CloudSearchView scanJobs={scanJobs} scanEvents={scanEvents}
+                  workerReady={workerReady} onRun={startScan} onCancel={cancelScan}
+                  onRefresh={loadData} busy={busy} />}
                 {page === 'diagnostic' && <DiagnosticView diagnostic={diagnostic} scan={scan} />}
-                {page === 'connections' && <CloudConnectionsView />}
+                {page === 'connections' && <CloudConnectionsView profile={profile} accessToken={session.access_token}
+                  onSave={saveProfile} onError={setError} onNotice={setNotice} busy={busy} />}
                 {page === 'automation' && <CloudAutomationView />}
               </>}
             </main>
           </div>
+          <DeleteProfileDialog profile={deleteTarget} count={deleteOfferCount} busy={busy}
+            onCancel={() => setDeleteTarget(null)} onConfirm={deleteProfile} />
         </div>
       )}
     </>

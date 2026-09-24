@@ -4,10 +4,17 @@
   "installCommand": "cd web && npm ci",
   "buildCommand": "cd web && npm run build:cloud",
   "outputDirectory": "web/dist-cloud",
+  "functions": {
+    "api/scan.py": {
+      "maxDuration": 300,
+      "includeFiles": "{stage_hunter.py,connectors.py,regions.py,cloud/scan_worker.py,config/**}",
+      "excludeFiles": "{credentials/**,output/**,web/**,tests/**,logs/**,*.sqlite3,*.xlsx,*.log}"
+    }
+  },
   "crons": [
     { "path": "/api/keepalive", "schedule": "0 9 * * *" }
   ],
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }

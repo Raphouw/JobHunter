@@ -455,6 +455,53 @@ a {
   outline: none;
 }
 
+/* Cloud profile switcher */
+.cloud-profile-switcher { position: relative; z-index: 80; }
+.cloud-profile-trigger { display: flex; align-items: center; gap: 9px; min-width: 158px;
+  padding: 5px 10px 5px 6px; border: 1px solid var(--border-light); border-radius: 15px;
+  background: #fff; color: var(--text-main); box-shadow: var(--shadow-sm); cursor: pointer; text-align: left; }
+.cloud-profile-trigger:hover, .cloud-profile-trigger[aria-expanded="true"] {
+  border-color: var(--salmon-border); box-shadow: 0 3px 12px rgba(251,113,133,.14); }
+.cloud-profile-trigger-text, .cloud-profile-entry-name { display: flex; flex-direction: column; min-width: 0; }
+.cloud-profile-trigger-text small, .cloud-profile-entry-name small { color: var(--text-muted); font-size: 10px; }
+.cloud-profile-trigger-text strong { font-size: 13px; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cloud-profile-chevron { margin-left: auto; color: var(--text-muted); font-size: 18px; }
+.cloud-profile-menu { position: absolute; top: calc(100% + 10px); right: 0; width: min(335px, calc(100vw - 24px));
+  padding: 10px; border: 1px solid var(--border-light); border-radius: 18px; background: #fff;
+  box-shadow: 0 16px 45px rgba(31,36,65,.18); }
+.cloud-profile-menu-heading { display: flex; justify-content: space-between; padding: 7px 9px 12px;
+  color: var(--text-muted); font-size: 10px; font-weight: 800; letter-spacing: .12em; }
+.cloud-profile-menu-heading span { color: var(--primary); }
+.cloud-profile-menu-list { max-height: 300px; overflow-y: auto; }
+.cloud-profile-entry { display: flex; align-items: center; border-radius: 12px; }
+.cloud-profile-entry.active { background: #fbf7ff; }
+.cloud-profile-entry > button:first-child { flex: 1; min-width: 0; display: flex; align-items: center;
+  gap: 10px; padding: 8px; border: 0; background: transparent; color: var(--text-main); text-align: left; cursor: pointer; }
+.cloud-profile-entry > button:first-child:hover { background: #faf7ff; border-radius: 12px; }
+.cloud-profile-entry-name strong { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cloud-profile-check { margin-left: auto; color: var(--primary); font-weight: 800; }
+.cloud-profile-remove { margin: 0 7px; width: 26px; height: 26px; border: 0; border-radius: 8px;
+  background: transparent; color: #a63c58; font-size: 20px; cursor: pointer; }
+.cloud-profile-remove:hover { background: #fff0f2; }
+.cloud-profile-create { margin-top: 9px; padding: 12px 8px 5px; border-top: 1px solid var(--border-light); }
+.cloud-profile-create label { display: block; margin-bottom: 6px; font-size: 11px; font-weight: 750; }
+.cloud-profile-create > div { display: flex; gap: 7px; }
+.cloud-profile-create input { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid var(--border-light); border-radius: 9px; font: inherit; font-size: 12px; }
+.cloud-profile-create button { width: 34px; border: 0; border-radius: 9px; background: var(--primary); color: white; cursor: pointer; }
+.cloud-profile-create button:disabled { opacity: .4; cursor: default; }
+.cloud-delete-backdrop { z-index: 200; }
+.cloud-delete-dialog { width: min(440px, calc(100vw - 28px)); padding: 28px; border-radius: 20px;
+  border: 1px solid #ffd5dc; background: #fff; box-shadow: 0 22px 65px rgba(31,36,65,.25); }
+.cloud-delete-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px;
+  background: #fff0f2; color: #c73456; font-size: 23px; font-weight: 800; }
+.cloud-delete-dialog h2 { margin: 16px 0 8px; font-size: 22px; }
+.cloud-delete-dialog p { margin: 0 0 18px; color: var(--text-muted); line-height: 1.5; }
+.cloud-delete-dialog label { display: block; margin-bottom: 7px; font-size: 13px; }
+.cloud-delete-dialog input { width: 100%; box-sizing: border-box; padding: 11px 12px; border: 1px solid var(--border-light); border-radius: 10px; font: inherit; }
+.cloud-delete-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 20px; }
+.cloud-delete-button { padding: 10px 15px; border: 0; border-radius: 10px; background: #c73456; color: #fff; font-weight: 750; cursor: pointer; }
+.cloud-delete-button:disabled { opacity: .45; cursor: default; }
+
 /* Avatar Helpers */
 .brand-avatar {
   background: linear-gradient(135deg, var(--salmon) 0%, var(--primary) 100%);

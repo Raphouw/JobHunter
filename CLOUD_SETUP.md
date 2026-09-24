@@ -16,7 +16,7 @@ Configuration pour les futurs courriels d'invitation et de récupération.
 - Connexion e-mail et mot de passe avec Supabase Auth, sans inscription publique
   dans l'interface.
 - Profils et offres isolés par compte grâce aux politiques RLS de PostgreSQL.
-- Création et modification de profils, lecture des offres importées, Swiper,
+- Création, sélection et suppression confirmée de profils, lecture des offres importées, Swiper,
   classement « garder / à revoir / passer » et annulation du dernier choix dans
   la session courante.
 - Tableau de bord, résultats avec export CSV, historique des scans et diagnostic
@@ -62,28 +62,56 @@ prendre le job, enregistrer un checkpoint ou modifier les candidats. Un seul
 scan actif par profil évite les doubles lancements ; plusieurs profils peuvent
 ensuite être traités en parallèle.
 
-Le moteur local ne change pas. Son `--resume` actuel recharge la liste des
-candidats après la découverte, mais ne retient pas la position exacte des
-offres en cours d'analyse. Le worker web devra découper la découverte par
-source et l'analyse par petits lots, écrire chaque candidat et chaque décision
-dans Supabase, puis relâcher son verrou avant les cinq minutes de Vercel. Une
-nouvelle exécution reprendra le lot suivant. Les écritures devront être
-idempotentes grâce aux clés uniques des candidats et des offres.
+Le worker `api/scan.py` réutilise `stage_hunter.py` par tranches : quelques
+sources ou recherches par exécution, puis cinq candidats à la fois. Les
+checkpoints, scores et décisions sont conservés dans Supabase. Le navigateur
+peut lancer et annuler un scan. Supabase Cron invoque le worker chaque minute
+quand un job est dû, jusqu'à quatre profils différents en parallèle. Un profil
+ne peut avoir qu'un scan actif. La base est la seule source d'état durable ; le
+SQLite du worker est temporaire. Le moteur local et sa base SQLite restent
+indépendants.
 
-Pour reprendre même quand le navigateur est fermé, utiliser **Supabase Cron**
-pour appeler un dispatcher sécurisé (Edge Function), qui déclenchera la
-fonction Python Vercel. Vercel Cron sur le forfait Hobby ne peut tourner
-qu'une fois par jour ; il ne convient donc pas à une reprise minute par minute.
-Le déclencheur, le worker Python, la sauvegarde des décisions détaillées et les
-secrets serveur ne sont **pas encore branchés**. Le bouton de lancement reste
-masqué pour éviter des jobs qui resteraient en attente. Les intégrations Google
-demanderont également des jetons distincts par utilisateur.
+### Activation serveur des scans
 
-Avant d'activer les scans web : configurer la clé serveur Supabase uniquement
-dans les variables secrètes du worker Vercel, ajouter un secret partagé avec le
-dispatcher, vérifier la limite de taille du paquet Python, tester la reprise
-après interruption et valider la consommation des quotas gratuits. Ne jamais
-mettre ces secrets dans `VITE_*`, `.env.cloud` ou Git.
+Sur le projet Vercel, ajouter les variables **Production** :
+
+- `SUPABASE_URL` : URL HTTPS du projet Supabase.
+- `SUPABASE_SERVICE_ROLE_KEY` : clé secrète `service_role` Supabase, côté serveur uniquement.
+- `CRON_SECRET` : secret aléatoire partagé avec Supabase Vault.
+
+Créer dans Supabase Vault un secret nommé `hunter_worker_cron_secret` avec
+**la même valeur** que `CRON_SECRET`. Exemple dans l'éditeur SQL Supabase :
+
+```sql
+select vault.create_secret('VALEUR_DU_CRON_SECRET', 'hunter_worker_cron_secret');
+```
+
+Ne pas enregistrer ces valeurs dans Git, `VITE_*` ou une capture d'écran. Après
+déploiement, vérifier que `GET /api/scan` répond, tester un scan Rapide et sa
+reprise, puis définir `SCAN_DISPATCHER_ENABLED=1` en Production et redéployer.
+Cette dernière variable active le bouton sur le site. Vercel Hobby limite
+chaque tranche à 300 secondes ; le code réserve une marge avant ce délai.
+Tester la consommation réelle avant de multiplier les scans quotidiens.
+
+### Connexion Google
+
+Le client OAuth doit être de type **Application Web**. Son URI de redirection
+autorisée doit correspondre exactement à
+`https://job-hunter-three-chi.vercel.app/api/google?action=callback`.
+Activer les API Google Sheets et Gmail et ajouter les comptes de la famille et
+des collègues comme utilisateurs de test tant que l'application OAuth est en
+mode test. Les autorisations Gmail peuvent nécessiter la vérification de Google
+pour une utilisation publique.
+
+Sur Vercel, ajouter `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` et
+`GOOGLE_TOKEN_ENCRYPTION_KEY` (32 octets aléatoires codés en base64), avec
+`SUPABASE_SERVICE_ROLE_KEY` et, si le domaine change, `PUBLIC_APP_URL`.
+L'API enregistre les jetons de renouvellement Google chiffrés dans
+`hunter_google_connections`, table inaccessible aux comptes navigateur. La
+connexion et l'export manuel des offres gardées vers Sheets sont disponibles
+après configuration. La lecture Gmail est autorisée par OAuth, mais son
+analyse/synchronisation web reste à intégrer au scan ; le moteur local garde
+son traitement Gmail actuel.
 
 Supabase gratuit peut mettre un projet en pause après une période d'inactivité.
 La migration `20260924092105_heartbeat_probe.sql` crée une ligne publique sans

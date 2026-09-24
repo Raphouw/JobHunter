@@ -13,7 +13,7 @@ if not exist ".venv\Scripts\python.exe" (
   exit /b %errorlevel%
 )
 echo Mise a jour des dependances sans toucher aux profils, identifiants ni resultats...
-.venv\Scripts\python.exe -m pip install -r requirements.txt
+.venv\Scripts\python.exe -m pip install -r requirements-local.txt
 if errorlevel 1 goto :error
 .venv\Scripts\python.exe -m py_compile stage_hunter.py stage_hunter_ui.py stage_hunter_web.py lancer_stage_hunter.py stage_hunter_scheduler.py
 if errorlevel 1 goto :error
