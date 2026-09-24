@@ -79,6 +79,7 @@ export function CandidaturesView({
   const [editingCandidature, setEditingCandidature] = useState(null);
   const [noteTargetCandidature, setNoteTargetCandidature] = useState(null);
   const [tooltip, setTooltip] = useState({ visible: false, x: 0, y: 0, text: '' });
+  const [manualZoom, setManualZoom] = useState(1);
   const [lastUpdated, setLastUpdated] = useState(() => {
     const now = new Date();
     return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -87,6 +88,13 @@ export function CandidaturesView({
   useEffect(() => {
     if (prefillFromOffer) setShowAddModal(true);
   }, [prefillFromOffer]);
+
+  // Reset manual zoom when selection clears
+  useEffect(() => {
+    if (!activeCode && !activeCityKey) {
+      setManualZoom(1);
+    }
+  }, [activeCode, activeCityKey]);
 
   // Compute counts per canton
   const cantonCounts = useMemo(() => {
@@ -162,6 +170,35 @@ export function CandidaturesView({
 
     return pins;
   }, [candidatures]);
+
+  // Compute zoom transform based on active canton, active city pin, or manual zoom
+  const zoomTransform = useMemo(() => {
+    let scale = manualZoom;
+    let cx = 400;
+    let cy = 250;
+
+    if (activeCityKey) {
+      const pin = cityPins.find((p) => p.key === activeCityKey);
+      if (pin) {
+        cx = pin.x;
+        cy = pin.y;
+        scale = Math.max(scale, 2.3);
+      }
+    } else if (activeCode) {
+      const canton = SWISS_CANTONS.find((c) => c.code === activeCode);
+      if (canton && canton.centroid) {
+        cx = canton.centroid[0];
+        cy = canton.centroid[1];
+        scale = Math.max(scale, 1.85);
+      }
+    }
+
+    if (scale <= 1) return 'translate(0px, 0px) scale(1)';
+
+    const dx = Math.max(-800 * (scale - 1), Math.min(0, 400 - cx * scale));
+    const dy = Math.max(-500 * (scale - 1), Math.min(0, 250 - cy * scale));
+    return `translate(${dx}px, ${dy}px) scale(${scale})`;
+  }, [activeCode, activeCityKey, cityPins, manualZoom]);
 
   // Filtered & sorted candidatures
   const filteredCandidatures = useMemo(() => {
@@ -508,105 +545,143 @@ export function CandidaturesView({
           <div className="cand-split-layout">
             {/* LEFT: SVG SWISS MAP */}
             <div className="cand-map-section">
+              {/* Map Floating Zoom Controls */}
+              <div className="cand-map-controls">
+                <button
+                  type="button"
+                  title="Zoomer (+)"
+                  onClick={() => setManualZoom((z) => Math.min(Number((z + 0.3).toFixed(1)), 3.2))}
+                >
+                  +
+                </button>
+                <button
+                  type="button"
+                  title="Dézoomer (−)"
+                  onClick={() => setManualZoom((z) => Math.max(Number((z - 0.3).toFixed(1)), 1))}
+                >
+                  −
+                </button>
+                <button
+                  type="button"
+                  title="Vue globale"
+                  onClick={() => {
+                    setActiveCode(null);
+                    setActiveCityKey(null);
+                    setManualZoom(1);
+                  }}
+                >
+                  ⤢
+                </button>
+              </div>
+
               <svg viewBox="0 0 800 500" className="cand-svg-map">
-                {/* Canton Polygons */}
-                <g className="cantons-layer">
-                  {SWISS_CANTONS.map((canton) => {
-                    const count = cantonCounts[canton.code] || 0;
-                    const isActive = activeCode === canton.code;
-                    const lvl = getCantonLevelClass(count);
+                <g
+                  className="cand-map-zoom-group"
+                  style={{
+                    transform: zoomTransform,
+                    transformOrigin: '0 0',
+                    transition: 'transform 0.55s cubic-bezier(0.16, 1, 0.3, 1)',
+                  }}
+                >
+                  {/* Canton Polygons */}
+                  <g className="cantons-layer">
+                    {SWISS_CANTONS.map((canton) => {
+                      const count = cantonCounts[canton.code] || 0;
+                      const isActive = activeCode === canton.code;
+                      const lvl = getCantonLevelClass(count);
 
-                    return (
-                      <path
-                        key={canton.code}
-                        d={canton.d}
-                        className={`cand-canton ${lvl} ${isActive ? 'active' : ''}`}
-                        onClick={() => {
-                          setActiveCityKey(null);
-                          setActiveCode(isActive ? null : canton.code);
-                        }}
-                      >
-                        <title>{canton.name} ({count} candidatures)</title>
-                      </path>
-                    );
-                  })}
-                </g>
-
-                {/* Canton Labels & Counts */}
-                <g className="canton-labels-layer">
-                  {SWISS_CANTONS.map((canton) => {
-                    const count = cantonCounts[canton.code] || 0;
-                    const cx = canton.centroid[0];
-                    const cy = canton.centroid[1];
-
-                    return (
-                      <g key={`lbl-${canton.code}`} pointerEvents="none">
-                        <text
-                          x={cx}
-                          y={cy - 5}
-                          className={`cand-ct-num ${count === 0 ? 'zero' : ''}`}
-                        >
-                          {count > 0 ? count : '·'}
-                        </text>
-                        <text
-                          x={cx}
-                          y={cy + 8}
-                          className="cand-ct-lbl"
-                        >
-                          {canton.code}
-                        </text>
-                      </g>
-                    );
-                  })}
-                </g>
-
-                {/* City Pins Layer */}
-                <g className="city-pins-layer">
-                  {cityPins.map((pin) => {
-                    const isCityActive = activeCityKey === pin.key;
-                    return (
-                      <g
-                        key={pin.key}
-                        className={`cand-city-pin ${isCityActive ? 'active' : ''}`}
-                        transform={`translate(${pin.x}, ${pin.y})`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActiveCode(pin.canton);
-                          setActiveCityKey(isCityActive ? null : pin.key);
-                        }}
-                        onMouseEnter={(e) => {
-                          const rect = e.currentTarget.getBoundingClientRect();
-                          setTooltip({
-                            visible: true,
-                            x: rect.left + rect.width / 2,
-                            y: rect.top - 8,
-                            text: `${pin.name} (${pin.count})`,
-                          });
-                        }}
-                        onMouseLeave={() => setTooltip((t) => ({ ...t, visible: false }))}
-                      >
+                      return (
                         <path
-                          className="cand-pin-shape"
-                          d="M0,0 C-5,-6 -8,-11 -8,-15 A8,8 0 1,1 8,-15 C8,-11 5,-6 0,0 Z"
-                          fill="#d4233a"
-                          stroke="#181c25"
-                          strokeWidth="1.5"
-                        />
-                        <text
-                          x="0"
-                          y="-13"
-                          fill="#ffffff"
-                          fontSize="9"
-                          fontWeight="700"
-                          textAnchor="middle"
-                          dominantBaseline="central"
-                          pointerEvents="none"
+                          key={canton.code}
+                          d={canton.d}
+                          className={`cand-canton ${lvl} ${isActive ? 'active' : ''}`}
+                          onClick={() => {
+                            setActiveCityKey(null);
+                            setActiveCode(isActive ? null : canton.code);
+                          }}
                         >
-                          {pin.count}
-                        </text>
-                      </g>
-                    );
-                  })}
+                          <title>{canton.name} ({count} candidatures)</title>
+                        </path>
+                      );
+                    })}
+                  </g>
+
+                  {/* Canton Labels & Counts */}
+                  <g className="canton-labels-layer">
+                    {SWISS_CANTONS.map((canton) => {
+                      const count = cantonCounts[canton.code] || 0;
+                      const cx = canton.centroid[0];
+                      const cy = canton.centroid[1];
+
+                      return (
+                        <g key={`lbl-${canton.code}`} pointerEvents="none">
+                          <text
+                            x={cx}
+                            y={cy - 5}
+                            className={`cand-ct-num ${count === 0 ? 'zero' : ''}`}
+                          >
+                            {count > 0 ? count : '·'}
+                          </text>
+                          <text
+                            x={cx}
+                            y={cy + 8}
+                            className="cand-ct-lbl"
+                          >
+                            {canton.code}
+                          </text>
+                        </g>
+                      );
+                    })}
+                  </g>
+
+                  {/* City Pins Layer */}
+                  <g className="city-pins-layer">
+                    {cityPins.map((pin) => {
+                      const isCityActive = activeCityKey === pin.key;
+                      return (
+                        <g
+                          key={pin.key}
+                          className={`cand-city-pin ${isCityActive ? 'active' : ''}`}
+                          transform={`translate(${pin.x}, ${pin.y})`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveCode(pin.canton);
+                            setActiveCityKey(isCityActive ? null : pin.key);
+                          }}
+                          onMouseEnter={(e) => {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            setTooltip({
+                              visible: true,
+                              x: rect.left + rect.width / 2,
+                              y: rect.top - 8,
+                              text: `${pin.name} (${pin.count})`,
+                            });
+                          }}
+                          onMouseLeave={() => setTooltip((t) => ({ ...t, visible: false }))}
+                        >
+                          <path
+                            className="cand-pin-shape"
+                            d="M0,0 C-5,-6 -8,-11 -8,-15 A8,8 0 1,1 8,-15 C8,-11 5,-6 0,0 Z"
+                            fill="#d4233a"
+                            stroke="#181c25"
+                            strokeWidth="1.5"
+                          />
+                          <text
+                            x="0"
+                            y="-13"
+                            fill="#ffffff"
+                            fontSize="9"
+                            fontWeight="700"
+                            textAnchor="middle"
+                            dominantBaseline="central"
+                            pointerEvents="none"
+                          >
+                            {pin.count}
+                          </text>
+                        </g>
+                      );
+                    })}
+                  </g>
                 </g>
               </svg>
 

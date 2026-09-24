@@ -11,6 +11,7 @@ import { ProfileView } from './components/Profile/ProfileView';
 import { ConnectionsView } from './components/Connections/ConnectionsView';
 import { AutomationView } from './components/Automation/AutomationView';
 import { DiagnosticView } from './components/Diagnostic/DiagnosticView';
+import { CandidaturesView } from './components/Candidatures/CandidaturesView';
 
 const CloudApp = React.lazy(() => import('./cloud/CloudApp'));
 const cloudEnabled = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY);
@@ -19,6 +20,7 @@ const NAV_ITEMS = [
   { id: 'dashboard', icon: 'spark', label: 'Vue d’ensemble' },
   { id: 'swipe', icon: 'heart', label: 'Swiper les offres' },
   { id: 'results', icon: 'briefcase', label: 'Mes offres' },
+  { id: 'candidatures', icon: 'map', label: 'Candidatures & Carte' },
   { id: 'profile', icon: 'building', label: 'Mon profil' },
   { id: 'search', icon: 'search', label: 'Recherche & Scan' },
   { id: 'diagnostic', icon: 'layers', label: 'Diagnostic' },
@@ -66,7 +68,121 @@ function App() {
 
   const flash = (msg) => {
     setNotice(msg);
-    setTimeout(() => setNotice(''), 4500);
+  };
+
+  // Auto-dismiss notices and errors
+  useEffect(() => {
+    if (!notice) return undefined;
+    const timer = window.setTimeout(() => setNotice(''), 4500);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
+
+  useEffect(() => {
+    if (!error) return undefined;
+    const timer = window.setTimeout(() => setError(''), 6000);
+    return () => window.clearTimeout(timer);
+  }, [error]);
+
+  const [candidatures, setCandidatures] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('sh_local_candidatures') || '[]');
+    } catch {
+      return [];
+    }
+  });
+  const [prefillCandidature, setPrefillCandidature] = useState(null);
+
+  const saveCandidature = (data) => {
+    const now = new Date();
+    const candId = data.id || `cand_${Date.now()}`;
+    const payload = {
+      ...data,
+      id: candId,
+      updated_at: now.toISOString(),
+    };
+    if (!data.id) {
+      payload.created_at = now.toISOString();
+      const day = String(now.getDate()).padStart(2, '0');
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const year = now.getFullYear();
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      payload.status_history = [{
+        date: `${day}/${month}/${year} ${hours}:${minutes}`,
+        status: data.status || 'Demande initiale',
+        text: `[${day}/${month}/${year} ${hours}:${minutes}] 🔄 Statut initial : ${data.status || 'Demande initiale'}`,
+      }];
+      payload.notes = [];
+    }
+    setCandidatures((prev) => {
+      const next = prev.some((c) => c.id === candId)
+        ? prev.map((c) => (c.id === candId ? { ...c, ...payload } : c))
+        : [payload, ...prev];
+      localStorage.setItem('sh_local_candidatures', JSON.stringify(next));
+      return next;
+    });
+    flash(data.id ? 'Candidature modifiée.' : 'Nouvelle candidature enregistrée.');
+  };
+
+  const updateCandidatureStatus = (candId, newStatus) => {
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, '0');
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const year = now.getFullYear();
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const timestamp = `[${day}/${month}/${year} ${hours}:${minutes}]`;
+    const autoNote = `${timestamp} 🔄 Statut passé à : ${newStatus}`;
+
+    setCandidatures((prev) => {
+      const next = prev.map((c) => {
+        if (c.id !== candId) return c;
+        const prevHistory = c.status_history || [];
+        const updatedHistory = [
+          ...prevHistory,
+          { date: `${day}/${month}/${year} ${hours}:${minutes}`, status: newStatus, text: autoNote },
+        ];
+        return {
+          ...c,
+          status: newStatus,
+          status_history: updatedHistory,
+          updated_at: now.toISOString(),
+        };
+      });
+      localStorage.setItem('sh_local_candidatures', JSON.stringify(next));
+      return next;
+    });
+    flash(`Statut mis à jour : ${newStatus}`);
+  };
+
+  const addCandidatureNote = (candId, note) => {
+    setCandidatures((prev) => {
+      const next = prev.map((c) => {
+        if (c.id !== candId) return c;
+        return {
+          ...c,
+          notes: [...(c.notes || []), note],
+          updated_at: new Date().toISOString(),
+        };
+      });
+      localStorage.setItem('sh_local_candidatures', JSON.stringify(next));
+      return next;
+    });
+    flash('Mémo Post-it épinglé.');
+  };
+
+  const deleteCandidature = (candId) => {
+    setCandidatures((prev) => {
+      const next = prev.filter((c) => c.id !== candId);
+      localStorage.setItem('sh_local_candidatures', JSON.stringify(next));
+      return next;
+    });
+    flash('Candidature supprimée.');
+  };
+
+  const handleTransferCandidature = (offer) => {
+    setPrefillCandidature(offer);
+    setPage('candidatures');
   };
 
   // Fetch full state for active profile
@@ -433,6 +549,7 @@ function App() {
                   onUndo={handleUndo}
                   onRequeue={handleRequeue}
                   onGoToPage={(p) => setPage(p)}
+                  onTransferCandidature={handleTransferCandidature}
                 />
               )}
 
@@ -444,6 +561,21 @@ function App() {
                   onDecide={handleDecide}
                   onRequeue={handleRequeue}
                   onCommand={handleCommand}
+                  onTransferCandidature={handleTransferCandidature}
+                />
+              )}
+
+              {page === 'candidatures' && (
+                <CandidaturesView
+                  candidatures={candidatures}
+                  profileId={profileId}
+                  busy={busy}
+                  onSaveCandidature={saveCandidature}
+                  onUpdateStatus={updateCandidatureStatus}
+                  onAddNote={addCandidatureNote}
+                  onDeleteCandidature={deleteCandidature}
+                  prefillFromOffer={prefillCandidature}
+                  onClearPrefill={() => setPrefillCandidature(null)}
                 />
               )}
 

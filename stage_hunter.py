@@ -38,6 +38,28 @@ VERSION='6.2.7'
 PRODUCT_NAME='Job Hunter'
 SUPPORTED_SEARCH_BACKENDS=('duckduckgo','yahoo','brave','google','startpage','mojeek')
 SEARCH_BACKEND_ALIASES={'bing':'yahoo'}
+EVENT_HOOK=None
+def safe_int(value, default=0):
+    """Safely parse an integer from string/float/int, falling back to default on empty string, None, or error."""
+    if value is None:return int(default) if default is not None else 0
+    if isinstance(value, int):return value
+    if isinstance(value, float):return int(value)
+    s = str(value).strip()
+    if not s:return int(default) if default is not None else 0
+    try:return int(s)
+    except (TypeError, ValueError):
+        try:return int(float(s))
+        except (TypeError, ValueError):return int(default) if default is not None else 0
+
+def safe_float(value, default=0.0):
+    """Safely parse a float from string/int/float, falling back to default on empty string, None, or error."""
+    if value is None:return float(default) if default is not None else 0.0
+    if isinstance(value, (int, float)):return float(value)
+    s = str(value).strip()
+    if not s:return float(default) if default is not None else 0.0
+    try:return float(s)
+    except (TypeError, ValueError):return float(default) if default is not None else 0.0
+
 RUN_STARTED=time.perf_counter();RUN_STARTED_AT=datetime.now(timezone.utc)
 SCAN_METRICS={'phases':{},'web':{},'fixed_sites':{},'recommendations':[]}
 RESUME_RUNTIME_KEYS=(
@@ -258,6 +280,9 @@ def elapsed_label(start=None):
     seconds=int(time.perf_counter()-(RUN_STARTED if start is None else start)); return f'{seconds//60:02d}:{seconds%60:02d}'
 def log_event(message,style=''):
     console.print(Text('['+elapsed_label()+']',style='dim'),Text(' '+str(message),style=style))
+    if EVENT_HOOK:
+        try:EVENT_HOOK(str(message),style)
+        except Exception:pass
 def short_text(value,limit=78):
     value=norm(value); return value if len(value)<=limit else value[:limit-1]+'…'
 def format_canton(code):
@@ -549,18 +574,18 @@ def load_scan_checkpoint(profile):
     return payload
 
 def scan_time_budget_seconds():
-    return max(0,int(os.getenv('SCAN_TIME_BUDGET_SECONDS','0') or 0))
+    return max(0,safe_int(os.getenv('SCAN_TIME_BUDGET_SECONDS'),0))
 
 def scan_budget_exhausted(reserve=None):
     budget=scan_time_budget_seconds()
     if not budget:return False
-    reserve=max(0,int(os.getenv('SCAN_DEADLINE_RESERVE_SECONDS','120') if reserve is None else reserve))
+    reserve=max(0,safe_int(os.getenv('SCAN_DEADLINE_RESERVE_SECONDS') if reserve is None else reserve,120))
     return time.perf_counter()-RUN_STARTED>=max(0,budget-reserve)
 
 def http_session():
     session=getattr(_HTTP_LOCAL,'session',None)
     if session is None:
-        session=requests.Session();retry_count=max(0,min(int(os.getenv('HTTP_RETRIES','1')),3));retries=Retry(total=retry_count,connect=retry_count,read=retry_count,backoff_factor=0.45,status_forcelist=[429,500,502,503,504],allowed_methods=frozenset(['GET']))
+        session=requests.Session();retry_count=max(0,min(safe_int(os.getenv('HTTP_RETRIES'),1),3));retries=Retry(total=retry_count,connect=retry_count,read=retry_count,backoff_factor=0.45,status_forcelist=[429,500,502,503,504],allowed_methods=frozenset(['GET']))
         adapter=HTTPAdapter(max_retries=retries,pool_connections=20,pool_maxsize=20)
         session.mount('https://',adapter);session.mount('http://',adapter);session.headers.update(HEADERS);_HTTP_LOCAL.session=session
     return session
@@ -571,8 +596,8 @@ def fetch(u):
         metadata['error']='URL refusée par le contrôle de sécurité';_HTTP_LOCAL.last_fetch_meta=metadata
         return '',u
     try:
-        max_bytes=max(250_000,min(int(os.getenv('MAX_RESPONSE_BYTES','5000000')),15_000_000))
-        with http_session().get(u,timeout=int(os.getenv('HTTP_TIMEOUT_SECONDS','14')),allow_redirects=True,stream=True) as r:
+        max_bytes=max(250_000,min(safe_int(os.getenv('MAX_RESPONSE_BYTES'),5000000),15_000_000))
+        with http_session().get(u,timeout=safe_int(os.getenv('HTTP_TIMEOUT_SECONDS'),14),allow_redirects=True,stream=True) as r:
             final_url=r.url
             metadata['http_status']=r.status_code
             if r.status_code>=400:
@@ -603,11 +628,11 @@ def page(u,fallback=''):
 def iter_parallel_pages(rows,label='HTTP'):
     """Yield downloaded pages in bounded batches to keep peak RAM predictable."""
     if not rows:return []
-    workers=max(1,min(int(os.getenv('SCRAPE_WORKERS','8')),12,len(rows)));results=[None]*len(rows);completed=0
+    workers=max(1,min(safe_int(os.getenv('SCRAPE_WORKERS'),8),12,len(rows)));results=[None]*len(rows);completed=0
     log_event(f'{label} — téléchargement parallèle de {len(rows)} page(s) avec {workers} worker(s).','cyan')
     def worker(item):
         row=item;clean_url=unwrap_url(row['url']);row['url']=clean_url;txt,html,final_url=page(clean_url,row.get('snippet',''));row['_fetch_meta']=dict(getattr(_HTTP_LOCAL,'last_fetch_meta',{'status':'unknown'}));return row,txt,html,final_url
-    batch_span=max(workers,min(int(os.getenv('MAX_IN_FLIGHT_PAGES',str(workers*2))),workers*4))
+    batch_span=max(workers,min(safe_int(os.getenv('MAX_IN_FLIGHT_PAGES'),workers*2),workers*4))
     for start in range(0,len(rows),batch_span):
         if scan_budget_exhausted():
             log_event(f'{label} — budget temps atteint : {len(rows)-completed} page(s) non lancée(s), finalisation du scan.','bold yellow')
@@ -748,11 +773,12 @@ def profile_search_components(profile):
 def build_search_queries(profile,emit_log=True):
     """Build a small, strict-budget search plan from the person's profile."""
     search_cfg=profile.get('search') or {};sources_cfg=profile.get('sources') or {}
-    configured_budget=search_cfg.get('query_budget',search_cfg.get('auto_query_limit',24))
-    budget=max(4,min(int(os.getenv('SEARCH_QUERY_BUDGET',os.getenv('AUTO_QUERY_LIMIT',str(configured_budget)))),300))
+    configured_budget=search_cfg.get('query_budget') or search_cfg.get('auto_query_limit') or 24
+    raw_budget=os.getenv('SEARCH_QUERY_BUDGET') or os.getenv('AUTO_QUERY_LIMIT') or configured_budget
+    budget=max(4,min(safe_int(raw_budget,24),300))
     components=profile_search_components(profile)
     intents=components['intents'];roles=components['roles'];themes=components['themes'];countries=components['countries'] or ['']
-    role_pair_limit=max(1,min(int(os.getenv('SEARCH_ROLE_PAIR_LIMIT','3')),8))
+    role_pair_limit=max(1,min(safe_int(os.getenv('SEARCH_ROLE_PAIR_LIMIT'),3),8))
     expand_intents=str(os.getenv('SEARCH_INTENT_EXPANSION','0')).strip().lower() in ('1','true','yes','on')
 
     manual=[]
@@ -802,7 +828,7 @@ def build_search_queries(profile,emit_log=True):
 
     domains=list(dict.fromkeys(profile.get('_source_pack_domains',[]) or []))
     source_queries=[];source_anchors=roles+themes or ['']
-    source_queries_per_domain=max(1,min(int(os.getenv('SEARCH_SOURCE_QUERIES_PER_DOMAIN','1')),4))
+    source_queries_per_domain=max(1,min(safe_int(os.getenv('SEARCH_SOURCE_QUERIES_PER_DOMAIN'),1),4))
     for index,domain in enumerate(domains):
         source_country=countries[index%len(countries)] if countries else ''
         country_words=_country_words(source_country)
@@ -926,7 +952,7 @@ def _debug_page_record(row,text_value,html_value,final_url,profile):
     else:
         company=structured.get('company') or guess_company(effective_title,effective_text,target_url)
         estimated_score,confidence,reasons=score(effective_title,effective_text,meta,page_type,profile,target_url,company,structured)
-        threshold=float(os.getenv('MIN_OPPORTUNITY_SCORE','30'));decision='RETENUE' if estimated_score>=threshold else 'REJETÉE'
+        threshold=safe_float(os.getenv('MIN_OPPORTUNITY_SCORE'),30.0);decision='RETENUE' if estimated_score>=threshold else 'REJETÉE'
         decision_reason=('Score simulé suffisant' if decision=='RETENUE' else f'Score simulé sous le seuil {threshold:g}')
     record={
         'title':effective_title,'url':target_url,'domain':dom(target_url),
@@ -944,14 +970,14 @@ def debug_web_search(profile,query,backends=None,limit=5,timeout=7,inspect_pages
     backends=backends or ['duckduckgo','yahoo']
     report={
         'version':VERSION,'generated_at':datetime.now(timezone.utc).isoformat(),'query':query,
-        'region':region,'limit_per_backend':int(limit),'timeout_seconds':int(timeout),
+        'region':region,'limit_per_backend':safe_int(limit,5),'timeout_seconds':safe_int(timeout,7),
         'requested_engines':requested_backends,'ignored_engines':ignored_backends,
         'migrated_engines':[{'from':before,'to':after} for before,after in migrated_backends],
         'engines':[],'results':[],'page_checks':[],'listing_leads':[],'listing_page_checks':[],
     }
     seen=set()
     for backend in backends:
-        results,trace=search_backend_once(query,backend,int(limit),region,int(timeout));valid=0;new_unique=0
+        results,trace=search_backend_once(query,backend,safe_int(limit,5),region,safe_int(timeout,7));valid=0;new_unique=0
         for rank,item in enumerate(results,start=1):
             raw_url=norm(item.get('href') or item.get('url'));canonical=canon(raw_url) if raw_url else ''
             independent_status=search_result_filter_status(raw_url,canonical)
@@ -969,7 +995,7 @@ def debug_web_search(profile,query,backends=None,limit=5,timeout=7,inspect_pages
     if inspect_pages:
         candidates=[]
         for item in report['results']:
-            if item['filter_status']=='URL exploitable' and len(candidates)<max(1,int(max_page_checks)):
+            if item['filter_status']=='URL exploitable' and len(candidates)<max(1,safe_int(max_page_checks,6)):
                 candidates.append({'url':item['canonical_url'],'title':item['title'],'snippet':item['snippet'],'source':item['domain'],'origin':'web_debug'})
         listing_detail_pool=[];listing_seen=set();report_lead_seen=set();listing_leads_raw=0
         for row,text_value,html_value,final_url in iter_parallel_pages(candidates,'TEST WEB PAGES'):
@@ -999,7 +1025,7 @@ def debug_web_search(profile,query,backends=None,limit=5,timeout=7,inspect_pages
             listing_detail_pool,
             key=lambda item:(bool(offer_url_signal(item.get('url',''))),item.get('_lead_priority',0)),
             reverse=True,
-        )[:max(0,int(max_listing_page_checks))]
+        )[:max(0,safe_int(max_listing_page_checks,4))]
         if listing_detail_candidates:
             for row,text_value,html_value,final_url in iter_parallel_pages(listing_detail_candidates,'TEST WEB OFFRES'):
                 record,_=_debug_page_record(row,text_value,html_value,final_url,profile)
@@ -1026,9 +1052,9 @@ def search_web(qs,limit,c=None):
     fallback, not a reason to wait twelve seconds for dozens of empty queries.
     """
     qs=rank_search_queries(c,list(qs));out=[];seen=set();empty=[];failed=[];total=len(qs);executed=0;productive=0
-    workers=max(1,min(int(os.getenv('SEARCH_WORKERS','4')),8,total or 1))
-    retries=max(0,min(int(os.getenv('SEARCH_RETRIES','1')),4))
-    backoff=max(0.1,float(os.getenv('SEARCH_RETRY_BACKOFF','1.0')))
+    workers=max(1,min(safe_int(os.getenv('SEARCH_WORKERS'),4),8,total or 1))
+    retries=max(0,min(safe_int(os.getenv('SEARCH_RETRIES'),1),4))
+    backoff=max(0.1,safe_float(os.getenv('SEARCH_RETRY_BACKOFF'),1.0))
     backends,ignored_backends,migrated_backends,legacy_upgrade=configured_search_backends()
     if legacy_upgrade:log_event('WEB — ancien réglage par défaut DuckDuckGo/Brave remplacé par DuckDuckGo/Yahoo après diagnostic.','yellow')
     if ignored_backends:log_event('WEB — moteur(s) DDGS ignoré(s) car non pris en charge : '+', '.join(ignored_backends)+'.','yellow')
@@ -1036,11 +1062,11 @@ def search_web(qs,limit,c=None):
     profile_retry_empty=bool((ACTIVE_PROFILE.get('search') or {}).get('retry_empty_results',False))
     retry_empty=str(os.getenv('WEB_RETRY_EMPTY_RESULTS','1' if profile_retry_empty else '0')).strip().lower() in ('1','true','yes','on')
     disable_circuit=str(os.getenv('WEB_DISABLE_CIRCUIT_BREAKER','0')).strip().lower() in ('1','true','yes','on')
-    search_region=preferred_search_region(ACTIVE_PROFILE);search_timeout=max(5,int(os.getenv('SEARCH_TIMEOUT_SECONDS','14')))
-    delay_min=float(os.getenv('SEARCH_DELAY_MIN','0.15'));delay_max=float(os.getenv('SEARCH_DELAY_MAX','0.35'))
+    search_region=preferred_search_region(ACTIVE_PROFILE);search_timeout=max(5,safe_int(os.getenv('SEARCH_TIMEOUT_SECONDS'),14))
+    delay_min=safe_float(os.getenv('SEARCH_DELAY_MIN'),0.15);delay_max=safe_float(os.getenv('SEARCH_DELAY_MAX'),0.35)
     delay_low=max(0.0,min(delay_min,delay_max));delay_high=max(0.0,max(delay_min,delay_max))
-    probe_size=min(total,max(workers,int(os.getenv('WEB_PROBE_QUERIES',str(workers*2)))))
-    minimum_productivity=max(0.0,min(float(os.getenv('WEB_MIN_PRODUCTIVITY','0.04')),1.0))
+    probe_size=min(total,max(workers,safe_int(os.getenv('WEB_PROBE_QUERIES'),workers*2)))
+    minimum_productivity=max(0.0,min(safe_float(os.getenv('WEB_MIN_PRODUCTIVITY'),0.04),1.0))
     circuit_label='désactivé' if disable_circuit else f'sous {minimum_productivity*100:.0f}% de rendement'
     log_event(f'WEB ADAPTATIF — jusqu’à {total} requêtes · {workers} worker(s) · sonde initiale {probe_size} · coupe-circuit {circuit_label}.','bold cyan')
 
@@ -1103,7 +1129,7 @@ def search_web(qs,limit,c=None):
     if first:run_batch(first,1)
     probe_ratio=productive/max(1,executed)
     probe_links=len(out)
-    circuit_open=(not disable_circuit) and executed<total and probe_ratio<minimum_productivity and probe_links<int(os.getenv('WEB_MIN_PROBE_LINKS','5'))
+    circuit_open=(not disable_circuit) and executed<total and probe_ratio<minimum_productivity and probe_links<safe_int(os.getenv('WEB_MIN_PROBE_LINKS'),5)
     deadline_reached=False
     if circuit_open:
         skipped=total-executed
@@ -1407,7 +1433,7 @@ def listing_lead_is_noise(url,title=''):
 def discover_listing_leads(u,html):
     """Extract individual job cards from a listing, including title-only leads."""
     if not html:return []
-    soup=BeautifulSoup(html,'html.parser');max_leads=int(os.getenv('MAX_LISTING_DETAILS','40'));leads=[];seen_titles={};seen_urls=set()
+    soup=BeautifulSoup(html,'html.parser');max_leads=safe_int(os.getenv('MAX_LISTING_DETAILS'),40);leads=[];seen_titles={};seen_urls=set()
     def add(title,href='',company='',location=''):
         title=norm(title)
         if not looks_like_job_title(title):return
@@ -1546,7 +1572,7 @@ def targeted_fixed_urls(profile):
 def fixed_site_candidates(profile,c=None):
     """Visit selected listing pages directly, without relying on a search index."""
     urls=targeted_fixed_urls(profile)
-    max_sites=max(0,min(int(os.getenv('FIXED_SITE_LIMIT',str(len(urls) or 0))),30))
+    max_sites=max(0,min(safe_int(os.getenv('FIXED_SITE_LIMIT'),len(urls) or 0),30))
     urls=rank_fixed_urls(c,urls)[:max_sites]
     if not urls:
         log_event('SITES FIXES — aucune page configurée pour ce profil.','dim');return []
@@ -1810,17 +1836,17 @@ def score(title,text,meta,ptype,profile,url='',company='',structured=None):
     if supported:
         sc+=5;reasons.append('Langue obligatoire acceptée: '+', '.join(LANGUAGE_LABELS[x] for x in sorted(supported)));conf+=7
     if unsupported:
-        german_penalty=int(german_cfg.get('mandatory_penalty',45)) if 'de' in unsupported else 20
+        german_penalty=safe_int(german_cfg.get('mandatory_penalty'),45) if 'de' in unsupported else 20
         sc-=german_penalty;reasons.append('Langue obligatoire hors profil: '+', '.join(LANGUAGE_LABELS[x] for x in sorted(unsupported))+f' (−{german_penalty})');conf+=8
     if 'de' in preferred:
-        penalty=int(german_cfg.get('preferred_penalty',10));sc-=penalty
+        penalty=safe_int(german_cfg.get('preferred_penalty'),10);sc-=penalty
         reasons.append(f'Allemand apprécié, non obligatoire (−{penalty})')
     elif preferred:
         reasons.append('Langue appréciée: '+', '.join(LANGUAGE_LABELS[x] for x in sorted(preferred)))
     elif not mandatory:
         conf-=4;reasons.append('Exigences linguistiques non extraites')
 
-    min_weeks=max(0,int(student.get('min_weeks',0) or 0))
+    min_weeks=max(0,safe_int(student.get('min_weeks'),0))
     duration_min,duration_max,duration_label=duration_bounds_weeks(text)
     if duration_min is not None:
         if duration_min>=min_weeks:
@@ -1959,7 +1985,7 @@ def application_availability(title,text,html='',job_data=None):
     posted=job_data.get('date_posted','');posted_age=None
     if posted:
         try:
-            posted_date=date.fromisoformat(posted[:10]); max_age=int(os.getenv('MAX_JOB_AGE_DAYS','90'))
+            posted_date=date.fromisoformat(posted[:10]); max_age=safe_int(os.getenv('MAX_JOB_AGE_DAYS'),90)
             posted_age=(datetime.now(timezone.utc).date()-posted_date).days
         except Exception:pass
     if job_data.get('title') and job_data.get('description'):
@@ -1969,7 +1995,7 @@ def application_availability(title,text,html='',job_data=None):
         apply_words=re.compile(r'\b(apply(?: now)?|postuler|bewerben|candidater|send application)\b',re.I)
         for element in soup.find_all(['a','button'],limit=250):
             if apply_words.search(norm(element.get_text(' ',strip=True))):return 'open','Bouton de candidature détecté',86
-    if posted_age is not None and posted_age>int(os.getenv('MAX_JOB_AGE_DAYS','90')):
+    if posted_age is not None and posted_age>safe_int(os.getenv('MAX_JOB_AGE_DAYS'),90):
         return 'unknown',f'Annonce ancienne ({posted_age} jours), disponibilité à vérifier',35
     if stale_months and int(stale_months.group(1))>=3:
         return 'unknown',f'Annonce ancienne ({stale_months.group(1)} mois), disponibilité à vérifier',35
@@ -2092,7 +2118,7 @@ def remember_status(c,url,title,source,status,reason):
 def diagnostic_profile_summary(profile):
     student=profile.get('student') or {};location=profile.get('location') or {}
     return {
-        'min_weeks':int(student.get('min_weeks',20)),
+        'min_weeks':safe_int(student.get('min_weeks'),20),
         'start_date':str(student.get('start_date','')),
         'end_date':str(student.get('end_date','')),
         'acceptable_language':[str(x) for x in location.get('acceptable_language',['fr','en'])],
@@ -2191,8 +2217,8 @@ def ingest(c,rows,profile):
                 'decision_file':DECISION_AUDIT_PATH.name,'scoring_text_limit':30000}
     DECISION_AUDIT_PATH.with_suffix('.meta.json').write_text(json.dumps(audit_meta,ensure_ascii=False,indent=2,default=str),encoding='utf-8')
     ingest_started=time.perf_counter();inserted=0;closed_count=0;expanded=[];listing_leads=[];retained_examples=[];rejected_examples=[]
-    listing_leads_total=0;listing_leads_cap=max(500,min(int(os.getenv('MAX_DIAGNOSTIC_LISTING_LEADS','5000')),20_000))
-    detail_cap=max(100,min(int(os.getenv('MAX_TOTAL_DETAIL_PAGES','1200')),10_000))
+    listing_leads_total=0;listing_leads_cap=max(500,min(safe_int(os.getenv('MAX_DIAGNOSTIC_LISTING_LEADS'),5000),20_000))
+    detail_cap=max(100,min(safe_int(os.getenv('MAX_TOTAL_DETAIL_PAGES'),1200),10_000))
     detail_downloads=0
     def remember_listing_leads(leads):
         nonlocal listing_leads_total
@@ -2327,9 +2353,9 @@ def ingest(c,rows,profile):
     # Some portals expose category pages before the actual job cards. Follow
     # those intermediate listings in bounded breadth-first rounds, prioritize
     # titles matching the profile, and fetch every selected detail in parallel.
-    crawl_depth=max(0,min(int(os.getenv('LISTING_CRAWL_DEPTH','2')),3))
-    recursive_cap=max(0,min(int(os.getenv('MAX_RECURSIVE_LEADS','160')),500))
-    per_listing_cap=max(5,min(int(os.getenv('MAX_LEADS_PER_SUBLISTING','24')),80))
+    crawl_depth=max(0,min(safe_int(os.getenv('LISTING_CRAWL_DEPTH'),2),3))
+    recursive_cap=max(0,min(safe_int(os.getenv('MAX_RECURSIVE_LEADS'),160),500))
+    per_listing_cap=max(5,min(safe_int(os.getenv('MAX_LEADS_PER_SUBLISTING'),24),80))
     minimum_lead_priority=float(os.getenv('MIN_LISTING_LEAD_PRIORITY','4'))
     known_urls=set(batch_seen)|{candidate_identity(row.get('url','')) for row in expanded}
     crawled_total=0
@@ -2562,7 +2588,7 @@ def ingest(c,rows,profile):
 
 def revalidate_existing_offers(c,profile,limit=None):
     """Recheck active rows, remove listings and recalculate their current score."""
-    limit=limit or int(os.getenv('RECHECK_MAX_OFFERS','100'))
+    limit=limit or safe_int(os.getenv('RECHECK_MAX_OFFERS'),100)
     rows=c.execute("SELECT id,url,title,company,body,score FROM offers WHERE status='new' ORDER BY score DESC LIMIT ?",(limit,)).fetchall()
     if not rows:return 0
     log_event(f'RECONTRÔLE — vérification des {len(rows)} meilleures offres déjà présentes.','bold yellow')
@@ -3003,7 +3029,7 @@ def looks_like_job_link(u,label='',subject=''):
     return any(x in host for x in known) or path_signal or label_signal
 
 def gmail_candidates(gmail):
-    days=os.getenv('GMAIL_LOOKBACK_DAYS','120'); mx=int(os.getenv('GMAIL_MAX_MESSAGES','150')); per_message=int(os.getenv('GMAIL_MAX_LINKS_PER_MESSAGE','12')); excluded_labels=[x.strip() for x in os.getenv('GMAIL_EXCLUDED_LABELS','STAGE').split(',') if x.strip()]; label_filter=' '.join('-label:'+x.replace(' ','-') for x in excluded_labels); q=f'(intern OR internship OR stage OR stagiaire OR praktikum) newer_than:{days}d {label_filter}'.strip(); log_event(f'GMAIL — recherche des messages, libellé(s) exclu(s) : {", ".join(excluded_labels) or "aucun"}.','bold blue'); msgs=gmail.users().messages().list(userId='me',q=q,maxResults=mx).execute().get('messages',[]); out=[]; seen=set(); rejected=0; confirmations=0
+    days=os.getenv('GMAIL_LOOKBACK_DAYS','120'); mx=safe_int(os.getenv('GMAIL_MAX_MESSAGES'),150); per_message=safe_int(os.getenv('GMAIL_MAX_LINKS_PER_MESSAGE'),12); excluded_labels=[x.strip() for x in os.getenv('GMAIL_EXCLUDED_LABELS','STAGE').split(',') if x.strip()]; label_filter=' '.join('-label:'+x.replace(' ','-') for x in excluded_labels); q=f'(intern OR internship OR stage OR stagiaire OR praktikum) newer_than:{days}d {label_filter}'.strip(); log_event(f'GMAIL — recherche des messages, libellé(s) exclu(s) : {", ".join(excluded_labels) or "aucun"}.','bold blue'); msgs=gmail.users().messages().list(userId='me',q=q,maxResults=mx).execute().get('messages',[]); out=[]; seen=set(); rejected=0; confirmations=0
     log_event(f'GMAIL — {len(msgs)} message(s) à lire.','blue')
     def walk(payload):
         mime=payload.get('mimeType',''); data=payload.get('body',{}).get('data'); chunks=[]
@@ -3080,17 +3106,21 @@ def log_scan_configuration(profile,sheets_enabled=False,gmail_enabled=False):
         values=items(value);return ', '.join(values) if values else empty
     def yes(value):return 'oui' if bool(value) else 'non'
     def env_int(name,default,minimum=None,maximum=None):
-        try:value=int(os.getenv(name,str(default)))
-        except (TypeError,ValueError):value=int(default)
-        if minimum is not None:value=max(minimum,value)
-        if maximum is not None:value=min(maximum,value)
-        return value
+        raw=os.getenv(name)
+        val=safe_int(raw,safe_int(default,0)) if raw is not None and str(raw).strip() else safe_int(default,0)
+        if minimum is not None:val=max(minimum,val)
+        if maximum is not None:val=min(maximum,val)
+        return val
     def env_float(name,default,minimum=None,maximum=None):
-        try:value=float(os.getenv(name,str(default)))
-        except (TypeError,ValueError):value=float(default)
-        if minimum is not None:value=max(minimum,value)
-        if maximum is not None:value=min(maximum,value)
-        return value
+        try:
+            raw=os.getenv(name)
+            val=float(raw) if raw is not None and str(raw).strip() else float(default)
+        except (TypeError,ValueError):
+            try:val=float(default)
+            except (TypeError,ValueError):val=0.0
+        if minimum is not None:val=max(minimum,val)
+        if maximum is not None:val=min(maximum,val)
+        return val
 
     components=profile_search_components(profile)
     queries=build_search_queries(profile,emit_log=False)
@@ -3217,14 +3247,14 @@ def main():
         log_event(f'NETTOYAGE — {purged} ligne(s) fermée(s)/traitée(s) retirée(s) de {opp}.','yellow' if purged else 'green')
     if getattr(a,'resume',False):
         checkpoint=resume_checkpoint
-        candidates=checkpoint['candidates'];direct_count=int(checkpoint.get('direct_count',0));web_count=int(checkpoint.get('web_count',0))
+        candidates=checkpoint['candidates'];direct_count=safe_int(checkpoint.get('direct_count'),0);web_count=safe_int(checkpoint.get('web_count'),0)
         log_event(f'REPRISE — {len(candidates)} candidat(s) chargés du {checkpoint.get("created_at","checkpoint")}; les offres déjà enregistrées seront ignorées.','bold cyan')
     else:
         # Productive direct listings run first. Web engines then provide a bounded
         # discovery fallback and can stop after their probe when they are empty.
         phase=time.perf_counter();candidates=fixed_site_candidates(p,c);SCAN_METRICS['phases']['direct_discovery_seconds']=round(time.perf_counter()-phase,2)
         direct_count=len(candidates);log_event(f'SOURCES DIRECTES — {direct_count} candidat(s) brut(s).','cyan')
-        phase=time.perf_counter();web_candidates=search_web(build_search_queries(p),int(os.getenv('SEARCH_RESULTS_PER_QUERY','8')),c);SCAN_METRICS['phases']['web_search_seconds']=round(time.perf_counter()-phase,2)
+        phase=time.perf_counter();web_candidates=search_web(build_search_queries(p),safe_int(os.getenv('SEARCH_RESULTS_PER_QUERY'),8),c);SCAN_METRICS['phases']['web_search_seconds']=round(time.perf_counter()-phase,2)
         web_count=len(web_candidates);candidates+=web_candidates;log_event(f'WEB — {web_count} candidat(s) brut(s) ajoutés en complément.','cyan')
         if gmail_enabled:candidates+=gmail_candidates(gm)
         else:log_event('GMAIL — désactivé pour ce profil.','dim')

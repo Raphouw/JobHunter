@@ -34,7 +34,9 @@ class handler(BaseHTTPRequestHandler):
         authorization = self.headers.get("Authorization", "")
         cron_secret = os.getenv("CRON_SECRET", "")
         is_cron = bool(cron_secret and authorization == f"Bearer {cron_secret}")
-        body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length", "0")), 2048)) or b"{}")
+        raw_len = (self.headers.get("Content-Length") or "").strip()
+        read_len = min(int(raw_len), 2048) if raw_len.isdigit() else 2048
+        body = json.loads(self.rfile.read(read_len) or b"{}")
         job_id = body.get("job_id")
         if job_id and not __import__("re").fullmatch(r"[0-9a-fA-F-]{36}", str(job_id)):
             self.respond(400, {"error": "Identifiant de scan invalide"})
@@ -64,5 +66,7 @@ class handler(BaseHTTPRequestHandler):
             result = run_slice(job_id)
             self.respond(200, result)
         except Exception as error:
+            import traceback
+            traceback.print_exc()
             print(f"Scan slice failed: {type(error).__name__}: {str(error)[:220]}")
-            self.respond(502, {"error": "Étape du scan interrompue ; la reprise pourra réessayer."})
+            self.respond(502, {"error": f"Étape du scan interrompue: {type(error).__name__}: {str(error)}"})

@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Icon } from '../components/Common/Icons';
+import { ColoredTerminal } from '../components/Common/ColoredTerminal';
+import { LiveActivityTicker } from '../components/Search/LiveActivityTicker';
 
 const SCAN_PHASES = {
   discover: 'Recherche des candidats',
@@ -15,62 +17,342 @@ const SCAN_STATUSES = {
   cancelled: 'Annulé',
 };
 
-const SCAN_MODES = [
-  ['Rapide', '24 requêtes · 8 sites'],
-  ['Complet', '45 requêtes · 16 sites'],
-  ['Maximum', '70 requêtes · 25 sites'],
-  ['Exhaustif 1h', '240 requêtes · 30 sites'],
-];
+const MODE_DESCRIPTIONS = {
+  Rapide: {
+    label: 'Rapide (2-5 min)',
+    desc: 'Un aperçu rapide avec 24 requêtes et 8 sites fixés. Idéal pour un contrôle quotidien.',
+    badge: 'Express',
+    seconds: 180,
+  },
+  Complet: {
+    label: 'Complet (10-15 min)',
+    desc: 'Le meilleur équilibre avec 45 requêtes, exploration récursive et vérification de disponibilité.',
+    badge: 'Recommandé',
+    seconds: 600,
+  },
+  Maximum: {
+    label: 'Maximum (25-35 min)',
+    desc: 'Exploration large avec 70 requêtes, 25 sites fixés et 8 workers en parallèle.',
+    badge: 'Intensif',
+    seconds: 1500,
+  },
+  'Exhaustif 1h': {
+    label: 'Exhaustif 1h',
+    desc: 'Scan complet de 60 minutes sans coupe-circuit. Explore les pistes les plus profondes.',
+    badge: 'Profondeur max',
+    seconds: 3600,
+  },
+};
 
-export function CloudSearchView({ scanJobs, scanEvents, workerReady, onRun, onCancel, onRefresh, busy }) {
-  const [mode, setMode] = useState('Rapide');
+function formatDuration(totalSeconds = 0) {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  const hrs = Math.floor(s / 3600);
+  const mins = Math.floor((s % 3600) / 60);
+  const secs = s % 60;
+  if (hrs > 0) {
+    return `${hrs}h ${mins.toString().padStart(2, '0')}m ${secs.toString().padStart(2, '0')}s`;
+  }
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+}
+
+export function CloudSearchView({ scanJobs = [], scanEvents = [], workerReady = false, onRun, onCancel, onRefresh, busy = false }) {
+  const [mode, setMode] = useState('Complet');
+  const [elapsed, setElapsed] = useState(0);
+  const [autoScroll, setAutoScroll] = useState(true);
+  const terminalRef = useRef(null);
+
   const active = scanJobs.find((job) => ['queued', 'running'].includes(job.status));
-  return <div className="sh-view">
-    <div className="sh-view-header"><div>
-      <span className="sh-eyebrow">RECHERCHE & SCAN</span>
-      <h1>Scans du profil</h1>
-      <p>Les étapes du scan sont enregistrées dans Supabase pour pouvoir reprendre après chaque appel du worker.</p>
-    </div></div>
-    <section className="sh-form-section">
-      <div className="sh-section-header"><div><h2>Lancer un scan</h2>
-        <p>Un seul scan actif par profil. Les quatre niveaux réutilisent le moteur de scoring Python.</p>
-      </div></div>
-      <div className="sh-form-save-bar">
-        <select aria-label="Puissance du scan" value={mode} onChange={(event) => setMode(event.target.value)}>
-          {SCAN_MODES.map(([value, description]) => <option value={value} key={value}>{value} — {description}</option>)}
-        </select>
-        <button type="button" className="sh-btn-primary" disabled={!workerReady || busy || !!active}
-          onClick={() => onRun(mode)}>Lancer le scan</button>
-        {active && <button type="button" className="sh-btn-secondary" disabled={busy || active.cancel_requested}
-          onClick={() => onCancel(active.id)}>{active.cancel_requested ? 'Annulation demandée' : 'Annuler le scan'}</button>}
+  const latestJob = scanJobs[0];
+  const isRunning = !!active;
+
+  // 1-second client timer for active scan
+  useEffect(() => {
+    if (!active) {
+      setElapsed(0);
+      return undefined;
+    }
+    const startEpoch = active.created_at ? new Date(active.created_at).getTime() : Date.now();
+    const tick = () => {
+      setElapsed(Math.max(0, Math.floor((Date.now() - startEpoch) / 1000)));
+    };
+    tick();
+    const timer = window.setInterval(tick, 1000);
+    return () => window.clearInterval(timer);
+  }, [active?.id, active?.created_at]);
+
+  // Expected duration & progress calculation
+  const currentMode = active ? active.mode : mode;
+  const expectedSec = MODE_DESCRIPTIONS[currentMode]?.seconds || 600;
+  const progressPercent = active
+    ? (active.progress_percent !== undefined && active.progress_percent !== null
+        ? Math.max(6, Math.min(99, active.progress_percent))
+        : Math.min(96, Math.max(6, Math.round((elapsed / expectedSec) * 100))))
+    : latestJob?.status === 'completed'
+    ? 100
+    : 0;
+
+  const etaRemainingSec = Math.max(0, Math.round(expectedSec * (1 - (progressPercent / 100))));
+
+  // Format scan events for ColoredTerminal
+  const terminalLines = useMemo(() => {
+    return (scanEvents || []).map((e) => {
+      const d = e.created_at ? new Date(e.created_at) : new Date();
+      const timeStr = `[${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}]`;
+      return `${timeStr} ${e.message}`;
+    });
+  }, [scanEvents]);
+
+  // Auto-scroll terminal
+  useEffect(() => {
+    if (autoScroll && terminalRef.current) {
+      terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
+    }
+  }, [terminalLines, autoScroll]);
+
+  const handleDownloadLog = () => {
+    const text = terminalLines.join('\n') || (latestJob ? `Scan ${latestJob.id}\nStatus: ${latestJob.status}` : 'Aucun log');
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `scan_${active?.id || latestJob?.id || 'log'}.log`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const lastEvent = scanEvents && scanEvents.length > 0 ? scanEvents[scanEvents.length - 1] : null;
+  const tickerScan = {
+    running: isRunning,
+    current_action: {
+      text: lastEvent ? lastEvent.message : (isRunning ? `Phase : ${SCAN_PHASES[active?.phase] || active?.phase}...` : 'Moteur prêt pour le prochain scan'),
+      type: active?.phase === 'discover' ? 'search' : active?.phase === 'analyze' ? 'analyze' : 'spark',
+      timestamp: lastEvent?.created_at ? new Date(lastEvent.created_at).toLocaleTimeString('fr-FR') : '',
+    }
+  };
+
+  return (
+    <div className="sh-view search-view">
+      <div className="sh-view-header">
+        <div>
+          <span className="sh-eyebrow">MOTEUR DE RECHERCHE</span>
+          <h1>Exploration & Télémétrie en direct</h1>
+          <p>
+            Lance l'exploration des plateformes carrières avec suivi de progression en temps réel,
+            estimation du temps restant et console en direct.
+          </p>
+        </div>
       </div>
-      {!workerReady && <p>Le worker Python sera activé après l’ajout des secrets serveur et un essai de reprise.</p>}
-      {active && <p>En cours : {active.mode} · {SCAN_PHASES[active.phase] || active.phase} · {active.progress_percent}%</p>}
-    </section>
-    <section className="sh-form-section">
-      <div className="sh-section-header"><div><h2>Historique</h2><p>Scans associés au profil sélectionné.</p></div>
-        <button type="button" className="sh-btn-secondary" onClick={onRefresh} disabled={busy}>
-          <Icon name="refresh" size={15} /> Actualiser
-        </button>
-      </div>
-      {scanJobs.length ? <div className="cloud-result-list">{scanJobs.map((job) =>
-        <div className="cloud-result-row" key={job.id}>
-          <strong>{job.mode}{job.summary?.origin === 'local_import' ? ' · Import local' : ''}</strong>
-          <span>{SCAN_STATUSES[job.status] || job.status} · {SCAN_PHASES[job.phase] || job.phase}
-            {' · '}{job.progress_percent}% · {new Date(job.created_at).toLocaleString('fr-FR')}</span>
-          {job.error_message && <small>{job.error_message}</small>}
-        </div>)}</div> : <div className="sh-empty-state"><Icon name="search" size={30} />
-        <h3>Aucun scan web pour ce profil</h3>
-        <p>Les résultats actuels proviennent de tes tests locaux.</p></div>}
-    </section>
-    {scanEvents.length > 0 && <section className="sh-form-section">
-      <div className="sh-section-header"><div><h2>Derniers événements</h2>
-        <p>Décisions et progression du dernier scan.</p></div></div>
-      <div className="cloud-result-list">{scanEvents.map((event) => <div className="cloud-result-row" key={event.id}>
-        <small>{new Date(event.created_at).toLocaleString('fr-FR')}</small><span>{event.message}</span>
-      </div>)}</div>
-    </section>}
-  </div>;
+
+      {/* Mode Selection Grid */}
+      <section className="sh-search-section">
+        <div className="sh-section-header">
+          <div>
+            <h2>1. Choisis la puissance du scan</h2>
+            <p>Sélectionne la durée et le nombre de sources explorées.</p>
+          </div>
+        </div>
+
+        <div className="sh-mode-grid">
+          {Object.entries(MODE_DESCRIPTIONS).map(([key, meta]) => {
+            const isSelected = mode === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                className={`sh-mode-card ${isSelected ? 'selected' : ''}`}
+                onClick={() => setMode(key)}
+                disabled={isRunning}
+              >
+                <div className="sh-mode-top">
+                  <strong>{meta.label}</strong>
+                  {meta.badge && <span className={`sh-mode-badge ${meta.badge.toLowerCase().replace(/\s+/g, '-')}`}>{meta.badge}</span>}
+                </div>
+                <p>{meta.desc}</p>
+                <div className="sh-mode-radio">
+                  <span className={`sh-radio-dot ${isSelected ? 'checked' : ''}`} />
+                  <span>{isSelected ? 'Sélectionné' : 'Choisir'}</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Scan Action Bar */}
+        <div className="sh-scan-launch-bar">
+          <button
+            type="button"
+            className={`sh-btn-launch ${isRunning ? 'running' : ''}`}
+            onClick={() => onRun(mode)}
+            disabled={!workerReady || busy || isRunning}
+          >
+            {isRunning ? (
+              <>
+                <span className="sh-spinner" />
+                <span>Scan en cours d'exécution ({active.mode})...</span>
+              </>
+            ) : (
+              <>
+                <Icon name="play" size={18} />
+                <span>Lancer le scan ({mode})</span>
+              </>
+            )}
+          </button>
+
+          {active && (
+            <button
+              type="button"
+              className="sh-btn-secondary sh-btn-cancel-scan"
+              onClick={() => onCancel(active.id)}
+              disabled={busy || active.cancel_requested}
+            >
+              <Icon name="x" size={16} />
+              <span>{active.cancel_requested ? 'Annulation demandée...' : 'Annuler le scan'}</span>
+            </button>
+          )}
+
+          {active?.created_at && (
+            <span className="sh-scan-meta">
+              Démarré à {new Date(active.created_at).toLocaleTimeString('fr-FR')}
+            </span>
+          )}
+
+          {!workerReady && (
+            <span className="sh-scan-meta-warning">
+              Worker Python en cours d’initialisation...
+            </span>
+          )}
+        </div>
+      </section>
+
+      {/* ACTIVE SCAN PROGRESS & TELEMETRY */}
+      {(isRunning || latestJob) && (
+        <section className="sh-search-section sh-telemetry-section">
+          {/* Live Activity Ticker */}
+          <LiveActivityTicker scan={tickerScan} mode={active?.mode || latestJob?.mode || mode} />
+
+          <div className="sh-telemetry-header">
+            <div>
+              <h2>Suivi du scan</h2>
+              <span className="sh-scan-phase-pill">
+                <i className={isRunning ? 'pulse' : ''} />
+                {active
+                  ? (SCAN_PHASES[active.phase] || active.phase)
+                  : (latestJob ? (SCAN_STATUSES[latestJob.status] || latestJob.status) : 'Prêt')}
+              </span>
+            </div>
+            {terminalLines.length > 0 && (
+              <button
+                type="button"
+                className="sh-btn-download-log"
+                onClick={handleDownloadLog}
+                title="Télécharger l'intégralité du journal de scan"
+              >
+                <Icon name="download" size={15} />
+                <span>Télécharger le journal</span>
+              </button>
+            )}
+          </div>
+
+          {/* Progress & Time Stats Card */}
+          <div className="sh-progress-dashboard-card">
+            <div className="sh-progress-row-info">
+              <div className="sh-timer-box">
+                <span className="sh-timer-label">TEMPS ÉCOULÉ</span>
+                <strong className="sh-timer-val">{formatDuration(elapsed)}</strong>
+              </div>
+
+              {isRunning && (
+                <div className="sh-timer-box">
+                  <span className="sh-timer-label">ESTIMATION RESTANTE (ETA)</span>
+                  <strong className="sh-timer-val">~ {formatDuration(etaRemainingSec)}</strong>
+                </div>
+              )}
+
+              <div className="sh-timer-box right">
+                <span className="sh-timer-label">AVANCEMENT ESTIMÉ</span>
+                <strong className="sh-timer-val">{progressPercent}%</strong>
+              </div>
+            </div>
+
+            <div className="sh-main-progress-track">
+              <div
+                className={`sh-main-progress-bar ${isRunning ? 'animated' : ''}`}
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Real-time Colored Terminal */}
+          <div className="sh-terminal-wrapper">
+            <ColoredTerminal
+              lines={terminalLines}
+              autoScroll={autoScroll}
+              setAutoScroll={setAutoScroll}
+              terminalRef={terminalRef}
+              onDownloadLog={handleDownloadLog}
+            />
+          </div>
+        </section>
+      )}
+
+      {/* History Section */}
+      <section className="sh-search-section">
+        <div className="sh-section-header">
+          <div>
+            <h2>Historique des scans</h2>
+            <p>Historique des explorations associées au profil sélectionné.</p>
+          </div>
+          <button type="button" className="sh-btn-secondary" onClick={onRefresh} disabled={busy}>
+            <Icon name="refresh" size={15} />
+            <span>Actualiser</span>
+          </button>
+        </div>
+
+        {scanJobs.length > 0 ? (
+          <div className="cloud-result-list">
+            {scanJobs.map((job) => {
+              const statusClass = job.status === 'completed' ? 'success' : job.status === 'failed' ? 'error' : job.status === 'running' ? 'running' : 'queued';
+              return (
+                <div className="cloud-result-row" key={job.id}>
+                  <div className="cloud-result-title">
+                    <strong className="sh-scan-history-mode">{job.mode}{job.summary?.origin === 'local_import' ? ' · Import local' : ''}</strong>
+                    <span className={`sh-status-tag ${statusClass}`}>
+                      {SCAN_STATUSES[job.status] || job.status}
+                    </span>
+                  </div>
+                  <div className="cloud-result-meta">
+                    <span>Phase : {SCAN_PHASES[job.phase] || job.phase}</span>
+                    <span>·</span>
+                    <span>Progression : {job.progress_percent}%</span>
+                    <span>·</span>
+                    <span>{new Date(job.created_at).toLocaleString('fr-FR')}</span>
+                    {job.summary?.new !== undefined && (
+                      <>
+                        <span>·</span>
+                        <strong className="sh-history-offers-count">{job.summary.new} offre(s) retenue(s)</strong>
+                      </>
+                    )}
+                  </div>
+                  {job.error_message && (
+                    <div className="sh-history-error-msg">
+                      <Icon name="alert" size={14} />
+                      <small>{job.error_message}</small>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="sh-empty-state">
+            <Icon name="search" size={32} />
+            <h3>Aucun scan pour ce profil</h3>
+            <p>Choisis un mode ci-dessus et lance ton premier scan d’opportunités.</p>
+          </div>
+        )}
+      </section>
+    </div>
+  );
 }
 
 export function CloudConnectionsView({ profile, accessToken, onSave, onError, onNotice, busy }) {

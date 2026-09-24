@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { Icon } from '../Common/Icons';
 import { descriptionText } from './descriptionText';
 
-export function OfferDetailModal({ offer, onClose, onDecide, busy }) {
+export function OfferDetailModal({ offer, onClose, onDecide, onTransferCandidature, busy }) {
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') onClose();
@@ -138,17 +138,33 @@ export function OfferDetailModal({ offer, onClose, onDecide, busy }) {
 
         {/* Modal Sticky Footer Actions */}
         <footer className="sh-modal-footer">
-          {offer.url && (
-            <a
-              href={offer.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="sh-btn-external"
-            >
-              <span>Voir l'offre officielle</span>
-              <Icon name="external" size={16} />
-            </a>
-          )}
+          <div className="sh-modal-footer-left">
+            {onTransferCandidature && (
+              <button
+                type="button"
+                className="sh-btn-transfer modal-transfer"
+                onClick={() => {
+                  onTransferCandidature(offer);
+                  onClose();
+                }}
+                title="Postuler et suivre cette opportunité sur la Carte"
+              >
+                <Icon name="target" size={15} />
+                <span>Postuler & Suivre</span>
+              </button>
+            )}
+            {offer.url && (
+              <a
+                href={offer.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="sh-btn-external"
+              >
+                <span>Offre officielle</span>
+                <Icon name="external" size={15} />
+              </a>
+            )}
+          </div>
           <div className="sh-modal-decide-buttons">
             <button
               className="sh-btn-action pass"

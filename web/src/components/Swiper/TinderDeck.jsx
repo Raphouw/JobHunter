@@ -13,6 +13,7 @@ export function TinderDeck({
   onUndo,
   onRequeue,
   onGoToPage,
+  onTransferCandidature,
 }) {
   const [minScore, setMinScore] = useState(0);
   const [cantonFilter, setCantonFilter] = useState('all');
@@ -382,6 +383,7 @@ export function TinderDeck({
           onDecide={(offer, decision) => {
             triggerDecision(decision);
           }}
+          onTransferCandidature={onTransferCandidature}
         />
       )}
     </div>

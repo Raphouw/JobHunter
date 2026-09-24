@@ -232,7 +232,7 @@ export function CloudApp() {
       setScanJobs(jobs);
       if (jobs[0]) {
         const events = unwrap(await supabase.from('hunter_scan_events').select('id,created_at,level,message')
-          .eq('job_id', jobs[0].id).order('id', { ascending: false }).limit(60));
+          .eq('job_id', jobs[0].id).order('id', { ascending: true }).limit(250));
         setScanEvents(events || []);
       } else setScanEvents([]);
     } catch (loadError) {
@@ -244,9 +244,10 @@ export function CloudApp() {
 
   useEffect(() => {
     if (page !== 'search' || !profileId) return undefined;
-    const timer = window.setInterval(loadData, 15000);
+    const isScanning = scanJobs.some((j) => ['queued', 'running'].includes(j.status));
+    const timer = window.setInterval(loadData, isScanning ? 2500 : 15000);
     return () => window.clearInterval(timer);
-  }, [loadData, page, profileId]);
+  }, [loadData, page, profileId, scanJobs]);
 
   const run = async (operation, success) => {
     setBusy(true); setError('');
@@ -618,7 +619,7 @@ export function CloudApp() {
                   scan={scan} featuredOffer={offers[0]} onGoToPage={goToPage} />}
                 {page === 'swipe' && <TinderDeck offers={offers.filter((offer) => offer.review_decision === 'pending')}
                   stats={stats} busy={busy} onDecide={decide} onUndo={undo} onRequeue={requeue}
-                  onGoToPage={goToPage} />}
+                  onGoToPage={goToPage} onTransferCandidature={transferOfferToCandidature} />}
                 {page === 'results' && <ResultsView results={offers.filter((offer) => ['keep', 'unsure'].includes(offer.review_decision))}
                   profileId={profileId} busy={busy} onDecide={decide} onRequeue={requeue} onExport={exportOffersCsv}
                   onTransferCandidature={transferOfferToCandidature} />}

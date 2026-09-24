@@ -95,6 +95,14 @@ def prepare_engine(config, job):
     })
     os.environ["WEB_DISABLE_CIRCUIT_BREAKER"] = "1" if job["mode"] == "Exhaustif 1h" else "0"
     os.environ["WEB_RETRY_EMPTY_RESULTS"] = "1" if job["mode"] == "Exhaustif 1h" else "0"
+
+    def hook(msg, style=''):
+        clean = str(msg).strip()
+        if any(k in clean for k in ('SITE FIXE', 'SITES FIXES', 'WEB', 'ANALYSE', 'RETENUE', 'RETIRÉE', 'DOUBLON', 'DIAGNOSTIC', 'COUPE-CIRCUIT', 'RECHERCHE PROFIL')):
+            try: store.event(job, clean)
+            except Exception: pass
+    engine.EVENT_HOOK = hook
+
     return engine, profile
 
 
@@ -139,8 +147,8 @@ def discover(store, job, engine, profile):
     query_limit, site_limit, _, _ = MODE_LIMITS[job["mode"]]
     direct_urls = engine.targeted_fixed_urls(profile)[:site_limit]
     queries = engine.build_search_queries(profile, emit_log=False)[:query_limit]
-    direct_cursor = int(checkpoint.get("direct_cursor", 0))
-    web_cursor = int(checkpoint.get("web_cursor", 0))
+    direct_cursor = engine.safe_int(checkpoint.get("direct_cursor"), 0)
+    web_cursor = engine.safe_int(checkpoint.get("web_cursor"), 0)
 
     if direct_cursor < len(direct_urls):
         # Preserve the local engine's URL discovery and filtering rules.
@@ -150,14 +158,14 @@ def discover(store, job, engine, profile):
         rows = engine.fixed_site_candidates(direct_profile)
         found = candidate_rows(store, job, rows)
         checkpoint["direct_cursor"] = direct_cursor + len(subset)
-        checkpoint["direct_candidates"] = checkpoint.get("direct_candidates", 0) + found
+        checkpoint["direct_candidates"] = engine.safe_int(checkpoint.get("direct_candidates"), 0) + found
         message = f"Sites directs {checkpoint['direct_cursor']}/{len(direct_urls)} · {found} candidat(s)"
     elif web_cursor < len(queries):
         subset = queries[web_cursor:web_cursor + 4]
-        rows = engine.search_web(subset, int(os.getenv("SEARCH_RESULTS_PER_QUERY", "8")))
+        rows = engine.search_web(subset, engine.safe_int(os.getenv("SEARCH_RESULTS_PER_QUERY"), 8))
         found = candidate_rows(store, job, rows)
         checkpoint["web_cursor"] = web_cursor + len(subset)
-        checkpoint["web_candidates"] = checkpoint.get("web_candidates", 0) + found
+        checkpoint["web_candidates"] = engine.safe_int(checkpoint.get("web_candidates"), 0) + found
         message = f"Recherche web {checkpoint['web_cursor']}/{len(queries)} · {found} candidat(s)"
     else:
         store.event(job, "Découverte terminée. Analyse des candidats en cours.")
@@ -167,8 +175,8 @@ def discover(store, job, engine, profile):
     if not still_owned(store, job):
         return
     store.event(job, message)
-    completed = checkpoint.get("direct_cursor", 0) >= len(direct_urls) and checkpoint.get("web_cursor", 0) >= len(queries)
-    done = checkpoint.get("direct_cursor", 0) + checkpoint.get("web_cursor", 0)
+    completed = direct_cursor >= len(direct_urls) and web_cursor >= len(queries)
+    done = direct_cursor + web_cursor
     total = max(1, len(direct_urls) + len(queries))
     release(store, job, "analyze" if completed else "discover", checkpoint,
             45 if completed else min(44, round(done * 44 / total)))
@@ -224,7 +232,7 @@ def analyze(store, job, engine, profile):
         candidate_url = engine.canon(candidate["payload"].get("url", ""))
         matching = [row for row in audits if engine.canon(row.get("original_url", "")) == candidate_url]
         decision = matching[-1] if matching else {"decision": "retry", "reason": "Aucune décision enregistrée"}
-        attempts = int((candidate.get("decision") or {}).get("attempts", 0)) + 1
+        attempts = engine.safe_int((candidate.get("decision") or {}).get("attempts"), 0) + 1
         retry = decision["decision"] in ("retry", "time_deferred") and attempts < 3
         accepted = decision["decision"] in ("retained", "duplicate_merged") or candidate_url in fresh_urls
         status = "retry" if retry else ("accepted" if accepted else "rejected")
@@ -232,9 +240,9 @@ def analyze(store, job, engine, profile):
         compact["attempts"] = attempts
         store.patch("hunter_scan_candidates", f"id=eq.{candidate['id']}",
                     {"status": status, "decision": compact, "updated_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()})
-        checkpoint["analyzed"] = checkpoint.get("analyzed", 0) + (0 if retry else 1)
-        checkpoint["accepted"] = checkpoint.get("accepted", 0) + (1 if accepted and not retry else 0)
-        checkpoint["rejected"] = checkpoint.get("rejected", 0) + (1 if status == "rejected" else 0)
+        checkpoint["analyzed"] = engine.safe_int(checkpoint.get("analyzed"), 0) + (0 if retry else 1)
+        checkpoint["accepted"] = engine.safe_int(checkpoint.get("accepted"), 0) + (1 if accepted and not retry else 0)
+        checkpoint["rejected"] = engine.safe_int(checkpoint.get("rejected"), 0) + (1 if status == "rejected" else 0)
         if status == "rejected":
             category = decision.get("decision") or "unknown"
             rejection_types = dict(checkpoint.get("rejection_types") or {})
@@ -242,8 +250,8 @@ def analyze(store, job, engine, profile):
             checkpoint["rejection_types"] = rejection_types
         store.event(job, f"{status.upper()} · {decision.get('title') or candidate_url[:80]} · "
                          f"score {decision.get('score') if decision.get('score') is not None else '—'}")
-    total = max(1, checkpoint.get("direct_candidates", 0) + checkpoint.get("web_candidates", 0))
-    progress = min(95, 45 + round(50 * checkpoint["analyzed"] / total))
+    total = max(1, engine.safe_int(checkpoint.get("direct_candidates"), 0) + engine.safe_int(checkpoint.get("web_candidates"), 0))
+    progress = min(95, 45 + round(50 * engine.safe_int(checkpoint.get("analyzed"), 0) / total))
     release(store, job, "analyze", checkpoint, progress)
 
 
