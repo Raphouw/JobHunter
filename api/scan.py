@@ -24,7 +24,7 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         # Configuration is intentionally coarse: no keys or project metadata.
         ready = bool(os.getenv("SUPABASE_SERVICE_ROLE_KEY") and os.getenv("CRON_SECRET")
-                     and os.getenv("SUPABASE_URL") and os.getenv("SCAN_DISPATCHER_ENABLED") == "1")
+                     and os.getenv("SUPABASE_URL") and os.getenv("SCAN_DISPATCHER_ENABLED", "1") == "1")
         self.respond(200, {"ready": ready})
 
     def do_POST(self):

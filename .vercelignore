@@ -1,0 +1,27 @@
+# Python environments and caches
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Test files and temporary run data
+tests/
+test_*.py
+.test_temp/
+*.log
+
+# Local outputs and databases
+output/
+credentials/
+scheduled_tasks/
+*.sqlite3
+*.xlsx
+
+# Batch scripts and local launchers
+*.bat
+lancer_stage_hunter.py
+
+# Documentation and text notes
+*.md
+!README.md
+Idées.txt

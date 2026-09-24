@@ -24,7 +24,7 @@ if errorlevel 1 (
   exit /b 1
 )
 .venv\Scripts\python.exe -m pip install --upgrade pip
-.venv\Scripts\python.exe -m pip install -r requirements.txt
+.venv\Scripts\python.exe -m pip install -r requirements-local.txt
 if errorlevel 1 (
   echo [ERREUR] Installation des dependances impossible.
   pause

@@ -7,7 +7,11 @@ from datetime import date, datetime, timedelta, timezone
 from html import unescape as html_unescape
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode, unquote, urljoin
-import pandas as pd, requests, yaml
+import requests, yaml
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
 from bs4 import BeautifulSoup
 from ddgs import DDGS
 from dotenv import load_dotenv
@@ -2120,10 +2124,14 @@ def write_diagnostics(profile,payload,listing_leads):
     data['listing_leads']=listing_leads[:500]
     DIAGNOSTICS.write_text(json.dumps(data,ensure_ascii=False,indent=2,default=str),encoding='utf-8')
     columns=['title','company','location','url','listing_source','listing_url']
-    listing_ok=write_excel_safely(pd.DataFrame(listing_leads,columns=columns).drop_duplicates(subset=['title','url']),LISTING_LEADS_OUT,'pistes de listings')
+    listing_ok=False
+    if pd is not None:
+        listing_ok=write_excel_safely(pd.DataFrame(listing_leads,columns=columns).drop_duplicates(subset=['title','url']),LISTING_LEADS_OUT,'pistes de listings')
     rejected=payload.get('rejected_examples') or []
     rejection_columns=['reason','page_type','contract_state','title','source','source_quality','origin','depth','text_chars','html_chars','structured_jobposting','contract_hint','official_url','original_url']
-    rejection_ok=write_excel_safely(pd.DataFrame(rejected,columns=rejection_columns).drop_duplicates(subset=['reason','title','official_url']),REJECTIONS_OUT,'décisions rejetées')
+    rejection_ok=False
+    if pd is not None:
+        rejection_ok=write_excel_safely(pd.DataFrame(rejected,columns=rejection_columns).drop_duplicates(subset=['reason','title','official_url']),REJECTIONS_OUT,'décisions rejetées')
     log_event(f'DIAGNOSTIC — rapport JSON : {DIAGNOSTICS.name}.','bold blue')
     if listing_ok:log_event(f'DIAGNOSTIC — {len(listing_leads)} piste(s) issue(s) de listings : {LISTING_LEADS_OUT.name}.','bold blue')
     if rejection_ok:log_event(f'DIAGNOSTIC — {len(rejected)} décision(s) refusées auditable(s), avec URL officielle : {REJECTIONS_OUT.name}.','bold blue')
@@ -3030,6 +3038,9 @@ def gmail_candidates(gmail):
     log_event(f'GMAIL terminé · {len(msgs)} messages lus (libellés exclus : {excluded_text}), {len(out)} liens plausibles, {rejected} liens techniques écartés, {confirmations} confirmation(s) ignorée(s).','bold blue'); return out
 
 def export(c):
+    if pd is None:
+        log_event('Export Excel indisponible (pandas non installé).', 'bold red')
+        return False
     frame=pd.read_sql_query("""SELECT id,title,company,location,canton,language,duration,domain_category,
         source,url,score,confidence,review_decision,status,reasons,discovered_at FROM offers
         WHERE status IN ('new','kept') AND review_decision IN ('keep','unsure')
