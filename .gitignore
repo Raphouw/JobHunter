@@ -10,5 +10,6 @@ scheduled_tasks/
 web/node_modules/
 web/.npm-cache/
 .vercel/
+supabase/.temp/
 .test_temp/
 web/dist-cloud/

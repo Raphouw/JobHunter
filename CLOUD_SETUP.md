@@ -3,7 +3,7 @@
 Site déployé : https://job-hunter-three-chi.vercel.app/
 
 État du 24 septembre 2026 : le dépôt GitHub est relié à Vercel, le site est
-accessible et les quatre tables Supabase sont créées avec RLS. Aucun utilisateur
+accessible et les tables Supabase sont créées avec RLS. Aucun utilisateur
 n'a encore été créé. Le réglage Supabase « Allow new users to sign up » est
 encore actif : le désactiver dans Authentication > Settings > General avant de
 distribuer l'accès. Configurer aussi l'URL du site dans Authentication > URL
@@ -48,14 +48,37 @@ Configuration pour les futurs courriels d'invitation et de récupération.
    relancer avec `--apply`. L'import conserve les offres actives et retire la
    configuration Google du profil cloud. Il ne touche pas à la base SQLite.
 
-## Travail restant avant un vrai service web complet
+## Reprise des scans sur Vercel et Supabase
 
-Le bouton de lancement des scans est volontairement absent du mode cloud. Le
-prochain lot devra connecter une API de lancement autorisée au compte, un job
-Cloud Run qui exécute le moteur Python, la remontée des événements et la
-sauvegarde des résultats dans Supabase. Les journaux détaillés et la reprise
-devront être transférés hors du disque temporaire du job. Les intégrations
-Google devront aussi être adaptées à des jetons distincts par utilisateur.
+La migration `20260924085710_resumable_scans.sql` a été appliquée. Elle prépare
+une file par profil, des candidats persistants et un verrou temporaire. Un
+compte peut demander un job pour son propre profil. Seul le rôle serveur peut
+prendre le job, enregistrer un checkpoint ou modifier les candidats. Un seul
+scan actif par profil évite les doubles lancements ; plusieurs profils peuvent
+ensuite être traités en parallèle.
+
+Le moteur local ne change pas. Son `--resume` actuel recharge la liste des
+candidats après la découverte, mais ne retient pas la position exacte des
+offres en cours d'analyse. Le worker web devra découper la découverte par
+source et l'analyse par petits lots, écrire chaque candidat et chaque décision
+dans Supabase, puis relâcher son verrou avant les cinq minutes de Vercel. Une
+nouvelle exécution reprendra le lot suivant. Les écritures devront être
+idempotentes grâce aux clés uniques des candidats et des offres.
+
+Pour reprendre même quand le navigateur est fermé, utiliser **Supabase Cron**
+pour appeler un dispatcher sécurisé (Edge Function), qui déclenchera la
+fonction Python Vercel. Vercel Cron sur le forfait Hobby ne peut tourner
+qu'une fois par jour ; il ne convient donc pas à une reprise minute par minute.
+Le déclencheur, le worker Python, la sauvegarde des décisions détaillées et les
+secrets serveur ne sont **pas encore branchés**. Le bouton de lancement reste
+masqué pour éviter des jobs qui resteraient en attente. Les intégrations Google
+demanderont également des jetons distincts par utilisateur.
+
+Avant d'activer les scans web : configurer la clé serveur Supabase uniquement
+dans les variables secrètes du worker Vercel, ajouter un secret partagé avec le
+dispatcher, vérifier la limite de taille du paquet Python, tester la reprise
+après interruption et valider la consommation des quotas gratuits. Ne jamais
+mettre ces secrets dans `VITE_*`, `.env.cloud` ou Git.
 
 Supabase gratuit peut mettre un projet en pause après une période d'inactivité.
 Conserver une sauvegarde régulière des données reste nécessaire.

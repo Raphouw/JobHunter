@@ -15,6 +15,20 @@ const EMPTY_CONFIG = {
   sources: { packs: [] },
 };
 
+const SCAN_PHASES = {
+  discover: 'Recherche des candidats',
+  analyze: 'Analyse des offres',
+  finish: 'Finalisation',
+};
+
+const SCAN_STATUSES = {
+  queued: 'En attente',
+  running: 'En cours',
+  completed: 'Terminé',
+  failed: 'Échec',
+  cancelled: 'Annulé',
+};
+
 function Login({ onError }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -129,7 +143,9 @@ export function CloudApp() {
       const [offerRows, jobRows] = await Promise.all([
         supabase.from('hunter_offers').select('*').eq('profile_id', profileId)
           .order('score', { ascending: false }).limit(1000),
-        supabase.from('hunter_scan_jobs').select('*').eq('profile_id', profileId)
+        supabase.from('hunter_scan_jobs')
+          .select('id,mode,status,phase,progress_percent,attempt_count,cancel_requested,created_at,finished_at,summary,error_message')
+          .eq('profile_id', profileId)
           .order('created_at', { ascending: false }).limit(10),
       ]);
       setOffers(unwrap(offerRows) || []);
@@ -140,6 +156,12 @@ export function CloudApp() {
   }, [profileId]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  useEffect(() => {
+    if (page !== 'search' || !profileId) return undefined;
+    const timer = window.setInterval(loadData, 15000);
+    return () => window.clearInterval(timer);
+  }, [loadData, page, profileId]);
 
   const run = async (operation, success) => {
     setBusy(true); setError('');
@@ -277,10 +299,14 @@ export function CloudApp() {
                 {page === 'profile' && <ProfileView profile={profile} onSave={saveProfile} busy={busy} />}
                 {page === 'search' && <section className="sh-view">
                   <span className="sh-eyebrow">HISTORIQUE</span><h1>Scans</h1>
-                  <p>Lancement des scans web en préparation. Les offres existantes et le Swiper sont disponibles.</p>
+                  <p>Le traitement web par étapes est en préparation. Continue tes essais avec le moteur local pour le moment.</p>
+                  <button className="sh-btn-secondary" onClick={loadData} disabled={busy}>Actualiser</button>
                   <div className="cloud-result-list">{scanJobs.map((job) =>
                     <div className="cloud-result-row" key={job.id}>
-                      <strong>{job.mode}</strong><span>{job.status} · {new Date(job.created_at).toLocaleString('fr-FR')}</span>
+                      <strong>{job.mode}</strong>
+                      <span>{SCAN_STATUSES[job.status] || job.status} · {SCAN_PHASES[job.phase] || job.phase}
+                        {' · '}{job.progress_percent}% · {new Date(job.created_at).toLocaleString('fr-FR')}</span>
+                      {job.error_message && <small>{job.error_message}</small>}
                     </div>)}</div>
                 </section>}
               </>}
