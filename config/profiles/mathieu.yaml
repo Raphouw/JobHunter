@@ -1,0 +1,99 @@
+id: mathieu
+name: Mathieu
+student:
+  stage_type: emploi
+  contract_types:
+  - CDI
+  - CDD
+  - Temps plein
+  - Temps partiel
+  min_weeks: 0
+  start_date: '2026-09-21'
+  end_date: ''
+target:
+  job_titles:
+  - Développeur full stack
+  - software developper
+  - Développeur logiciel
+  - Développeur backend
+  sectors:
+  - jeu vidéo
+  - Web
+  - Logiciel
+location:
+  countries:
+  - France
+  - Switzerland
+  - Luxembourg
+  priority_locations:
+  - Metz
+  - Grand Est
+  - Suisse
+  - Switzerland
+  regions: []
+  acceptable_language:
+  - fr
+  - en
+skills:
+  core:
+  - Java
+  - JavaScript
+  - Python
+  - C
+  - C++
+  - C#
+  - Js
+  strong_domains:
+  - Développement Logiciel
+  - Développement Web
+interests:
+  professional:
+  - jeu vidéo
+  - Web
+  - Logiciel
+  personal:
+  - Cyclisme
+  - Sport
+  very_high: []
+  high: []
+search:
+  strategy: profile
+  mode: maximum
+  query_budget: 45
+  site_query_share: 0.35
+  retry_empty_results: false
+  allow_unconfirmed_contract: true
+  use_manual_queries: true
+  require_profile_relevance: true
+  queries: []
+  mode_overrides:
+    maximum:
+      SEARCH_QUERY_BUDGET: '80'
+      SEARCH_RESULTS_PER_QUERY: '15'
+      FIXED_SITE_LIMIT: '30'
+      MAX_LISTING_DETAILS: '70'
+      LISTING_CRAWL_DEPTH: '3'
+      MAX_RECURSIVE_LEADS: '500'
+      SEARCH_WORKERS: '8'
+      SCRAPE_WORKERS: '12'
+      SEARCH_RETRIES: '1'
+      SEARCH_TIMEOUT_SECONDS: '12'
+      HTTP_TIMEOUT_SECONDS: '12'
+      HTTP_RETRIES: '1'
+sources:
+  packs:
+  - france
+  - switzerland
+  custom_queries: []
+  custom_domains: []
+  custom_urls: []
+integrations:
+  google:
+    sheets_enabled: false
+    gmail_enabled: false
+    sheet_id: 1OG90wAtC23-Z8Lx4IXnEtcsf-Oa1JEXcE5b633E0Lus
+    auto_create_sheet: false
+    response_tab: Réponses
+    opportunity_tab: Opportunités - Mathieu
+    client_secret_file: credentials/google_client_secret.json
+    token_file: credentials/mathieu/google_token.json

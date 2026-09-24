@@ -1,0 +1,55 @@
+id: mathieu-2
+name: Mathieu 2
+student:
+  stage_type: stage
+  contract_types:
+  - stage
+  - internship
+  min_weeks: 20
+  start_date: ''
+  end_date: ''
+target:
+  job_titles: []
+  sectors: []
+location:
+  countries:
+  - France
+  priority_locations: []
+  regions: []
+  acceptable_language:
+  - fr
+  - en
+skills:
+  core: []
+  strong_domains: []
+interests:
+  professional: []
+  personal: []
+  very_high: []
+  high: []
+search:
+  strategy: profile
+  mode: complete
+  query_budget: 45
+  site_query_share: 0.35
+  retry_empty_results: false
+  allow_unconfirmed_contract: true
+  use_manual_queries: true
+  require_profile_relevance: true
+  queries: []
+sources:
+  packs:
+  - france
+  custom_queries: []
+  custom_domains: []
+  custom_urls: []
+integrations:
+  google:
+    sheets_enabled: false
+    gmail_enabled: false
+    sheet_id: ''
+    auto_create_sheet: false
+    response_tab: Réponses
+    opportunity_tab: Opportunités - Mathieu 2
+    client_secret_file: credentials/google_client_secret.json
+    token_file: credentials/mathieu-2/google_token.json

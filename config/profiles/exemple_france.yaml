@@ -1,0 +1,60 @@
+id: "exemple-france"
+name: "Profil France — exemple"
+
+student:
+  stage_type: "emploi"
+  contract_types: [CDI, CDD]
+  min_weeks: 0
+  start_date: ""
+  end_date: ""
+
+target:
+  job_titles: [technicien instrumentation, ingénieur automatisme, automaticien]
+  sectors: [instrumentation, automatisme industriel, énergie, production]
+
+location:
+  countries: [France]
+  priority_locations: [Haute-Savoie, Savoie, Rhône]
+  regions:
+    - {name: "Haute-Savoie", code: "74", languages: "FR", aliases: [Annecy, Annemasse, Cluses, Thonon-les-Bains]}
+    - {name: "Savoie", code: "73", languages: "FR", aliases: [Chambéry, Aix-les-Bains, Albertville]}
+    - {name: "Rhône", code: "69", languages: "FR", aliases: [Lyon, Villeurbanne]}
+  acceptable_language: [fr, en]
+
+skills:
+  core: [instrumentation, capteurs, automatisme, maintenance industrielle, électronique]
+  strong_domains: [industrie, énergie, production]
+
+interests:
+  professional: [instrumentation, automatisme, électronique, énergie]
+  personal: []
+  very_high: [instrumentation, automatisme]
+  high: [électronique, énergie]
+
+search:
+  strategy: "profile"
+  mode: "complete"
+  query_budget: 45
+  site_query_share: 0.35
+  retry_empty_results: false
+  allow_unconfirmed_contract: true
+  use_manual_queries: true
+  require_profile_relevance: true
+  queries: []
+
+sources:
+  packs: [france, europe_engineering, direct_engineering]
+  custom_queries: []
+  custom_domains: []
+  custom_urls: []
+
+integrations:
+  google:
+    sheets_enabled: false
+    gmail_enabled: false
+    auto_create_sheet: false
+    sheet_id: ""
+    response_tab: "Réponses"
+    opportunity_tab: "Opportunités - France"
+    client_secret_file: "credentials/google_client_secret.json"
+    token_file: "credentials/exemple-france/google_token.json"

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    :root{color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;--ink:#eef7ff;--muted:#8fa8bf;--teal:#42dfc8;--violet:#9285ff;--line:#29475f}
+    *{box-sizing:border-box}body{margin:0;background:transparent;color:var(--ink);overflow:hidden}
+    .stage{min-height:640px;padding:12px 18px 22px;display:grid;place-items:center;position:relative}
+    .deck{width:min(840px,97vw);position:relative}.deck:before,.deck:after{content:"";position:absolute;inset:12px 22px -8px;border:1px solid rgba(68,104,132,.45);border-radius:27px;background:#091727;z-index:0}.deck:after{inset:6px 11px -2px;background:#0b1a2b;border-color:rgba(68,104,132,.62)}
+    .card{--score-angle:0deg;width:100%;min-height:564px;background:linear-gradient(145deg,rgba(17,39,61,.99),rgba(8,20,34,.99) 58%,rgba(18,22,47,.99));border:1px solid #31546e;border-radius:27px;padding:0;box-shadow:0 28px 75px rgba(0,0,0,.46);touch-action:none;user-select:none;cursor:grab;transition:transform .17s ease,opacity .17s ease,border-color .17s;outline:none;position:relative;overflow:hidden;z-index:2}
+    .card:focus{border-color:var(--teal);box-shadow:0 0 0 2px rgba(66,223,200,.15),0 28px 75px rgba(0,0,0,.46)}.card.dragging{transition:none;cursor:grabbing}
+    .accent{height:4px;background:linear-gradient(90deg,var(--teal),#4e9ff5 52%,var(--violet))}.orb{position:absolute;width:300px;height:300px;border-radius:50%;filter:blur(76px);opacity:.14;right:-95px;top:-90px;background:var(--violet);pointer-events:none}
+    .content{padding:25px 28px 22px}.eyebrow{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:17px}.brand{display:flex;align-items:center;gap:11px;min-width:0}.logo{width:40px;height:40px;flex:0 0 auto;border-radius:12px;display:grid;place-items:center;background:linear-gradient(145deg,rgba(66,223,200,.22),rgba(146,133,255,.22));border:1px solid #365d75;color:#f8ffff;font-weight:900;font-size:17px}.company{color:#7ce8d8;text-transform:uppercase;font-weight:850;letter-spacing:.105em;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.source{padding:6px 9px;border:1px solid #32516a;border-radius:999px;background:rgba(6,17,30,.72);font-size:11px;color:#aac0d3;white-space:nowrap}
+    .hero{display:grid;grid-template-columns:1fr 112px;gap:24px;align-items:center}.title{font-size:28px;line-height:1.14;font-weight:850;letter-spacing:-.03em;margin:0;color:#f7fbff}.score-ring{width:104px;height:104px;border-radius:50%;padding:8px;background:conic-gradient(var(--teal) var(--score-angle),rgba(67,95,118,.36) 0);box-shadow:0 10px 35px rgba(48,200,181,.15)}.score-inner{height:100%;border-radius:50%;background:#0b1b2b;display:grid;place-items:center;text-align:center;border:1px solid #31516a}.score-inner strong{font-size:31px;line-height:.95}.score-inner span{font-size:9px;color:#88a1b8;text-transform:uppercase;letter-spacing:.11em;font-weight:800}
+    .statusline{display:flex;align-items:center;gap:8px;margin:17px 0 12px;padding:10px 12px;border-radius:12px;background:rgba(6,17,29,.56);border:1px solid #1f3a50;color:#bcd0e1;font-size:12px}.status-dot{width:8px;height:8px;border-radius:50%;background:#e2b957;box-shadow:0 0 12px rgba(226,185,87,.65)}.status-dot.open{background:#42dba2;box-shadow:0 0 12px rgba(66,219,162,.65)}.confidence{margin-left:auto;color:#8fa8bf}
+    .meta{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 17px}.badge{padding:7px 10px;border-radius:999px;background:#122a40;border:1px solid #294b66;color:#dcecff;font-size:11px}.badge.accent{height:auto;background:rgba(146,133,255,.13);border-color:#5f59a9;color:#cec9ff}.badge.learn{background:rgba(65,151,214,.13);border-color:#326e98;color:#91d0ff}
+    .grid{display:grid;grid-template-columns:.92fr 1.25fr;gap:12px}.box{background:rgba(5,15,27,.62);border:1px solid #203c52;border-radius:15px;padding:14px 15px;min-height:116px}.label{font-size:9px;color:#7892a9;text-transform:uppercase;font-weight:850;letter-spacing:.105em;margin-bottom:8px}.value{font-size:12px;line-height:1.5;color:#e2edf7;overflow-wrap:anywhere}.reasons{max-height:100px;overflow:auto;white-space:pre-line;padding-right:4px}.reasons::-webkit-scrollbar{width:5px}.reasons::-webkit-scrollbar-thumb{background:#36536b;border-radius:10px}
+    .linkrow{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:15px}.link{display:inline-flex;align-items:center;gap:7px;color:#68e7d5;text-decoration:none;font-weight:800;font-size:12px}.link:hover{text-decoration:underline}.microcopy{font-size:10px;color:#6f899f;text-align:right}
+    .actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;padding:16px 28px 22px;border-top:1px solid #1f394f;background:rgba(4,13,24,.48)}.action{display:flex;align-items:center;justify-content:center;gap:8px;border:1px solid transparent;border-radius:13px;padding:12px 10px;font-weight:850;color:white;cursor:pointer;font-size:13px;transition:transform .12s,filter .12s,box-shadow .12s}.action:hover{transform:translateY(-2px);filter:brightness(1.09)}.reject{background:rgba(143,41,66,.72);border-color:#c94e68}.unsure{background:rgba(133,99,30,.72);border-color:#c99f3e}.keep{background:linear-gradient(135deg,#14765d,#168c76);border-color:#39cda6;box-shadow:0 8px 20px rgba(21,134,105,.2)}
+    .stamp{position:absolute;top:140px;font-size:32px;font-weight:950;padding:8px 13px;border:4px solid;border-radius:11px;opacity:0;pointer-events:none;z-index:5;background:rgba(5,12,21,.72)}.stamp.left{right:32px;color:#ff6b84;transform:rotate(-12deg)}.stamp.right{left:32px;color:#53e5ae;transform:rotate(12deg)}.stamp.down{left:50%;transform:translateX(-50%);color:#f3c557}
+    @media(max-width:680px){.stage{padding:8px 3px}.content{padding:20px 18px 17px}.card{border-radius:21px}.hero{grid-template-columns:1fr 80px;gap:12px}.title{font-size:21px}.score-ring{width:78px;height:78px;padding:6px}.score-inner strong{font-size:24px}.grid{grid-template-columns:1fr}.box{min-height:auto}.actions{padding:14px 18px 18px;gap:6px}.action{font-size:11px;padding:11px 5px}.microcopy{display:none}.deck:before,.deck:after{display:none}}
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <div class="deck">
+      <article class="card" id="card" tabindex="0">
+        <div class="accent"></div><div class="orb"></div>
+        <div class="stamp left" id="leftStamp">PASSER</div><div class="stamp right" id="rightStamp">GARDER</div><div class="stamp down" id="downStamp">À REVOIR</div>
+        <div class="content">
+          <div class="eyebrow"><div class="brand"><div class="logo" id="logo">?</div><div class="company" id="company"></div></div><div class="source" id="source"></div></div>
+          <div class="hero"><h2 class="title" id="title"></h2><div class="score-ring" id="scoreRing"><div class="score-inner"><div><strong id="score"></strong><br><span>compatibilité</span></div></div></div></div>
+          <div class="statusline"><span class="status-dot" id="statusDot"></span><strong id="availability"></strong><span class="confidence" id="confidence"></span></div>
+          <div class="meta" id="badges"></div>
+          <div class="grid"><div class="box"><div class="label">Compétences détectées</div><div class="value" id="skills"></div></div><div class="box"><div class="label">Pourquoi le moteur la recommande</div><div class="value reasons" id="reasons"></div></div></div>
+          <div class="linkrow"><a class="link" id="link" target="_blank" rel="noopener noreferrer">Voir l’offre officielle <span>↗</span></a><span class="microcopy">Glisse la carte ou utilise les boutons</span></div>
+        </div>
+        <div class="actions"><button class="action reject" data-decision="reject"><span>←</span> Passer</button><button class="action unsure" data-decision="unsure"><span>↓</span> À revoir</button><button class="action keep" data-decision="keep">Garder <span>→</span></button></div>
+      </article>
+    </div>
+  </main>
+  <script>
+    const post=(type,payload={})=>window.parent.postMessage({isStreamlitMessage:true,type,...payload},"*");
+    const setValue=value=>post("streamlit:setComponentValue",{value});
+    const setHeight=()=>post("streamlit:setFrameHeight",{height:Math.max(660,document.documentElement.scrollHeight)});
+    const card=document.getElementById("card");let offer=null,startX=0,startY=0,dx=0,dy=0,dragging=false,sent=false;
+    const text=(id,value,fallback="Non renseigné")=>document.getElementById(id).textContent=(value??"").toString().trim()||fallback;
+    function render(data){
+      offer=data||{};sent=false;const company=(offer.company||"Entreprise inconnue").toString().trim();const score=Math.max(0,Math.min(100,Math.round(Number(offer.score)||0)));
+      text("company",company);text("logo",company.charAt(0).toUpperCase(),"?");text("source",offer.source,"Source inconnue");text("title",offer.title,"Offre sans titre");text("score",score);card.style.setProperty("--score-angle",`${score*3.6}deg`);
+      text("skills",offer.skills_found);text("reasons",offer.reasons);text("confidence",`Confiance ${Math.round(Number(offer.confidence)||0)}/100`);
+      const open=offer.availability_status==="open";text("availability",open?"Candidature ouverte":"Disponibilité à confirmer");document.getElementById("statusDot").className="status-dot"+(open?" open":"");
+      const link=document.getElementById("link");link.href=offer.url||"#";link.style.display=offer.url?"inline-flex":"none";
+      const adjustment=Number(offer.learned_adjustment)||0;const badgeValues=[{value:offer.location||offer.canton,kind:"accent"},{value:offer.language},{value:offer.duration},{value:offer.start_date},{value:offer.domain_category},adjustment?{value:`Tinder ${adjustment>0?"+":""}${adjustment}`,kind:"learn"}:null].filter(item=>item&&(item.value??item));
+      const badges=document.getElementById("badges");badges.replaceChildren(...badgeValues.map(item=>{const entry=typeof item==="object"?item:{value:item,kind:""};const span=document.createElement("span");span.className="badge"+(entry.kind?` ${entry.kind}`:"");span.textContent=entry.value;return span}));reset();setHeight();setTimeout(()=>card.focus(),80)
+    }
+    function reset(){dx=dy=0;dragging=false;card.classList.remove("dragging");card.style.transform="";card.style.opacity="1";["leftStamp","rightStamp","downStamp"].forEach(id=>document.getElementById(id).style.opacity=0)}
+    function preview(){card.style.transform=`translate(${dx}px,${dy}px) rotate(${dx/30}deg)`;const amount=Math.min(1,Math.max(Math.abs(dx),Math.max(0,dy))/120);document.getElementById("leftStamp").style.opacity=dx<-20?amount:0;document.getElementById("rightStamp").style.opacity=dx>20?amount:0;document.getElementById("downStamp").style.opacity=dy>20&&Math.abs(dy)>Math.abs(dx)?amount:0}
+    function decide(decision){if(sent)return;sent=true;const transforms={reject:"translate(-900px,20px) rotate(-24deg)",keep:"translate(900px,20px) rotate(24deg)",unsure:"translate(0,760px)"};card.style.transition="transform .28s ease,opacity .28s ease";card.style.transform=transforms[decision];card.style.opacity="0";setTimeout(()=>setValue({decision,offer_id:offer.id}),180)}
+    card.addEventListener("pointerdown",event=>{if(event.target.closest("button,a"))return;dragging=true;startX=event.clientX;startY=event.clientY;card.classList.add("dragging");card.setPointerCapture(event.pointerId);card.focus()});card.addEventListener("pointermove",event=>{if(!dragging)return;dx=event.clientX-startX;dy=event.clientY-startY;preview()});card.addEventListener("pointerup",()=>{if(!dragging)return;dragging=false;card.classList.remove("dragging");if(dx>115)decide("keep");else if(dx<-115)decide("reject");else if(dy>105&&Math.abs(dy)>Math.abs(dx))decide("unsure");else reset()});document.querySelectorAll("[data-decision]").forEach(button=>button.addEventListener("click",()=>decide(button.dataset.decision)));card.addEventListener("keydown",event=>{if(event.key==="ArrowLeft")decide("reject");if(event.key==="ArrowRight")decide("keep");if(event.key==="ArrowDown")decide("unsure")});window.addEventListener("message",event=>{if(event.data?.type==="streamlit:render")render(event.data.args.offer)});post("streamlit:componentReady",{apiVersion:1});setHeight();
+  </script>
+</body>
+</html>

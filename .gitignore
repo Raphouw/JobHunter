@@ -1,0 +1,11 @@
+.env
+web/.env.local
+web/.env.production.local
+.venv/
+__pycache__/
+*.py[cod]
+credentials/
+output/
+scheduled_tasks/
+web/node_modules/
+web/.npm-cache/

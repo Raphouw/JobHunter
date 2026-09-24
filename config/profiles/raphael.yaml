@@ -1,0 +1,288 @@
+id: raphael
+name: Raphaël
+student:
+  name: Raphaël BRASSART
+  school: Polytech Annecy
+  specialization: Systèmes Numériques et Instrumentation
+  stage_type: stage / internship
+  min_weeks: 20
+  start_date: '2027-03-16'
+  end_date: '2027-09-04'
+  contract_types:
+  - Internship
+  - Stage
+  - Praktikum
+target:
+  job_titles:
+  - engineering intern
+  - stagiaire ingénieur
+  - embedded systems intern
+  - sensor development intern
+  - robotics intern
+  sectors:
+  - embedded systems
+  - sensors and instrumentation
+  - robotics
+  - automation
+  - MedTech
+  - SportTech
+  red_flags:
+  - senior
+location:
+  countries:
+  - Switzerland
+  priority_cantons: []
+  french_regions:
+  - GE
+  - VD
+  - NE
+  - FR
+  - JU
+  - VS
+  acceptable_language:
+  - fr
+  - en
+  german:
+    level: school basics
+    mandatory_penalty: 45
+    preferred_penalty: 10
+  priority_locations: []
+skills:
+  core:
+  - sensors
+  - capteurs
+  - instrumentation
+  - metrology
+  - métrologie
+  - data acquisition
+  - systèmes d'acquisition
+  - signal processing
+  - traitement du signal
+  - image processing
+  - traitement d'images
+  - automation
+  - automatique
+  - control systems
+  - embedded systems
+  - systèmes embarqués
+  - electronics
+  - électronique
+  - electrical engineering
+  - électricité
+  - computer science
+  - informatique
+  - artificial intelligence
+  - machine learning
+  - robotics
+  - robotique
+  - IoT
+  - internet of things
+  - connected devices
+  - objets communicants
+  - computer vision
+  - SLAM
+  - firmware
+  - microcontroller
+  - microcontrôleur
+  strong_domains:
+  - R&D
+  - research and development
+  - robotics
+  - embedded
+  - automation
+  - instrumentation
+  - medtech
+  - medical devices
+  - sportstech
+  - electronics
+  - industrial IT
+  - industrial engineering
+  - mechatronics
+  - mécatronique
+  - sensing
+  - test engineering
+  - validation
+  - prototyping
+  - prototypage
+  - manufacturing engineering
+  - production engineering
+interests:
+  professional:
+  - embedded systems
+  - sensors and instrumentation
+  - robotics
+  - automation
+  - MedTech
+  - SportTech
+  personal:
+  - cycling
+  - sport
+  very_high:
+  - cycling
+  - sportstech
+  - sensors
+  - sensing
+  - embedded systems
+  - robotics
+  - R&D
+  - instrumentation
+  - SLAM
+  high:
+  - medtech
+  - automation
+  - electronics
+  - AI
+  - signal processing
+  - IoT
+  - computer vision
+  - mechatronics
+search:
+  strategy: profile
+  mode: exhaustif 1h
+  query_budget: 45
+  site_query_share: 0.35
+  retry_empty_results: false
+  allow_unconfirmed_contract: true
+  use_manual_queries: false
+  require_profile_relevance: true
+  queries: []
+  legacy_queries:
+  - site:jobs.ch/en/vacancies/detail internship embedded systems Switzerland English
+  - site:jobs.ch/en/vacancies/detail internship robotics Switzerland English
+  - site:jobs.ch/en/vacancies/detail internship automation Switzerland English
+  - site:jobs.ch/en/vacancies/detail internship sensors instrumentation Switzerland English
+  - site:jobs.ch/en/vacancies/detail internship electronics electrical engineering Switzerland English
+  - site:jobs.ch/en/vacancies/detail internship signal processing computer vision Switzerland
+  - site:jobs.ch/en/vacancies/detail internship firmware microcontroller FPGA Switzerland
+  - site:jobs.ch/en/vacancies/detail internship mechatronics test engineering Switzerland
+  - site:jobs.ch/en/vacancies/detail internship medical devices instrumentation Switzerland
+  - site:jobs.ch/en/vacancies/detail internship wearable sensors Switzerland
+  - site:jobs.ch/en/vacancies/detail internship computer vision SLAM Switzerland
+  - site:jobs.ch/en/vacancies/detail internship industrial electronics control Switzerland
+  - site:jobs.ch/en/vacancies/detail internship IoT edge devices firmware Switzerland
+  - site:jobs.ch/en/vacancies/detail internship PCB design FPGA prototyping Switzerland
+  - site:jobup.ch/fr/emplois/detail stage ingénieur systèmes embarqués Suisse
+  - site:jobup.ch/fr/emplois/detail stage ingénieur robotique automatisation Suisse
+  - site:jobup.ch/fr/emplois/detail stage ingénieur capteurs instrumentation Suisse
+  - site:jobup.ch/fr/emplois/detail stage ingénieur électronique Suisse
+  - site:jobup.ch/fr/emplois/detail stage traitement signal image vision Suisse
+  - site:jobup.ch/fr/emplois/detail stage ingénieur électronique circuits Suisse
+  - site:jobup.ch/fr/emplois/detail stage ingénieur vision industrielle Suisse
+  - site:jobup.ch/fr/emplois/detail stage R&D prototypage Suisse
+  - site:jobup.ch/fr/emplois/detail stage médical dispositifs Suisse
+  - site:jobup.ch/fr/emplois/detail stage IoT objets communicants Suisse
+  - site:jobup.ch/fr/emplois/detail stage FPGA microcontrôleur Suisse
+  - site:ch.indeed.com internship embedded systems Switzerland English
+  - site:ch.indeed.com internship robotics automation Switzerland English
+  - site:ch.indeed.com internship sensors instrumentation Switzerland
+  - site:ch.indeed.com stage engineering Switzerland français
+  - site:fr.glassdoor.ch internship Switzerland engineering embedded
+  - site:fr.glassdoor.ch internship Switzerland robotics automation
+  - site:swissdevjobs.ch internship embedded robotics systems
+  - site:iagora.com internship Switzerland electronics sensors
+  - Switzerland internship medtech wearable biomedical sensors engineering 6 months
+  - Switzerland internship orthopaedic surgical devices engineering
+  - site:careers.zimmer.com internship Switzerland engineer
+  - site:careers.stryker.com internship Switzerland engineer
+  - Switzerland internship sportstech wearable cycling tracking engineering
+  - Switzerland internship wearable sensor sport device engineering 6 months
+  - site:careers.garmin.com internship Switzerland embedded systems
+  - site:careers.roche.com Switzerland internship sensor engineering Rotkreuz
+  - site:careers.abb.com Switzerland internship robotics automation electronics
+  - site:careers.hitachi.com Switzerland internship electrical electronics engineering
+  - site:careers.sensirion.com internship Switzerland sensor engineering
+  - site:careers.bobst.com internship Switzerland automation electronics engineering
+  - site:careers.cern internship electronics embedded controls Geneva
+  - site:careers.siemens.com Switzerland internship embedded control systems
+  - site:careers.ascom.com internship Switzerland engineer embedded
+  - site:careers.logitech.com internship Switzerland engineer sensor
+  - Switzerland internship R&D engineer embedded electronics 6 months English
+  - Switzerland internship sensor development instrumentation 6 months English
+  - Switzerland internship robotics SLAM perception computer vision English
+  - Switzerland internship industrial automation PLC control systems English
+  - Switzerland internship sport technology wearable sensors engineering
+  - Switzerland internship IoT connected devices firmware engineering English
+  - Switzerland internship test validation prototyping engineering English
+  - Switzerland internship manufacturing production engineering automation English
+  - internship Switzerland 6 months engineering 2027 English
+  - internship Switzerland March 2027 electronics automation
+  - stage Suisse ingénieur systèmes embarqués 2027
+  - stage Suisse ingénieur capteurs instrumentation 2027
+  - Switzerland internship Python machine learning embedded systems TinyML
+  - Switzerland internship ROS robotics software engineering
+  - Switzerland internship real-time systems RTOS firmware engineering
+  - Switzerland internship test automation validation embedded systems 6 months
+  - Switzerland internship firmware verification testing engineering
+  - site:linkedin.com/jobs/view Switzerland startup internship electronics embedded
+  - site:linkedin.com/jobs/view Switzerland scale-up internship sensor engineering
+  - Praktikum Schweiz Embedded Systems Elektronik
+  - Praktikum Schweiz Robotik Automatisierung
+  - Praktikum Schweiz Sensorik Messtechnik
+  - Praktikum Schweiz Firmware Mikrocontroller
+  - Praktikum Schweiz Bildverarbeitung Computer Vision
+  mode_overrides:
+    maximum:
+      SEARCH_QUERY_BUDGET: '80'
+      SEARCH_RESULTS_PER_QUERY: '15'
+      FIXED_SITE_LIMIT: '30'
+      MAX_LISTING_DETAILS: '70'
+      LISTING_CRAWL_DEPTH: '3'
+      MAX_RECURSIVE_LEADS: '240'
+      SEARCH_WORKERS: '8'
+      SCRAPE_WORKERS: '12'
+      SEARCH_RETRIES: '1'
+      SEARCH_TIMEOUT_SECONDS: '10'
+      WEB_PROBE_QUERIES: '16'
+      WEB_MIN_PRODUCTIVITY: '0.03'
+      HTTP_TIMEOUT_SECONDS: '12'
+      HTTP_RETRIES: '1'
+      MAX_LEADS_PER_SUBLISTING: '36'
+      MIN_LISTING_LEAD_PRIORITY: '3'
+    exhaustif 1h:
+      SEARCH_QUERY_BUDGET: '300'
+      SEARCH_RESULTS_PER_QUERY: '20'
+      FIXED_SITE_LIMIT: '30'
+      MAX_LISTING_DETAILS: '120'
+      LISTING_CRAWL_DEPTH: '3'
+      MAX_RECURSIVE_LEADS: '500'
+      SEARCH_WORKERS: '8'
+      SCRAPE_WORKERS: '12'
+      SEARCH_RETRIES: '1'
+      SEARCH_TIMEOUT_SECONDS: '8'
+      WEB_PROBE_QUERIES: '64'
+      WEB_MIN_PRODUCTIVITY: '0'
+      WEB_DISABLE_CIRCUIT_BREAKER: '1'
+      WEB_RETRY_EMPTY_RESULTS: '1'
+      HTTP_TIMEOUT_SECONDS: '10'
+      HTTP_RETRIES: '1'
+      MAX_LEADS_PER_SUBLISTING: '60'
+      MAX_TOTAL_DETAIL_PAGES: '2400'
+      MAX_IN_FLIGHT_PAGES: '22'
+      MAX_RESPONSE_BYTES: '5000000'
+      MAX_DIAGNOSTIC_LISTING_LEADS: '3000'
+      MIN_LISTING_LEAD_PRIORITY: '2'
+      SEARCH_ROLE_PAIR_LIMIT: '8'
+      SEARCH_INTENT_EXPANSION: '1'
+      SEARCH_SOURCE_QUERIES_PER_DOMAIN: '3'
+      SCAN_TIME_BUDGET_SECONDS: '3600'
+      SCAN_DEADLINE_RESERVE_SECONDS: '150'
+sources:
+  packs:
+  - switzerland
+  - europe_engineering
+  - direct_engineering
+  custom_queries: []
+  custom_domains:
+  - https://fr.glassdoor.ch/Job/
+  custom_urls:
+  - https://fr.glassdoor.ch/Job/
+integrations:
+  google:
+    sheets_enabled: true
+    gmail_enabled: true
+    auto_create_sheet: false
+    sheet_id: ''
+    response_tab: Réponses
+    opportunity_tab: Opportunités
+    client_secret_file: credentials/google_client_secret.json
+    token_file: credentials/google_token.json

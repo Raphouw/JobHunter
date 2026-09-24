@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+    :root {
+      --bg:      #0f1117;
+      --surface: #181c25;
+      --border:  #252a36;
+      --white:   #f0f2f5;
+      --muted:   #a1abbd;
+    }
+    
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--surface);
+      color: var(--white);
+      font-size: 12px;
+      margin: 0;
+      padding: 20px;
+    }
+
+    .form-group { display: flex; flex-direction: column; gap: 6px; flex: 1; margin-bottom: 12px; }
+    .form-label { font-size: 10px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .form-input {
+      background: var(--bg); color: var(--white);
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: 10px; font-size: 12px; width: 100%;
+      font-family: 'Inter', sans-serif; outline: none; box-sizing: border-box;
+      transition: border-color 0.2s;
+    }
+    .form-input:focus { border-color: #3b82f6; }
+    
+    .row { display: flex; gap: 12px; }
+    
+    .action-btn { 
+      cursor: pointer; border-radius: 4px; padding: 8px 16px; 
+      font-size: 12px; transition: opacity 0.2s; 
+    }
+    .action-btn:hover { opacity: 0.85; }
+    .action-btn:disabled { cursor: wait; opacity: 0.65; }
+    .btn-submit { background: #10b981; color: white; border: none; font-weight: 600; }
+    .btn-cancel { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  </style>
+</head>
+<body>
+
+  <div style="display:flex; flex-direction:column;">
+
+    <div class="row">
+      <div class="form-group">
+        <label class="form-label">Cantons</label>
+        <select id="new-canton" class="form-input">
+          <option value="">Sélectionner...</option>
+          <option value="Appenzell Rhodes-Extérieures | AR | AL">Appenzell Rhodes-Extérieures | AR | AL</option>
+          <option value="Appenzell Rhodes-Intérieures | AI | AL">Appenzell Rhodes-Intérieures | AI | AL</option>
+          <option value="Argovie | AG | AL">Argovie | AG | AL</option>
+          <option value="Bâle-Campagne | BL | AL">Bâle-Campagne | BL | AL</option>
+          <option value="Bâle-Ville | BS | AL">Bâle-Ville | BS | AL</option>
+          <option value="Berne | BE | AL/FR">Berne | BE | AL/FR</option>
+          <option value="Fribourg | FR | FR/AL">Fribourg | FR | FR/AL</option>
+          <option value="Genève | GE | FR">Genève | GE | FR</option>
+          <option value="Glaris | GL | AL">Glaris | GL | AL</option>
+          <option value="Grisons | GR | AL/ROM/IT">Grisons | GR | AL/ROM/IT</option>
+          <option value="Jura | JU | FR">Jura | JU | FR</option>
+          <option value="Lucerne | LU | AL">Lucerne | LU | AL</option>
+          <option value="Neuchâtel | NE | FR">Neuchâtel | NE | FR</option>
+          <option value="Nidwald | NW | AL">Nidwald | NW | AL</option>
+          <option value="Obwald | OW | AL">Obwald | OW | AL</option>
+          <option value="Saint-Gall | SG | AL">Saint-Gall | SG | AL</option>
+          <option value="Schaffhouse | SH | AL">Schaffhouse | SH | AL</option>
+          <option value="Schwytz | SZ | AL">Schwytz | SZ | AL</option>
+          <option value="Soleure | SO | AL">Soleure | SO | AL</option>
+          <option value="Tessin | TI | IT">Tessin | TI | IT</option>
+          <option value="Thurgovie | TG | AL">Thurgovie | TG | AL</option>
+          <option value="Uri | UR | AL">Uri | UR | AL</option>
+          <option value="Valais | VS | FR/AL">Valais | VS | FR/AL</option>
+          <option value="Vaud | VD | FR">Vaud | VD | FR</option>
+          <option value="Zoug | ZG | AL">Zoug | ZG | AL</option>
+          <option value="Zurich | ZH | AL">Zurich | ZH | AL</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Entreprise *</label>
+        <input type="text" id="new-entreprise" class="form-input">
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="form-group">
+        <label class="form-label">Ville</label>
+        <input type="text" id="new-ville" class="form-input">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Secteur</label>
+        <input type="text" id="new-secteur" class="form-input" placeholder="ex: SportTech, MedTech...">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Activité détaillée (l'entreprise)</label>
+      <textarea id="new-activite-detaillee" rows="2" class="form-input" style="resize:none;" placeholder="ex: Robotique médicale, capteurs de mouvement..."></textarea>
+    </div>
+
+    <div class="row">
+      <div class="form-group"><label class="form-label">Lien 1</label><input type="text" id="new-lien1" class="form-input"></div>
+      <div class="form-group"><label class="form-label">Lien 2</label><input type="text" id="new-lien2" class="form-input"></div>
+      <div class="form-group"><label class="form-label">Lien 3</label><input type="text" id="new-lien3" class="form-input"></div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Statut (démarche effectuée)</label>
+      <textarea id="new-statut-demarche" rows="2" class="form-input" style="resize:none;" placeholder="ex: Candidature spontanée envoyée par mail, message LinkedIn envoyé..."></textarea>
+    </div>
+
+    <div class="row">
+      <div class="form-group" style="flex:0.5;">
+        <label class="form-label">Note d'intérêt</label>
+        <select id="new-note" class="form-input">
+          <option value="">/10</option>
+          <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+          <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+          <option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Statut actuel</label>
+        <select id="new-statut-actuel" class="form-input">
+          <option value="Demande initiale" selected>Demande initiale</option>
+          <option value="Réponse obtenue">Réponse obtenue</option>
+          <option value="Entretien">Entretien</option>
+          <option value="Validé">Validé</option>
+          <option value="Refusé">Refusé</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Email de contact</label>
+      <input type="email" id="new-email" placeholder="contact@entreprise.ch" class="form-input">
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:20px;">
+      <button class="action-btn btn-cancel" onclick="google.script.host.close()">Annuler</button>
+      <button class="action-btn btn-submit" id="btn-submit-job" onclick="submitDirectJob()">Créer la fiche</button>
+    </div>
+
+  </div>
+
+  <script>
+    // Code.gs fournit cet objet uniquement lors d'un transfert depuis Stage Hunter.
+    // Lors d'une saisie manuelle, sa valeur est null et le formulaire reste vide.
+    const STAGE_HUNTER_PREFILL = <?!= stageHunterPrefillJson ?>;
+
+    function setFieldValue(id, value) {
+      if (value === undefined || value === null || value === '') return;
+      const field = document.getElementById(id);
+      if (!field) return;
+
+      const normalizedValue = String(value).trim();
+      if (!normalizedValue) return;
+
+      if (field.tagName === 'SELECT') {
+        const exactOption = Array.from(field.options).find(option => option.value === normalizedValue);
+        if (exactOption) field.value = exactOption.value;
+        return;
+      }
+
+      field.value = normalizedValue;
+    }
+
+    function getFirstCanton(cantonValue) {
+      if (!cantonValue) return '';
+      return String(cantonValue).split(/\s*;\s*/)[0].trim();
+    }
+
+    function applyStageHunterPrefill() {
+      if (!STAGE_HUNTER_PREFILL) return;
+
+      setFieldValue('new-entreprise', STAGE_HUNTER_PREFILL.entreprise);
+      setFieldValue('new-email', STAGE_HUNTER_PREFILL.email);
+      setFieldValue('new-ville', STAGE_HUNTER_PREFILL.ville);
+      setFieldValue('new-canton', getFirstCanton(STAGE_HUNTER_PREFILL.canton));
+      setFieldValue('new-secteur', STAGE_HUNTER_PREFILL.secteur);
+      setFieldValue('new-activite-detaillee', STAGE_HUNTER_PREFILL.activiteDetaillee);
+      setFieldValue('new-lien1', STAGE_HUNTER_PREFILL.lien1);
+      setFieldValue('new-lien2', STAGE_HUNTER_PREFILL.lien2);
+      setFieldValue('new-lien3', STAGE_HUNTER_PREFILL.lien3);
+      setFieldValue('new-statut-demarche', STAGE_HUNTER_PREFILL.statutDemarche);
+      setFieldValue('new-note', STAGE_HUNTER_PREFILL.note);
+      setFieldValue('new-statut-actuel', STAGE_HUNTER_PREFILL.statutActuel);
+
+      document.getElementById('btn-submit-job').textContent = 'Ajouter aux Réponses';
+    }
+
+    document.addEventListener('DOMContentLoaded', applyStageHunterPrefill);
+
+    function submitDirectJob() {
+      const entreprise = document.getElementById('new-entreprise').value.trim();
+      if (!entreprise) {
+        alert("Le nom de l'entreprise est obligatoire !");
+        return;
+      }
+
+      const data = {
+        entreprise: entreprise,
+        email: document.getElementById('new-email').value.trim(),
+        ville: document.getElementById('new-ville').value.trim(),
+        canton: document.getElementById('new-canton').value,
+        secteur: document.getElementById('new-secteur').value.trim(),
+        activiteDetaillee: document.getElementById('new-activite-detaillee').value.trim(),
+        lien1: document.getElementById('new-lien1').value.trim(),
+        lien2: document.getElementById('new-lien2').value.trim(),
+        lien3: document.getElementById('new-lien3').value.trim(),
+        statutDemarche: document.getElementById('new-statut-demarche').value.trim(),
+        note: document.getElementById('new-note').value,
+        statutActuel: document.getElementById('new-statut-actuel').value,
+        stageHunterMeta: STAGE_HUNTER_PREFILL ? STAGE_HUNTER_PREFILL.stageHunterMeta : null
+      };
+
+      const btn = document.getElementById('btn-submit-job');
+      const originalLabel = btn.textContent;
+      btn.textContent = 'Création...';
+      btn.disabled = true;
+
+      // addNewJob ajoute la ligne dans Réponses. En mode transfert, Code.gs
+      // finalise ensuite l'offre Stage Hunter uniquement si l'ajout a réussi.
+      google.script.run
+        .withSuccessHandler(() => {
+          google.script.host.close();
+        })
+        .withFailureHandler(e => {
+          const message = e && e.message ? e.message : String(e || 'Erreur inconnue');
+          alert('Erreur lors de la création : ' + message);
+          btn.textContent = originalLabel;
+          btn.disabled = false;
+        })
+        .addNewJob(data);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,86 @@
+packs:
+  switzerland:
+    label: "Suisse — plateformes principales"
+    countries: [Switzerland]
+    domains: [jobs.ch, jobup.ch, jobscout24.ch, linkedin.com, iagora.com, swissdevjobs.ch, swissinterns.ch]
+    fixed_urls:
+      - "https://www.jobs.ch/en/vacancies/"
+      - "https://www.jobup.ch/en/jobs/"
+      - "https://www.jobscout24.ch/en/jobs/"
+      - "https://www.linkedin.com/jobs/search/?location=Switzerland"
+      - "https://www.iagora.com/work/en/jobs-and-internships/internships/switzerland"
+
+  france:
+    label: "France — plateformes principales"
+    countries: [France]
+    domains: [francetravail.fr, apec.fr, welcometothejungle.com, hellowork.com, linkedin.com, jobteaser.com, indeed.com]
+    fixed_urls:
+      - "https://candidat.francetravail.fr/offres/recherche"
+      - "https://www.apec.fr/candidat/recherche-emploi.html/emploi"
+      - "https://www.welcometothejungle.com/fr/jobs"
+      - "https://www.hellowork.com/fr-fr/emploi.html"
+      - "https://www.linkedin.com/jobs/search/?location=France"
+      - "https://www.jobteaser.com/fr/job-offers"
+
+  belgium:
+    label: "Belgique — plateformes principales"
+    countries: [Belgium]
+    domains: [references.be, jobat.be, linkedin.com, indeed.com]
+    fixed_urls:
+      - "https://www.jobat.be/fr/emplois"
+      - "https://www.linkedin.com/jobs/search/?location=Belgium"
+
+  germany:
+    label: "Allemagne — plateformes principales"
+    countries: [Germany]
+    domains: [stepstone.de, stellenanzeigen.de, linkedin.com, indeed.com]
+    fixed_urls:
+      - "https://www.stepstone.de/jobs"
+      - "https://www.linkedin.com/jobs/search/?location=Germany"
+
+  europe_engineering:
+    label: "Europe — ingénierie et recherche"
+    domains: [eures.europa.eu, euraxess.ec.europa.eu]
+    fixed_urls:
+      - "https://eures.europa.eu/eures-portal/jv-se/home"
+      - "https://euraxess.ec.europa.eu/jobs/search"
+
+  direct_engineering:
+    label: "Pages carrière — ingénierie et industrie"
+    domains:
+      - careers.abb.com
+      - careers.roche.com
+      - jobs.siemens.com
+      - careers.hitachi.com
+      - careers.bobst.com
+      - careers.sensirion.com
+      - careers.cern
+      - jobs.logitech.com
+      - jobs.sonova.com
+      - leica-geosystems.com
+      - u-blox.com
+    fixed_urls:
+      - "https://careers.abb/global/en/search-results"
+      - "https://careers.roche.com/global/en/search-results"
+      - "https://jobs.siemens.com/careers"
+      - "https://careers.hitachi.com/search/jobs"
+      - "https://careers.bobst.com/"
+      - "https://jobs.sensirion.com/"
+      - "https://careers.cern/alljobs"
+      - "https://jobs.logitech.com/"
+      - "https://jobs.sonova.com/go/All-Jobs/4577301/100/?q=&sortColumn=sort_location&sortDirection=desc"
+      - "https://leica-geosystems.com/en-gb/about-us/careers/explore/job-feed"
+      - "https://www.u-blox.com/en/job-openings"
+
+  tech:
+    label: "Tech, logiciel et data"
+    domains: [linkedin.com, welcometothejungle.com, greenhouse.io, lever.co]
+    fixed_urls:
+      - "https://www.welcometothejungle.com/fr/jobs"
+
+  healthcare:
+    label: "Santé, MedTech et dispositifs médicaux"
+    domains: [careers.stryker.com, careers.zimmerbiomet.com, careers.roche.com]
+    fixed_urls:
+      - "https://careers.stryker.com/search-jobs"
+      - "https://careers.roche.com/global/en/search-results"

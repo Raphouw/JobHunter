@@ -1,0 +1,128 @@
+id: mathieu
+name: Mathieu
+student:
+  stage_type: emploi
+  contract_types:
+  - CDD
+  - CDI
+  min_weeks: 0
+  start_date: '2026-09-21'
+  end_date: ''
+target:
+  job_titles:
+  - Développeur
+  - Junior
+  - programmation
+  - Data scientist
+  sectors:
+  - Application
+  - Développeur
+location:
+  countries:
+  - France
+  - Switzerland
+  - Luxembourg
+  priority_locations:
+  - Grand Est
+  - Metz
+  regions: []
+  acceptable_language:
+  - fr
+  - en
+skills:
+  core:
+  - Java
+  - html
+  - css
+  - développement
+  - C
+  - C++
+  - C#
+  - Langage de programmation
+  strong_domains:
+  - Développement
+  - développeur
+  - IA
+  - Machine Learning
+  - Data
+  - Analyst
+interests:
+  very_high:
+  - Application
+  - Développeur
+  high: []
+  personal:
+  - Vélo
+  - cyclisme
+  - Sport
+  professional:
+  - Application
+  - Développeur
+search:
+  strategy: profile
+  mode: maximum
+  query_budget: 45
+  site_query_share: 0.35
+  retry_empty_results: false
+  use_manual_queries: true
+  require_profile_relevance: true
+  queries: []
+  mode_overrides:
+    complet:
+      SEARCH_QUERY_BUDGET: '80'
+      SEARCH_RESULTS_PER_QUERY: '15'
+      FIXED_SITE_LIMIT: '16'
+      MAX_LISTING_DETAILS: '45'
+      LISTING_CRAWL_DEPTH: '3'
+      MAX_RECURSIVE_LEADS: '500'
+      SEARCH_WORKERS: '8'
+      SCRAPE_WORKERS: '12'
+      SEARCH_RETRIES: '0'
+      SEARCH_TIMEOUT_SECONDS: '8'
+      HTTP_TIMEOUT_SECONDS: '8'
+      HTTP_RETRIES: '1'
+    maximum:
+      SEARCH_QUERY_BUDGET: '80'
+      SEARCH_RESULTS_PER_QUERY: '15'
+      FIXED_SITE_LIMIT: '30'
+      MAX_LISTING_DETAILS: '70'
+      LISTING_CRAWL_DEPTH: '3'
+      MAX_RECURSIVE_LEADS: '500'
+      SEARCH_WORKERS: '8'
+      SCRAPE_WORKERS: '12'
+      SEARCH_RETRIES: '1'
+      SEARCH_TIMEOUT_SECONDS: '10'
+      HTTP_TIMEOUT_SECONDS: '12'
+      HTTP_RETRIES: '1'
+sources:
+  packs:
+  - france
+  - switzerland
+  custom_queries: []
+  custom_domains: []
+  custom_urls: []
+integrations:
+  google:
+    sheets_enabled: true
+    gmail_enabled: false
+    sheet_id: 1fXGZulJUmzSzGZD6BnJZJIrXV-8RByI9W6rxRoBeyhU
+    auto_create_sheet: false
+    response_tab: Réponses
+    opportunity_tab: Opportunités - Mathieu
+    client_secret_file: credentials/google_client_secret.json
+    token_file: credentials/mathieu/google_token.json
+_profile_path: C:\Users\ramat\OneDrive\Bureau\Raphouw Vacances\stage_hunter_v6\config\profiles\mathieu.yaml
+_source_pack_queries: []
+_source_pack_domains:
+- francetravail.fr
+- apec.fr
+- welcometothejungle.com
+- hellowork.com
+- linkedin.com
+- jobteaser.com
+- indeed.com
+_source_pack_urls:
+- https://www.welcometothejungle.com/fr/jobs
+- https://www.hellowork.com/fr-fr/emploi.html
+- https://www.linkedin.com/jobs/search/?location=France
+- https://www.jobteaser.com/fr/job-offers

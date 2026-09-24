@@ -1,0 +1,24 @@
+Changer le nom du site en "Job Crawler" ou "Job Hunter" 
+
+Possibilité de rajouter des mots "Red flag" comme par exemple éviter tous les poste "SENIOR"
+
+Essayer de séparer le gros fichier en plusieurs sous fichier python pour s'y retrouver plus facilement si ça aide GPT a mieux comprendre et a mieux travailler
+
+Essayer de poncer chaque site de listing pour pouvoir mieux parser chaque offre comme il se doit et pour avoir un moteur plus efficace 
+
+Analyser les logs de 34 min sur un mode Exhaustif et analyser la cause de certains blocages de plusieurs minutes
+
+Mettre le timer du scan a jour toutes les secondes plutot que dès qu'un nouveau message arrive 
+
+Barre de progression plus détaillée avec % et ETA
+
+Avoir les infos en direct de la RAM etc utilisée par le PC pour pouvoir mieux diagnostiquer
+Eviter de supprimer/ne pas écrire les logs en cas de crash lié au PC
+
+Refaire le Tinder des offres en "Swiper" et refaire l'interface pour quelque chose de plus pro et plus clean avec plus d'informatino et une meilleure intégration au fond de la page
+
+
+A LA FIN : 
+
+Transformer en site web sur un hebergeur gratuit pour pouvoir faire beaucoup mieux qu'actuellemetn avec du React et une interface plus ergonomique avec plus de description sur les paramètres
+
