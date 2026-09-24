@@ -3287,13 +3287,17 @@ export function geocodeCandidature(candidature, cityIndexes = {}) {
       .replace(/[\\\/\,\(\)\.\-]/g, ' ')
       .trim();
 
-  const loc = norm(candidature.location);
+  const locationText = String(candidature.location || '');
+  const loc = norm(locationText.split(/[,/]/)[0]);
   const cant = norm(candidature.canton || candidature.region);
   const rawCountry = String(candidature.country || '').toUpperCase().trim();
 
   const countryCode = ['CH', 'FR', 'DE', 'BE', 'LU', 'IT', 'ES'].includes(rawCountry)
     ? rawCountry : 'CH';
-  const candidates = [loc, loc.split(' ').slice(0, -1).join(' ')].filter(Boolean);
+  const suffix = loc.split(' ').at(-1);
+  const withoutSuffix = suffix && [norm(rawCountry), cant].includes(suffix)
+    ? loc.split(' ').slice(0, -1).join(' ') : '';
+  const candidates = [loc, withoutSuffix].filter(Boolean);
   const countryCities = cityIndexes[countryCode] || {};
   for (const name of candidates) {
     const coordinates = countryCities[name];
@@ -3321,6 +3325,7 @@ export function geocodeCandidature(candidature, cityIndexes = {}) {
         country: cityData.country,
         region: cityData.region,
         cityName: key.charAt(0).toUpperCase() + key.slice(1),
+        located: true,
       };
     }
   }
@@ -3349,6 +3354,7 @@ export function geocodeCandidature(candidature, cityIndexes = {}) {
           country: reg.country,
           region: reg.code,
           cityName: candidature.location || reg.name,
+          located: false,
         };
       }
     }
@@ -3364,5 +3370,6 @@ export function geocodeCandidature(candidature, cityIndexes = {}) {
     country: defaultReg.country,
     region: defaultReg.code,
     cityName: candidature.location || defaultReg.name,
+    located: false,
   };
 }

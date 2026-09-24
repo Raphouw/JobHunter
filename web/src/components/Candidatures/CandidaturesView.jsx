@@ -152,6 +152,7 @@ export function CandidaturesView({
   const cityPins = useMemo(() => {
     const map = new Map();
     enrichedCandidatures.forEach((c) => {
+      if (!c._geo.located) return;
       const cityName = String(c.location || c._geo.cityName || '').trim();
       if (!cityName) return;
       const key = `${c._country}---${normalizeString(cityName)}`;
@@ -790,6 +791,11 @@ export function CandidaturesView({
             <div className="cand-legend-swatch">
               <span className="swatch-color pin" /> Épingle ville
             </div>
+            {enrichedCandidatures.some((c) => !c._geo.located) && (
+              <div className="cand-legend-swatch">
+                {enrichedCandidatures.filter((c) => !c._geo.located).length} ville(s) à préciser
+              </div>
+            )}
           </div>
         </div>
 
