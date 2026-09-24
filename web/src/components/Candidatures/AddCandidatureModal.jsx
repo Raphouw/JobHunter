@@ -74,7 +74,7 @@ export function AddCandidatureModal({ prefill = null, onClose, onSave, busy = fa
     }
   }, [prefill]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!company.trim()) {
       setError("Le nom de l'entreprise est obligatoire.");
@@ -97,10 +97,11 @@ export function AddCandidatureModal({ prefill = null, onClose, onSave, busy = fa
       rating: Number(rating) || 0,
       status: status || 'Demande initiale',
       contact_email: contactEmail.trim(),
-      offer_id: prefill?.offer_id || prefill?.id || null,
+      offer_id: prefill?.offer_id || (prefill?.status_history ? null : prefill?.id) || null,
     };
 
-    onSave(candidature);
+    const saved = await onSave(candidature);
+    if (saved === false) setError('Enregistrement impossible. Vérifie les champs puis réessaie.');
   };
 
   const selectableCountries = COUNTRIES.filter((c) => c.code !== 'ALL');
@@ -119,7 +120,6 @@ export function AddCandidatureModal({ prefill = null, onClose, onSave, busy = fa
                   ? 'Ajouter aux candidatures postulées'
                   : 'Nouvelle Candidature'}
               </h3>
-              <p>Positionnement sur la carte d’Europe, suivi des étapes et mémos.</p>
             </div>
           </div>
           <button className="sh-modal-close" onClick={onClose} aria-label="Fermer">

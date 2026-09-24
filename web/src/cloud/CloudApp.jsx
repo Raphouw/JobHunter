@@ -251,8 +251,8 @@ export function CloudApp() {
 
   const run = async (operation, success) => {
     setBusy(true); setError('');
-    try { await operation(); if (success) setNotice(success); }
-    catch (operationError) { setError(operationError.message); }
+    try { await operation(); if (success) setNotice(success); return true; }
+    catch (operationError) { setError(operationError.message); return false; }
     finally { setBusy(false); }
   };
 
@@ -311,14 +311,14 @@ export function CloudApp() {
 
   const saveCandidature = (data) => run(async () => {
     const now = new Date();
-    const candId = data.id || `cand_${Date.now()}`;
+    const candId = data.id || undefined;
     const payload = {
       ...data,
-      id: candId,
       user_id: session.user.id,
       profile_id: profileId,
       updated_at: now.toISOString(),
     };
+    if (candId) payload.id = candId;
     if (!data.id) {
       payload.created_at = now.toISOString();
       const day = String(now.getDate()).padStart(2, '0');
@@ -334,16 +334,12 @@ export function CloudApp() {
       payload.notes = [];
     }
 
-    try {
-      await supabase.from('hunter_candidatures').upsert(payload);
-    } catch (err) {
-      console.warn('hunter_candidatures storage:', err.message);
-    }
+    const saved = unwrap(await supabase.from('hunter_candidatures').upsert(payload).select('*').single());
 
     setCandidatures((prev) => {
-      const next = prev.some((c) => c.id === candId)
-        ? prev.map((c) => (c.id === candId ? { ...c, ...payload } : c))
-        : [payload, ...prev];
+      const next = prev.some((c) => c.id === saved.id)
+        ? prev.map((c) => (c.id === saved.id ? saved : c))
+        : [saved, ...prev];
       localStorage.setItem(`sh_candidatures_${profileId}`, JSON.stringify(next));
       return next;
     });
@@ -379,7 +375,9 @@ export function CloudApp() {
           status_history: updatedHistory,
           updated_at: now.toISOString(),
         };
-        supabase.from('hunter_candidatures').upsert(updated).catch(() => {});
+        supabase.from('hunter_candidatures').upsert(updated).then(({ error }) => {
+          if (error) setError(error.message);
+        });
         return updated;
       });
       localStorage.setItem(`sh_candidatures_${profileId}`, JSON.stringify(next));
@@ -397,7 +395,9 @@ export function CloudApp() {
           notes: [...(c.notes || []), note],
           updated_at: new Date().toISOString(),
         };
-        supabase.from('hunter_candidatures').upsert(updated).catch(() => {});
+        supabase.from('hunter_candidatures').upsert(updated).then(({ error }) => {
+          if (error) setError(error.message);
+        });
         return updated;
       });
       localStorage.setItem(`sh_candidatures_${profileId}`, JSON.stringify(next));
@@ -407,9 +407,7 @@ export function CloudApp() {
   };
 
   const deleteCandidature = (candId) => run(async () => {
-    try {
-      await supabase.from('hunter_candidatures').delete().eq('id', candId);
-    } catch (_) {}
+    unwrap(await supabase.from('hunter_candidatures').delete().eq('id', candId));
     setCandidatures((prev) => {
       const next = prev.filter((c) => c.id !== candId);
       localStorage.setItem(`sh_candidatures_${profileId}`, JSON.stringify(next));
@@ -440,27 +438,25 @@ export function CloudApp() {
       },
       body: JSON.stringify({ profileId }),
     });
-    if (!res.ok) throw new Error(`Erreur import Sheets HTTP ${res.status}`);
     const data = await res.json();
-    if (data.candidatures && data.candidatures.length > 0) {
-      setCandidatures((prev) => {
-        const existingNames = new Set(prev.map((c) => (c.company || '').toLowerCase().trim()));
-        const toAdd = data.candidatures.filter((c) => !existingNames.has((c.company || '').toLowerCase().trim()));
-        const merged = [...prev, ...toAdd];
-        localStorage.setItem(`sh_candidatures_${profileId}`, JSON.stringify(merged));
-        toAdd.forEach((c) => {
-          supabase.from('hunter_candidatures').upsert({
-            ...c,
-            user_id: session.user.id,
-            profile_id: profileId,
-          }).catch(() => {});
-        });
-        return merged;
-      });
-      setNotice(`${data.candidatures.length} candidatures chargées depuis Google Sheets.`);
-    } else {
-      setNotice('Aucune nouvelle candidature trouvée dans le Sheet.');
+    if (!res.ok) throw new Error(data.error || `Erreur import Sheets HTTP ${res.status}`);
+    const incoming = data.candidatures || [];
+    const keyOf = (c) => `${String(c.company || '').trim().toLowerCase()}|${String(c.created_at || '').slice(0, 16)}|${String(c.location || '').trim().toLowerCase()}`;
+    const existing = unwrap(await supabase.from('hunter_candidatures').select('*').eq('profile_id', profileId));
+    const existingKeys = new Set(existing.map(keyOf));
+    const toAdd = incoming.filter((c) => {
+      const key = keyOf(c);
+      if (existingKeys.has(key)) return false;
+      existingKeys.add(key);
+      return true;
+    });
+    if (toAdd.length) {
+      unwrap(await supabase.from('hunter_candidatures').insert(toAdd.map((c) => ({
+        ...c, user_id: session.user.id, profile_id: profileId,
+      }))));
     }
+    await loadCandidatures();
+    setNotice(`${toAdd.length} candidature${toAdd.length > 1 ? 's' : ''} importée${toAdd.length > 1 ? 's' : ''} depuis « ${data.sourceTab} » (${incoming.length} trouvées).`);
   });
 
   const transferOfferToCandidature = (offer) => {

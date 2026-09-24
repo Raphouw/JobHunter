@@ -8087,3 +8087,259 @@ a {
   color: #ffffff;
   border-color: #059669;
 }
+
+/* Candidatures: compact workspace with the map as the primary surface. */
+.candidatures-view-native {
+  max-width: none;
+  padding-bottom: 32px;
+}
+
+.candidatures-view-native .sh-view-header {
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.candidatures-view-native .sh-view-header h1 {
+  letter-spacing: -0.04em;
+}
+
+.candidatures-view-native .cand-funnel-grid {
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.candidatures-view-native .cand-stat-card {
+  border-radius: 15px;
+  padding: 14px 16px;
+  box-shadow: none;
+}
+
+.candidatures-view-native .cand-stat-icon {
+  width: 38px;
+  height: 38px;
+  font-size: 19px;
+}
+
+.candidatures-view-native .cand-country-tabs-wrapper {
+  margin-bottom: 12px;
+}
+
+.candidatures-view-native .cand-country-tabs {
+  gap: 6px;
+}
+
+.candidatures-view-native .cand-country-tab {
+  border-radius: 999px;
+  padding: 8px 13px;
+  box-shadow: none;
+}
+
+.candidatures-view-native .cand-country-tab.active {
+  background: #1e1b4b;
+  color: #fff;
+  border-color: #1e1b4b;
+  box-shadow: 0 5px 14px rgba(30, 27, 75, .16);
+}
+
+.candidatures-view-native .cand-sub-toolbar {
+  border-radius: 15px;
+  margin-bottom: 14px;
+  gap: 10px;
+  padding: 10px 12px;
+  box-shadow: none;
+}
+
+.candidatures-view-native .cand-search-bar {
+  max-width: 310px;
+}
+
+.candidatures-view-native .cand-status-pills {
+  gap: 5px;
+}
+
+.candidatures-view-native .cand-pill {
+  padding: 7px 10px;
+}
+
+.candidatures-view-native .cand-pill.active {
+  background: #1e1b4b;
+  border-color: #1e1b4b;
+  box-shadow: none;
+}
+
+.candidatures-view-native .cand-interactive-layout {
+  grid-template-columns: minmax(0, 1.6fr) minmax(340px, .7fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.candidatures-view-native .cand-map-card {
+  padding: 14px;
+  border-radius: 20px;
+  box-shadow: 0 14px 40px rgba(31, 41, 84, .06);
+}
+
+.candidatures-view-native .cand-map-card-header {
+  margin: 2px 4px 12px;
+}
+
+.candidatures-view-native .cand-map-floating-controls button {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+}
+
+.candidatures-view-native .cand-svg-container {
+  aspect-ratio: auto;
+  height: clamp(600px, 70vh, 850px);
+  background: radial-gradient(circle at 45% 42%, #f8f9ff 0%, #eef3fb 70%, #e9eff9 100%);
+  border-color: #dce5f3;
+  border-radius: 16px;
+  touch-action: none;
+}
+
+.candidatures-view-native .cand-region-polygon {
+  fill: #e7edf6;
+  stroke: #fff;
+  stroke-width: 1.2px;
+}
+
+.candidatures-view-native .cand-region-polygon.has-candidatures {
+  fill: #b9c9f5;
+  stroke: #fff;
+}
+
+.candidatures-view-native .cand-region-polygon.high-density {
+  fill: #788de8;
+}
+
+.candidatures-view-native .cand-region-polygon:hover {
+  fill: #38bdf8;
+  stroke: #fff;
+  stroke-width: 2px;
+}
+
+.candidatures-view-native .cand-region-polygon.active {
+  fill: #4338ca !important;
+  stroke: #fff !important;
+  stroke-width: 2.5px !important;
+  filter: drop-shadow(0 4px 8px rgba(67, 56, 202, .45));
+}
+
+.candidatures-view-native .cand-region-polygon.dimmed {
+  opacity: .16;
+}
+
+.candidatures-view-native .cand-region-count.active {
+  fill: #312e81;
+}
+
+.candidatures-view-native .cand-map-bottom-legend {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 8px 15px;
+  margin: 12px 4px 2px;
+  font-size: 11px;
+}
+
+.candidatures-view-native .swatch-color.empty { background: #e7edf6; border-color: #dce5f3; }
+.candidatures-view-native .swatch-color.low { background: #b9c9f5; border-color: #b9c9f5; }
+.candidatures-view-native .swatch-color.med { background: #95a9ee; border-color: #95a9ee; }
+.candidatures-view-native .swatch-color.high { background: #788de8; border-color: #788de8; }
+
+.candidatures-view-native .cand-list-panel {
+  max-height: calc(clamp(600px, 70vh, 850px) + 110px);
+  overflow-y: auto;
+  padding-right: 3px;
+}
+
+.candidatures-view-native .cand-list-header,
+.candidatures-view-native .cand-card {
+  border-radius: 16px;
+  box-shadow: none;
+}
+
+.sh-modal-backdrop:has(.candidature-modal) {
+  justify-content: flex-end;
+  align-items: stretch;
+  padding: 0;
+  backdrop-filter: blur(4px);
+}
+
+.candidature-modal {
+  max-width: 760px;
+  max-height: 100vh;
+  height: 100vh;
+  border: none;
+  border-radius: 24px 0 0 24px;
+  padding: 28px 34px;
+  box-shadow: -16px 0 60px rgba(16, 24, 56, .18);
+}
+
+.candidature-modal .sh-modal-header {
+  position: sticky;
+  top: -28px;
+  z-index: 2;
+  background: #fff;
+  padding: 10px 0 20px;
+  border-bottom: 1px solid #e6eaf2;
+}
+
+.candidature-modal .sh-modal-title p {
+  display: none;
+}
+
+.candidature-modal .cand-form {
+  gap: 18px;
+  margin-top: 24px;
+}
+
+.candidature-modal .cand-row {
+  gap: 14px;
+}
+
+.candidature-modal .cand-field {
+  min-width: 190px;
+}
+
+.candidature-modal .cand-field input,
+.candidature-modal .cand-field select,
+.candidature-modal .cand-field textarea {
+  min-height: 43px;
+  border-radius: 11px;
+  background: #fff;
+  border-color: #dce2ed;
+  padding: 10px 12px;
+}
+
+.candidature-modal .cand-field textarea {
+  min-height: 76px;
+}
+
+.candidature-modal .sh-modal-actions {
+  position: sticky;
+  bottom: -28px;
+  background: #fff;
+  border-top: 1px solid #e6eaf2;
+  padding: 16px 0 6px;
+  margin-top: 6px;
+}
+
+@media (max-width: 1220px) {
+  .candidatures-view-native .cand-interactive-layout { grid-template-columns: 1fr; }
+  .candidatures-view-native .cand-list-panel { max-height: none; }
+}
+
+@media (max-width: 700px) {
+  .candidatures-view-native .cand-svg-container { height: 530px; }
+  .sh-modal-backdrop:has(.candidature-modal) { align-items: flex-end; }
+  .candidature-modal {
+    max-width: 100%;
+    height: min(94vh, 950px);
+    max-height: 94vh;
+    border-radius: 20px 20px 0 0;
+    padding: 20px;
+  }
+  .candidature-modal .sh-modal-header { top: -20px; }
+  .candidature-modal .sh-modal-actions { bottom: -20px; }
+}

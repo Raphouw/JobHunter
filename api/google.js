@@ -297,24 +297,30 @@ export default async function handler(request, response) {
       const sheet = await googleApi(`spreadsheets/${encodeURIComponent(sheetId)}?fields=sheets.properties.title`, token);
       const existingTitles = (sheet.sheets || []).map((s) => s.properties?.title);
 
-      // Ensure both tabs exist
-      const toAdd = [];
-      if (!existingTitles.includes(tabOpp)) toAdd.push({ addSheet: { properties: { title: tabOpp } } });
-      if (!existingTitles.includes(tabCand)) toAdd.push({ addSheet: { properties: { title: tabCand } } });
-      if (toAdd.length > 0) {
-        await googleApi(`spreadsheets/${encodeURIComponent(sheetId)}:batchUpdate`, token, { method: 'POST',
-          body: JSON.stringify({ requests: toAdd }) });
-      }
-
       if (action === 'pull-sheet') {
-        // Read candidatures from Sheet
-        let candidatures = [];
-        try {
-          const rangeCand = `'${tabCand.replaceAll("'", "''")}'!A1:Z`;
-          const candData = await googleApi(`spreadsheets/${encodeURIComponent(sheetId)}/values/${encodeURIComponent(rangeCand)}`, token);
-          const rows = candData.values || [];
-          if (rows.length >= 2) {
-            const headerRow = rows[0].map((c) => String(c).toLowerCase().trim());
+        // The source may have a title row before the actual column headers.
+        // Inspect every existing tab; never create an empty tab during an import.
+        const normalize = (value) => String(value || '').normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+        const candidates = [...new Set([tabCand, 'Réponses', ...existingTitles])]
+          .filter((title) => existingTitles.includes(title) && title !== tabOpp && !title.startsWith('_'));
+        let source = null;
+        for (const title of candidates) {
+          const range = `'${title.replaceAll("'", "''")}'!A1:Z`;
+          const data = await googleApi(`spreadsheets/${encodeURIComponent(sheetId)}/values/${encodeURIComponent(range)}`, token);
+          const rows = data.values || [];
+          const headerIndex = rows.findIndex((row) => row.some((cell) => normalize(cell).includes('entreprise'))
+            && row.some((cell) => normalize(cell).includes('statut')));
+          if (headerIndex < 0) continue;
+          if (!source || rows.length - headerIndex > source.rows.length - source.headerIndex) {
+            source = { title, rows, headerIndex };
+          }
+        }
+        if (!source) return response.status(422).json({ error: 'Aucun onglet de candidatures trouvé (colonnes Entreprise et Statut requises).' });
+        const candidatures = [];
+        const { rows, headerIndex } = source;
+        {
+            const headerRow = rows[headerIndex].map(normalize);
             const col = (names) => headerRow.findIndex((h) => names.some((n) => h.includes(n)));
             const cDate = col(['horodateur', 'date']);
             const cCanton = col(['canton']);
@@ -331,9 +337,9 @@ export default async function handler(request, response) {
             const cMail = col(['email', 'mail']);
             const cRet = col(['retour', 'retours', 'memo']);
 
-            for (let i = 1; i < rows.length; i++) {
+            for (let i = headerIndex + 1; i < rows.length; i++) {
               const r = rows[i];
-              const comp = r[cComp]?.trim();
+              const comp = String(r[cComp] || '').trim();
               if (!comp) continue;
               const retoursStr = (cRet >= 0 ? r[cRet] : '') || '';
               const notes = [];
@@ -348,6 +354,8 @@ export default async function handler(request, response) {
 
               candidatures.push({
                 company: comp,
+                country: 'CH',
+                region: String(cCanton >= 0 ? r[cCanton] || '' : '').split('|')[1]?.trim() || '',
                 canton: (cCanton >= 0 ? r[cCanton] : '') || '',
                 location: (cCity >= 0 ? r[cCity] : '') || '',
                 sector: (cSec >= 0 ? r[cSec] : '') || '',
@@ -361,19 +369,37 @@ export default async function handler(request, response) {
                 contact_email: (cMail >= 0 ? r[cMail] : '') || '',
                 notes,
                 status_history: statusHistory,
-                created_at: (cDate >= 0 ? r[cDate] : null) || new Date().toISOString(),
+                created_at: (() => {
+                  const raw = cDate >= 0 ? String(r[cDate] || '') : '';
+                  const match = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+                  if (!match) return new Date().toISOString();
+                  const utc = Date.UTC(Number(match[3]), Number(match[2]) - 1, Number(match[1]),
+                    Number(match[4] || 12), Number(match[5] || 0), Number(match[6] || 0));
+                  const zone = new Intl.DateTimeFormat('en-GB', {
+                    timeZone: 'Europe/Paris', timeZoneName: 'shortOffset',
+                  }).formatToParts(new Date(utc)).find((part) => part.type === 'timeZoneName')?.value || 'GMT+1';
+                  const offset = Number(/GMT([+-]\d+)/.exec(zone)?.[1] || 1);
+                  return new Date(utc - offset * 3600000).toISOString();
+                })(),
               });
             }
-          }
-        } catch (pullErr) {
-          console.warn('Error reading candidatures tab:', pullErr.message);
         }
 
         return response.status(200).json({
           sheetId,
           candidatures,
+          sourceTab: source.title,
+          sourceRows: rows.length - headerIndex - 1,
           url: `https://docs.google.com/spreadsheets/d/${sheetId}`,
         });
+      }
+
+      const toAdd = [];
+      if (!existingTitles.includes(tabOpp)) toAdd.push({ addSheet: { properties: { title: tabOpp } } });
+      if (!existingTitles.includes(tabCand)) toAdd.push({ addSheet: { properties: { title: tabCand } } });
+      if (toAdd.length > 0) {
+        await googleApi(`spreadsheets/${encodeURIComponent(sheetId)}:batchUpdate`, token, { method: 'POST',
+          body: JSON.stringify({ requests: toAdd }) });
       }
 
       // Sync both tabs:

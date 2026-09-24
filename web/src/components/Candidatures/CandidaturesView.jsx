@@ -74,7 +74,7 @@ export function CandidaturesView({
   const [noteTargetCandidature, setNoteTargetCandidature] = useState(null);
   const [tooltip, setTooltip] = useState({ visible: false, x: 0, y: 0, title: '', subtitle: '' });
   const [manualZoom, setManualZoom] = useState(1);
-  const [zoomCenter, setZoomCenter] = useState({ cx: 500, cy: 400 });
+  const mapContainerRef = useRef(null);
   const [cityIndexes, setCityIndexes] = useState({});
 
   const usedCountries = useMemo(() => [...new Set(candidatures.map((item) => item.country || 'CH'))]
@@ -218,11 +218,36 @@ export function CandidaturesView({
     setActiveCityKey(null);
     setManualZoom(1);
 
-    const countryObj = COUNTRIES.find((c) => c.code === countryCode);
-    if (countryObj) {
-      setZoomCenter({ cx: countryObj.cx, cy: countryObj.cy });
-    }
   };
+
+  const stepBackMap = () => {
+    setTooltip((current) => ({ ...current, visible: false }));
+    if (activeCityKey || activeRegionCode) {
+      setActiveCityKey(null);
+      setActiveRegionCode(null);
+    } else if (selectedCountry !== 'ALL') {
+      setSelectedCountry('ALL');
+    }
+    setManualZoom(1);
+  };
+
+  useEffect(() => {
+    const element = mapContainerRef.current;
+    if (!element) return undefined;
+    const onWheel = (event) => {
+      event.preventDefault();
+      setManualZoom((zoom) => Math.max(0.8, Math.min(3.5,
+        Number((zoom * (event.deltaY < 0 ? 1.14 : 1 / 1.14)).toFixed(2)))));
+    };
+    element.addEventListener('wheel', onWheel, { passive: false });
+    return () => element.removeEventListener('wheel', onWheel);
+  }, []);
+
+  const sortedCountries = useMemo(() => [
+    ...COUNTRIES.filter((country) => country.code === 'ALL'),
+    ...COUNTRIES.filter((country) => country.code !== 'ALL')
+      .sort((a, b) => (countryCounts[b.code] || 0) - (countryCounts[a.code] || 0)),
+  ], [countryCounts]);
 
   // Zoom transform calculation for the Western Europe SVG map (1000x980)
   const zoomTransform = useMemo(() => {
@@ -395,11 +420,8 @@ export function CandidaturesView({
       {/* ── HEADER ── */}
       <div className="sh-view-header">
         <div>
-          <span className="sh-eyebrow">SUIVI & CARTOGRAPHIE</span>
-          <h1>Mes Candidatures en Europe</h1>
-          <p>
-            Suivi temps réel de tes candidatures et relances en Suisse, France, Allemagne, Belgique, Luxembourg, Italie et Espagne.
-          </p>
+          <span className="sh-eyebrow">ESPACE CANDIDATURES</span>
+          <h1>Candidatures & Carte</h1>
         </div>
 
         <div className="sh-header-actions">
@@ -411,7 +433,7 @@ export function CandidaturesView({
             title="Analyser mes emails Gmail pour détecter les réponses, invitations et refus"
           >
             <Icon name="mail" size={16} />
-            <span>Scanner Gmail 📬</span>
+            <span>Scanner Gmail</span>
           </button>
 
           <button
@@ -419,10 +441,10 @@ export function CandidaturesView({
             className="sh-btn-secondary"
             onClick={handleRefresh}
             disabled={busy}
-            title="Actualiser les candidatures"
+            title="Relire les candidatures depuis Google Sheets"
           >
             <Icon name="refresh" size={16} />
-            <span>Actualiser</span>
+            <span>Importer Sheets</span>
           </button>
 
           {googleConnected && onSyncGoogleSheets && (
@@ -434,7 +456,7 @@ export function CandidaturesView({
               title="Exporter vers Google Sheets (Onglets Opportunités + Réponses)"
             >
               <Icon name="external" size={16} />
-              <span>Sync Sheets</span>
+              <span>Exporter</span>
             </button>
           )}
 
@@ -506,7 +528,7 @@ export function CandidaturesView({
       {/* ── COUNTRY SWITCHER TABS (7 COUNTRIES + EUROPE) ── */}
       <div className="cand-country-tabs-wrapper">
         <div className="cand-country-tabs">
-          {COUNTRIES.map((c) => {
+          {sortedCountries.map((c) => {
             const count = countryCounts[c.code] || 0;
             const isSelected = selectedCountry === c.code;
 
@@ -608,7 +630,7 @@ export function CandidaturesView({
                   ? `Région : ${activeRegionCode}`
                   : activeCityKey
                   ? `Ville : ${activeCityKey.split('---')[1]}`
-                  : 'Clique sur une région ou une épingle pour filtrer'}
+                  : 'Molette pour zoomer · clic dans le vide pour reculer'}
               </small>
             </div>
 
@@ -642,10 +664,11 @@ export function CandidaturesView({
             </div>
           </div>
 
-          <div className="cand-svg-container">
+          <div className="cand-svg-container" ref={mapContainerRef}>
             <svg
               viewBox="0 0 1000 980"
               className="cand-europe-svg"
+              onClick={(event) => { if (event.target === event.currentTarget) stepBackMap(); }}
               onMouseLeave={() => setTooltip((t) => ({ ...t, visible: false }))}
             >
               <defs>
@@ -657,6 +680,8 @@ export function CandidaturesView({
                   <stop offset="100%" stopColor="#f1f5f9" />
                 </linearGradient>
               </defs>
+
+              <rect x="0" y="0" width="1000" height="980" fill="transparent" onClick={stepBackMap} />
 
               <g
                 style={{
@@ -670,7 +695,7 @@ export function CandidaturesView({
                   {EUROPE_REGIONS_GEO.map((reg) => {
                     const count = regionCounts[`${reg.country}-${reg.code}`] || regionCounts[reg.code] || 0;
                     const isCountryActive = selectedCountry === 'ALL' || selectedCountry === reg.country;
-                    const isRegionActive = activeRegionCode === reg.code;
+                    const isRegionActive = activeRegionCode === reg.code && selectedCountry === reg.country;
 
                     return (
                       <path
@@ -678,12 +703,11 @@ export function CandidaturesView({
                         d={reg.path}
                         className={`cand-region-polygon ${isRegionActive ? 'active' : ''} ${
                           !isCountryActive ? 'dimmed' : ''
-                        } ${count > 0 ? 'has-candidatures' : ''}`}
-                        onClick={() => {
+                        } ${count > 0 ? 'has-candidatures' : ''} ${count >= 5 ? 'high-density' : ''}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
                           setActiveCityKey(null);
-                          if (selectedCountry !== reg.country && selectedCountry !== 'ALL') {
-                            setSelectedCountry(reg.country);
-                          }
+                          setSelectedCountry(reg.country);
                           setActiveRegionCode(isRegionActive ? null : reg.code);
                         }}
                         onMouseEnter={(e) => {
@@ -706,7 +730,7 @@ export function CandidaturesView({
                   {EUROPE_REGIONS_GEO.map((reg) => {
                     const count = regionCounts[`${reg.country}-${reg.code}`] || regionCounts[reg.code] || 0;
                     const isCountryActive = selectedCountry === 'ALL' || selectedCountry === reg.country;
-                    if (!isCountryActive) return null;
+                    if (!isCountryActive || (selectedCountry === 'ALL' && count === 0)) return null;
 
                     return (
                       <g key={`lbl-${reg.id}`}>
@@ -777,16 +801,16 @@ export function CandidaturesView({
           {/* Map Legend */}
           <div className="cand-map-bottom-legend">
             <div className="cand-legend-swatch">
-              <span className="swatch-color empty" /> 0 offre
+              <span className="swatch-color empty" /> 0
             </div>
             <div className="cand-legend-swatch">
-              <span className="swatch-color low" /> 1-2 offres
+              <span className="swatch-color low" /> 1-2
             </div>
             <div className="cand-legend-swatch">
-              <span className="swatch-color med" /> 3-5 offres
+              <span className="swatch-color med" /> 3-5
             </div>
             <div className="cand-legend-swatch">
-              <span className="swatch-color high" /> 6+ offres
+              <span className="swatch-color high" /> 6+
             </div>
             <div className="cand-legend-swatch">
               <span className="swatch-color pin" /> Épingle ville
@@ -932,10 +956,13 @@ export function CandidaturesView({
             setShowAddModal(false);
             if (onClearPrefill) onClearPrefill();
           }}
-          onSave={(data) => {
-            if (onSaveCandidature) onSaveCandidature(data);
-            setShowAddModal(false);
-            if (onClearPrefill) onClearPrefill();
+          onSave={async (data) => {
+            const saved = !onSaveCandidature || await onSaveCandidature(data);
+            if (saved) {
+              setShowAddModal(false);
+              if (onClearPrefill) onClearPrefill();
+            }
+            return saved;
           }}
         />
       )}
@@ -945,9 +972,12 @@ export function CandidaturesView({
           prefill={editingCandidature}
           busy={busy}
           onClose={() => setEditingCandidature(null)}
-          onSave={(data) => {
-            if (onSaveCandidature) onSaveCandidature({ ...data, id: editingCandidature.id });
-            setEditingCandidature(null);
+          onSave={async (data) => {
+            const saved = !onSaveCandidature || await onSaveCandidature({ ...data, id: editingCandidature.id });
+            if (saved) {
+              setEditingCandidature(null);
+            }
+            return saved;
           }}
         />
       )}
