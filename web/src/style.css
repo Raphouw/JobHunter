@@ -8195,7 +8195,7 @@ a {
   background: radial-gradient(circle at 45% 42%, #f8f9ff 0%, #eef3fb 70%, #e9eff9 100%);
   border-color: #dce5f3;
   border-radius: 16px;
-  touch-action: none;
+  touch-action: pan-y;
 }
 
 .candidatures-view-native .cand-region-polygon {

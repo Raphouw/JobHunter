@@ -236,7 +236,7 @@ export function CandidaturesView({
     if (!element) return undefined;
     const onWheel = (event) => {
       event.preventDefault();
-      setManualZoom((zoom) => Math.max(0.8, Math.min(3.5,
+      setManualZoom((zoom) => Math.max(1, Math.min(3.5,
         Number((zoom * (event.deltaY < 0 ? 1.14 : 1 / 1.14)).toFixed(2)))));
     };
     element.addEventListener('wheel', onWheel, { passive: false });
@@ -645,7 +645,7 @@ export function CandidaturesView({
               <button
                 type="button"
                 title="Dézoomer (−)"
-                onClick={() => setManualZoom((z) => Math.max(Number((z - 0.3).toFixed(1)), 0.8))}
+                onClick={() => setManualZoom((z) => Math.max(Number((z - 0.3).toFixed(1)), 1))}
               >
                 −
               </button>
