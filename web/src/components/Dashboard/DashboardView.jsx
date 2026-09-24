@@ -72,7 +72,7 @@ function getHeroCardData(profile = {}) {
   return { heroJobTitle, heroSubtitle };
 }
 
-export function DashboardView({ profile = {}, stats = {}, scan = {}, onGoToPage }) {
+export function DashboardView({ profile = {}, stats = {}, scan = {}, featuredOffer = null, onGoToPage }) {
   const studentName = profile.student?.name;
   const firstName = studentName
     ? studentName.trim().split(/\s+/)[0]
@@ -104,7 +104,9 @@ export function DashboardView({ profile = {}, stats = {}, scan = {}, onGoToPage 
           <p>
             {stats.pending > 0
               ? `Tu as ${stats.pending} offre${stats.pending > 1 ? 's' : ''} prête${stats.pending > 1 ? 's' : ''} à être examinée${stats.pending > 1 ? 's' : ''} dans le Swiper. Chaque décision affine ton algorithme.`
-              : 'Toutes les offres actuelles ont été triées ! Lance un scan pour explorer de nouvelles pistes.'}
+              : scan.available === false
+                ? 'Toutes les offres actuelles ont été triées ! Le scan web est encore en préparation.'
+                : 'Toutes les offres actuelles ont été triées ! Lance un scan pour explorer de nouvelles pistes.'}
           </p>
           <div className="sh-hero-actions">
             <button
@@ -129,9 +131,9 @@ export function DashboardView({ profile = {}, stats = {}, scan = {}, onGoToPage 
             <div className="sh-hero-card card-3" />
             <div className="sh-hero-card card-2" />
             <div className="sh-hero-card card-1">
-              <span className="sh-hero-badge">✦ MATCH 96%</span>
-              <strong>{heroJobTitle}</strong>
-              <small>{heroSubtitle}</small>
+              <span className="sh-hero-badge">✦ MATCH {featuredOffer ? `${Math.round(Number(featuredOffer.score) || 0)}%` : '96%'}</span>
+              <strong>{featuredOffer?.title || heroJobTitle}</strong>
+              <small>{featuredOffer ? `${featuredOffer.company || 'Entreprise'} · ${featuredOffer.location || 'Lieu à confirmer'}` : heroSubtitle}</small>
             </div>
           </div>
         </div>
@@ -181,13 +183,13 @@ export function DashboardView({ profile = {}, stats = {}, scan = {}, onGoToPage 
             <span className="sh-stat-desc">Pour décider plus tard</span>
           </div>
 
-          <div className="sh-stat-card card-blue" onClick={() => onGoToPage('connections')}>
+          <div className="sh-stat-card card-blue" onClick={() => onGoToPage(scan.cloud ? 'results' : 'connections')}>
             <div className="sh-stat-icon">
               <Icon name="external" size={24} />
             </div>
             <strong className="sh-stat-val">{stats.ready || 0}</strong>
-            <span className="sh-stat-label">Prêtes à exporter</span>
-            <span className="sh-stat-desc">Vers Google Sheets</span>
+            <span className="sh-stat-label">{scan.cloud ? 'Offres gardées' : 'Prêtes à exporter'}</span>
+            <span className="sh-stat-desc">{scan.cloud ? 'Dans mes offres' : 'Vers Google Sheets'}</span>
           </div>
         </div>
       </section>
@@ -222,11 +224,13 @@ export function DashboardView({ profile = {}, stats = {}, scan = {}, onGoToPage 
             {scan.running ? (
               <span className="sh-tag-running">Scan en cours</span>
             ) : (
-              <span className="sh-tag-idle">Moteur prêt</span>
+              <span className="sh-tag-idle">{scan.available === false ? 'En préparation' : 'Moteur prêt'}</span>
             )}
           </div>
           <p className="sh-panel-desc">
-            Lance une exploration ciblée sur les sites carrières et agrégateurs selon tes critères.
+            {scan.available === false
+              ? 'Les scans web reprendront automatiquement par étapes dès que le worker sera relié.'
+              : 'Lance une exploration ciblée sur les sites carrières et agrégateurs selon tes critères.'}
           </p>
           <div className="sh-panel-action-box">
             <button
@@ -234,7 +238,7 @@ export function DashboardView({ profile = {}, stats = {}, scan = {}, onGoToPage 
               onClick={() => onGoToPage('search')}
             >
               <Icon name="spark" size={16} />
-              <span>Configurer & lancer un scan</span>
+              <span>{scan.available === false ? 'Voir l’état des scans' : 'Configurer & lancer un scan'}</span>
             </button>
           </div>
         </div>

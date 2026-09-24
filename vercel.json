@@ -4,6 +4,9 @@
   "installCommand": "cd web && npm ci",
   "buildCommand": "cd web && npm run build:cloud",
   "outputDirectory": "web/dist-cloud",
+  "crons": [
+    { "path": "/api/keepalive", "schedule": "0 9 * * *" }
+  ],
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ]

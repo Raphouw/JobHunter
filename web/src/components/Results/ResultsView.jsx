@@ -28,6 +28,7 @@ export function ResultsView({
   onDecide,
   onRequeue,
   onCommand,
+  onExport,
 }) {
   const [query, setQuery] = useState('');
   const [filterTab, setFilterTab] = useState('all'); // all | keep | unsure
@@ -58,15 +59,14 @@ export function ResultsView({
 
         {/* Global actions */}
         <div className="sh-header-actions">
-          <a
-            href={`/api/export-csv?profile=${encodeURIComponent(profileId)}`}
-            download
-            className="sh-btn-secondary"
-            title="Télécharger un tableau CSV de ces offres"
-          >
+          {onExport ? <button type="button" onClick={() => onExport(results)} className="sh-btn-secondary"
+            title="Télécharger un tableau CSV de ces offres">
             <Icon name="download" size={16} />
             <span>Exporter CSV</span>
-          </a>
+          </button> : <a href={`/api/export-csv?profile=${encodeURIComponent(profileId)}`}
+            download className="sh-btn-secondary" title="Télécharger un tableau CSV de ces offres">
+            <Icon name="download" size={16} /><span>Exporter CSV</span>
+          </a>}
 
           {onCommand && (
             <button

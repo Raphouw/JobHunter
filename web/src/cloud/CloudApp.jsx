@@ -2,7 +2,10 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Icon } from '../components/Common/Icons';
 import { TinderDeck } from '../components/Swiper/TinderDeck';
 import { ProfileView } from '../components/Profile/ProfileView';
-import { OfferDetailModal } from '../components/Swiper/OfferDetailModal';
+import { DashboardView } from '../components/Dashboard/DashboardView';
+import { ResultsView } from '../components/Results/ResultsView';
+import { DiagnosticView } from '../components/Diagnostic/DiagnosticView';
+import { CloudSearchView, CloudConnectionsView, CloudAutomationView } from './CloudFeatureViews';
 import { supabase, unwrap } from './client';
 
 const EMPTY_CONFIG = {
@@ -15,19 +18,29 @@ const EMPTY_CONFIG = {
   sources: { packs: [] },
 };
 
-const SCAN_PHASES = {
-  discover: 'Recherche des candidats',
-  analyze: 'Analyse des offres',
-  finish: 'Finalisation',
-};
+const NAV_ITEMS = [
+  ['dashboard', 'Vue d’ensemble', 'spark'],
+  ['swipe', 'Swiper les offres', 'heart'],
+  ['results', 'Mes offres', 'briefcase'],
+  ['profile', 'Mon profil', 'building'],
+  ['search', 'Recherche & Scan', 'search'],
+  ['diagnostic', 'Diagnostic', 'layers'],
+  ['connections', 'Connexions Google', 'external'],
+  ['automation', 'Automatisation', 'clock'],
+];
 
-const SCAN_STATUSES = {
-  queued: 'En attente',
-  running: 'En cours',
-  completed: 'Terminé',
-  failed: 'Échec',
-  cancelled: 'Annulé',
-};
+function exportOffersCsv(rows) {
+  const fields = ['score', 'company', 'title', 'location', 'duration', 'language', 'review_decision', 'url'];
+  const cell = (value) => {
+    const safe = String(value ?? '').replace(/^[\s\t]*[=+\-@]/, (match) => `'${match}`);
+    return `"${safe.replaceAll('"', '""')}"`;
+  };
+  const csv = [fields.join(';'), ...rows.map((row) => fields.map((field) => cell(row[field])).join(';'))].join('\r\n');
+  const url = URL.createObjectURL(new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8' }));
+  const anchor = document.createElement('a');
+  anchor.href = url; anchor.download = 'job-hunter-offres.csv'; anchor.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 function Login({ onError }) {
   const [email, setEmail] = useState('');
@@ -63,32 +76,6 @@ function Login({ onError }) {
         </button>
         <small>Accès réservé aux comptes créés par l’administrateur.</small>
       </form>
-    </div>
-  );
-}
-
-function Results({ offers, onDecide, busy }) {
-  const [selected, setSelected] = useState(null);
-  const saved = offers.filter((offer) => ['keep', 'unsure'].includes(offer.review_decision));
-  return (
-    <div className="sh-view results-view">
-      <div className="sh-view-header"><div>
-        <span className="sh-eyebrow">MES OPPORTUNITÉS</span>
-        <h1>Offres sauvegardées</h1>
-        <p>{saved.length} offre{saved.length > 1 ? 's' : ''} gardée{saved.length > 1 ? 's' : ''} ou à revoir.</p>
-      </div></div>
-      <div className="cloud-result-list">
-        {saved.map((offer) => (
-          <button key={offer.id} className="cloud-result-row" onClick={() => setSelected(offer)}>
-            <strong>{offer.title || 'Offre sans titre'}</strong>
-            <span>{offer.company || 'Entreprise inconnue'} · {offer.location || 'Lieu à confirmer'}</span>
-            <b>{offer.score}/100</b>
-          </button>
-        ))}
-        {!saved.length && <p>Aucune offre sauvegardée pour ce profil.</p>}
-      </div>
-      {selected && <OfferDetailModal offer={selected} busy={busy}
-        onClose={() => setSelected(null)} onDecide={onDecide} />}
     </div>
   );
 }
@@ -233,7 +220,21 @@ export function CloudApp() {
     return result;
   }, [offers]);
   const activeProfile = profiles.find((row) => row.id === profileId);
-  const profile = activeProfile ? { ...EMPTY_CONFIG, ...activeProfile.config, id: activeProfile.id, name: activeProfile.name } : null;
+  const profile = useMemo(() => activeProfile
+    ? { ...EMPTY_CONFIG, ...activeProfile.config, id: activeProfile.id, name: activeProfile.name }
+    : null, [activeProfile]);
+  const latestScan = scanJobs[0];
+  const scan = { cloud: true, available: false, running: ['queued', 'running'].includes(latestScan?.status) };
+  const dashboardStats = { ...stats, ready: stats.keep };
+  const latestCompleted = scanJobs.find((job) => job.status === 'completed' && job.summary?.metrics);
+  const metrics = latestCompleted?.summary?.metrics;
+  const diagnostic = metrics ? {
+    input_candidates: metrics.funnel?.input_candidates || 0,
+    expanded_candidates: metrics.funnel?.expanded_candidates || 0,
+    stats: metrics.funnel || {},
+    runtime: metrics,
+  } : {};
+  const goToPage = (nextPage) => { setPage(nextPage); setMobileMenuOpen(false); };
 
   if (!authReady) return <div className="cloud-login-shell">Chargement…</div>;
   return (
@@ -244,31 +245,42 @@ export function CloudApp() {
         <div className="sh-app">
           <aside className={`sh-sidebar ${mobileMenuOpen ? 'open' : ''}`}>
             <div className="sh-sidebar-brand"><div className="sh-brand-badge"><Icon name="spark" size={22} /></div>
-              <div className="sh-brand-text"><strong>job<span>hunter</span></strong><small>Espace personnel</small></div>
+              <div className="sh-brand-text"><strong>stage<span>hunter</span></strong><small>Ton prochain match pro</small></div>
             </div>
             <nav className="sh-sidebar-nav" aria-label="Menu principal">
-              {[
-                ['dashboard', 'Vue d’ensemble', 'spark'],
-                ['swipe', `Swiper (${stats.pending})`, 'heart'],
-                ['results', 'Mes offres', 'briefcase'],
-                ['profile', 'Mon profil', 'building'],
-                ['search', 'Scans', 'search'],
-              ].map(([id, label, icon]) => (
+              <span className="sh-nav-group-label">NAVIGATION</span>
+              {NAV_ITEMS.map(([id, label, icon]) => (
                 <button key={id} className={`sh-nav-item ${page === id ? 'active' : ''}`}
-                  onClick={() => { setPage(id); setMobileMenuOpen(false); }}><Icon name={icon} size={18} />{label}</button>
+                  onClick={() => goToPage(id)}><Icon name={icon} size={18} /><span>{label}</span>
+                  {id === 'swipe' && stats.pending > 0 && <span className="sh-nav-badge">{stats.pending}</span>}
+                </button>
               ))}
             </nav>
+            <div className="sh-sidebar-bottom">
+              <div className="sh-promo-card"><div className="sh-promo-star">✦</div>
+                <strong>Dating App Mode</strong><p>Glisse, découvre et sauvegarde les offres adaptées à ton profil.</p>
+                <button className="sh-promo-btn" onClick={() => goToPage('swipe')}>
+                  <span>Ouvrir le Swiper</span><Icon name="arrow" size={14} /></button>
+              </div>
+              <div className="sh-sidebar-footer"><span>STAGE HUNTER</span><span className="sh-version-tag">WEB</span></div>
+            </div>
           </aside>
           <div className="sh-main-wrapper">
             <header className="sh-topbar">
               <button className="sh-mobile-toggle" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 aria-label="Ouvrir le menu"><Icon name="menu" size={22} /></button>
-              <strong>Job Hunter</strong>
+              <div className="sh-breadcrumbs"><span>Stage Hunter</span><span className="sh-sep">/</span>
+                <strong>{NAV_ITEMS.find(([id]) => id === page)?.[1] || 'Accueil'}</strong></div>
               <div className="sh-topbar-actions">
-                <select aria-label="Profil actif" value={profileId} onChange={(event) => setProfileId(event.target.value)}>
-                  {profiles.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
-                </select>
-                <span>{session.user.email}</span>
+                <div className={`sh-scan-status-pill ${scan.running ? 'active' : ''}`}>
+                  <span className="sh-scan-dot" /><span>{scan.running ? 'Scan en cours' : 'Scans web en préparation'}</span>
+                </div>
+                <label className="sh-profile-dropdown" title="Changer de profil actif">
+                  <div className="brand-avatar xs">{(profile?.name || '?').slice(0, 1).toUpperCase()}</div>
+                  <select aria-label="Profil actif" value={profileId} onChange={(event) => setProfileId(event.target.value)}>
+                    {profiles.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
+                  </select>
+                </label>
                 <button className="sh-btn-secondary" onClick={() => supabase.auth.signOut()}>Déconnexion</button>
               </div>
             </header>
@@ -282,33 +294,28 @@ export function CloudApp() {
                   <button className="sh-btn-primary" disabled={busy}>Créer</button>
                 </form>
               </section> : <>
-                {page === 'dashboard' && <section className="sh-view">
-                  <span className="sh-eyebrow">TON ESPACE</span><h1>Bonjour {profile.name}</h1>
-                  <p>{stats.pending} à trier · {stats.keep} gardée{stats.keep > 1 ? 's' : ''} · {stats.unsure} à revoir</p>
-                  <button className="sh-btn-primary" onClick={() => setPage('swipe')}>Ouvrir le Swiper</button>
-                  <form className="cloud-create-form" onSubmit={createProfile} style={{ marginTop: 32 }}>
-                    <input aria-label="Nouveau profil" placeholder="Ajouter un autre profil" required maxLength={120}
-                      value={newName} onChange={(event) => setNewName(event.target.value)} />
-                    <button className="sh-btn-secondary" disabled={busy}>Ajouter</button>
-                  </form>
-                </section>}
+                {page === 'dashboard' && <DashboardView profile={profile} stats={dashboardStats}
+                  scan={scan} featuredOffer={offers[0]} onGoToPage={goToPage} />}
                 {page === 'swipe' && <TinderDeck offers={offers.filter((offer) => offer.review_decision === 'pending')}
                   stats={stats} busy={busy} onDecide={decide} onUndo={undo} onRequeue={requeue}
-                  onGoToPage={setPage} />}
-                {page === 'results' && <Results offers={offers} onDecide={decide} busy={busy} />}
-                {page === 'profile' && <ProfileView profile={profile} onSave={saveProfile} busy={busy} />}
-                {page === 'search' && <section className="sh-view">
-                  <span className="sh-eyebrow">HISTORIQUE</span><h1>Scans</h1>
-                  <p>Le traitement web par étapes est en préparation. Continue tes essais avec le moteur local pour le moment.</p>
-                  <button className="sh-btn-secondary" onClick={loadData} disabled={busy}>Actualiser</button>
-                  <div className="cloud-result-list">{scanJobs.map((job) =>
-                    <div className="cloud-result-row" key={job.id}>
-                      <strong>{job.mode}</strong>
-                      <span>{SCAN_STATUSES[job.status] || job.status} · {SCAN_PHASES[job.phase] || job.phase}
-                        {' · '}{job.progress_percent}% · {new Date(job.created_at).toLocaleString('fr-FR')}</span>
-                      {job.error_message && <small>{job.error_message}</small>}
-                    </div>)}</div>
-                </section>}
+                  onGoToPage={goToPage} />}
+                {page === 'results' && <ResultsView results={offers.filter((offer) => ['keep', 'unsure'].includes(offer.review_decision))}
+                  profileId={profileId} busy={busy} onDecide={decide} onRequeue={requeue} onExport={exportOffersCsv} />}
+                {page === 'profile' && <div className="sh-view"><ProfileView profile={profile} onSave={saveProfile} busy={busy} />
+                  <section className="sh-form-section"><div className="sh-section-header"><div>
+                    <h2>Mes profils de recherche</h2><p>Chaque profil possède ses critères et ses offres.</p>
+                  </div></div>
+                    <form className="cloud-create-form" onSubmit={createProfile}>
+                      <input aria-label="Nouveau profil" placeholder="Ajouter un autre profil" required maxLength={120}
+                        value={newName} onChange={(event) => setNewName(event.target.value)} />
+                      <button className="sh-btn-secondary" disabled={busy}>Ajouter</button>
+                    </form>
+                  </section>
+                </div>}
+                {page === 'search' && <CloudSearchView scanJobs={scanJobs} onRefresh={loadData} busy={busy} />}
+                {page === 'diagnostic' && <DiagnosticView diagnostic={diagnostic} scan={scan} />}
+                {page === 'connections' && <CloudConnectionsView />}
+                {page === 'automation' && <CloudAutomationView />}
               </>}
             </main>
           </div>
