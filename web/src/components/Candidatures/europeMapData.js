@@ -3278,7 +3278,7 @@ export const EUROPE_CITIES = {
 };
 
 // Geocoding helper that detects City, Country and Region from candidatures
-export function geocodeCandidature(candidature) {
+export function geocodeCandidature(candidature, cityIndexes = {}) {
   const norm = (str) =>
     String(str || '')
       .toLowerCase()
@@ -3291,10 +3291,28 @@ export function geocodeCandidature(candidature) {
   const cant = norm(candidature.canton || candidature.region);
   const rawCountry = String(candidature.country || '').toUpperCase().trim();
 
+  const countryCode = ['CH', 'FR', 'DE', 'BE', 'LU', 'IT', 'ES'].includes(rawCountry)
+    ? rawCountry : 'CH';
+  const candidates = [loc, loc.split(' ').slice(0, -1).join(' ')].filter(Boolean);
+  const countryCities = cityIndexes[countryCode] || {};
+  for (const name of candidates) {
+    const coordinates = countryCities[name];
+    if (!coordinates) continue;
+    const [lat, lng] = coordinates;
+    const regionList = REGIONS_BY_COUNTRY[countryCode] || [];
+    const requestedRegion = regionList.find((region) => norm(region.code) === cant || norm(region.name) === cant);
+    const nearestRegion = regionList.reduce((best, region) => {
+      const distance = (region.lat - lat) ** 2 + ((region.lng - lng) * Math.cos(lat * Math.PI / 180)) ** 2;
+      return !best || distance < best.distance ? { region, distance } : best;
+    }, null)?.region;
+    return { ...projectGpsEurope(lat, lng), lat, lng, country: countryCode,
+      region: requestedRegion?.code || nearestRegion?.code || '', cityName: candidature.location, located: true };
+  }
+
   // 1. Direct city match in EUROPE_CITIES
   for (const [key, cityData] of Object.entries(EUROPE_CITIES)) {
     const cleanKey = norm(key);
-    if (loc && (loc === cleanKey || loc.includes(cleanKey) || cleanKey.includes(loc))) {
+    if (loc && (!rawCountry || cityData.country === countryCode) && loc === cleanKey) {
       const projected = projectGpsEurope(cityData.lat, cityData.lng);
       return {
         ...projected,
@@ -3337,10 +3355,6 @@ export function geocodeCandidature(candidature) {
   }
 
   // 3. Fallback based on raw country or default Switzerland / Vaud
-  const countryCode = ['CH', 'FR', 'DE', 'BE', 'LU', 'IT', 'ES'].includes(rawCountry)
-    ? rawCountry
-    : 'CH';
-
   const defaultReg = REGIONS_BY_COUNTRY[countryCode]?.[0] || REGIONS_BY_COUNTRY.CH[0];
   const projected = projectGpsEurope(defaultReg.lat, defaultReg.lng);
   return {

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Icon } from '../components/Common/Icons';
 import { ColoredTerminal } from '../components/Common/ColoredTerminal';
 import { LiveActivityTicker } from '../components/Search/LiveActivityTicker';
+import { supabase, unwrap } from './client';
 
 const SCAN_PHASES = {
   discover: 'Recherche des candidats',
@@ -19,26 +20,26 @@ const SCAN_STATUSES = {
 
 const MODE_DESCRIPTIONS = {
   Rapide: {
-    label: 'Rapide (2-5 min)',
-    desc: 'Un aperçu rapide avec 24 requêtes et 8 sites fixés. Idéal pour un contrôle quotidien.',
+    label: 'Rapide · 24 requêtes',
+    desc: '24 requêtes et 8 sites directs. Le scan reprend automatiquement entre les étapes ; la durée dépend du nombre de fiches.',
     badge: 'Express',
     seconds: 180,
   },
   Complet: {
-    label: 'Complet (10-15 min)',
+    label: 'Complet · 45 requêtes',
     desc: 'Le meilleur équilibre avec 45 requêtes, exploration récursive et vérification de disponibilité.',
     badge: 'Recommandé',
     seconds: 600,
   },
   Maximum: {
-    label: 'Maximum (25-35 min)',
+    label: 'Maximum · 70 requêtes',
     desc: 'Exploration large avec 70 requêtes, 25 sites fixés et 8 workers en parallèle.',
     badge: 'Intensif',
     seconds: 1500,
   },
   'Exhaustif 1h': {
-    label: 'Exhaustif 1h',
-    desc: 'Scan complet de 60 minutes sans coupe-circuit. Explore les pistes les plus profondes.',
+    label: 'Exhaustif',
+    desc: 'Exploration profonde sans coupe-circuit. Le travail peut dépasser une heure selon les fiches trouvées.',
     badge: 'Profondeur max',
     seconds: 3600,
   },
@@ -59,6 +60,7 @@ export function CloudSearchView({ scanJobs = [], scanEvents = [], workerReady = 
   const [mode, setMode] = useState('Complet');
   const [elapsed, setElapsed] = useState(0);
   const [autoScroll, setAutoScroll] = useState(true);
+  const [downloadError, setDownloadError] = useState('');
   const terminalRef = useRef(null);
 
   const active = scanJobs.find((job) => ['queued', 'running'].includes(job.status));
@@ -91,7 +93,6 @@ export function CloudSearchView({ scanJobs = [], scanEvents = [], workerReady = 
     ? 100
     : 0;
 
-  const etaRemainingSec = Math.max(0, Math.round(expectedSec * (1 - (progressPercent / 100))));
 
   // Format scan events for ColoredTerminal
   const terminalLines = useMemo(() => {
@@ -109,15 +110,30 @@ export function CloudSearchView({ scanJobs = [], scanEvents = [], workerReady = 
     }
   }, [terminalLines, autoScroll]);
 
-  const handleDownloadLog = () => {
-    const text = terminalLines.join('\n') || (latestJob ? `Scan ${latestJob.id}\nStatus: ${latestJob.status}` : 'Aucun log');
-    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `scan_${active?.id || latestJob?.id || 'log'}.log`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleDownloadLog = async () => {
+    const jobId = active?.id || latestJob?.id;
+    if (!jobId) return;
+    setDownloadError('');
+    try {
+      const allEvents = [];
+      for (let start = 0; ; start += 1000) {
+        const page = unwrap(await supabase.from('hunter_scan_events')
+          .select('created_at,level,message').eq('job_id', jobId)
+          .order('id', { ascending: true }).range(start, start + 999));
+        allEvents.push(...(page || []));
+        if (!page || page.length < 1000) break;
+      }
+      const text = allEvents.map((event) => `[${new Date(event.created_at).toLocaleString('fr-FR')}] ${event.level}: ${event.message}`).join('\n');
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `scan_${jobId}.log`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setDownloadError(error.message || 'Téléchargement du journal impossible');
+    }
   };
 
   const lastEvent = scanEvents && scanEvents.length > 0 ? scanEvents[scanEvents.length - 1] : null;
@@ -252,6 +268,7 @@ export function CloudSearchView({ scanJobs = [], scanEvents = [], workerReady = 
               </button>
             )}
           </div>
+          {downloadError && <p role="alert" className="sh-history-error-msg">{downloadError}</p>}
 
           {/* Progress & Time Stats Card */}
           <div className="sh-progress-dashboard-card">
@@ -263,8 +280,8 @@ export function CloudSearchView({ scanJobs = [], scanEvents = [], workerReady = 
 
               {isRunning && (
                 <div className="sh-timer-box">
-                  <span className="sh-timer-label">ESTIMATION RESTANTE (ETA)</span>
-                  <strong className="sh-timer-val">~ {formatDuration(etaRemainingSec)}</strong>
+                  <span className="sh-timer-label">ÉTAPE ACTUELLE</span>
+                  <strong className="sh-timer-val">{SCAN_PHASES[active?.phase] || active?.phase}</strong>
                 </div>
               )}
 

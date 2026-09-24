@@ -10,6 +10,8 @@ import {
 import { AddCandidatureModal } from './AddCandidatureModal';
 import { AddNoteModal } from './AddNoteModal';
 
+const CITY_COUNTRIES = new Set(['CH', 'FR', 'DE', 'BE', 'LU', 'IT', 'ES']);
+
 function normalizeString(str) {
   return String(str || '')
     .toLowerCase()
@@ -73,6 +75,23 @@ export function CandidaturesView({
   const [tooltip, setTooltip] = useState({ visible: false, x: 0, y: 0, title: '', subtitle: '' });
   const [manualZoom, setManualZoom] = useState(1);
   const [zoomCenter, setZoomCenter] = useState({ cx: 500, cy: 400 });
+  const [cityIndexes, setCityIndexes] = useState({});
+
+  const usedCountries = useMemo(() => [...new Set(candidatures.map((item) => item.country || 'CH'))]
+    .filter((code) => CITY_COUNTRIES.has(code)), [candidatures]);
+  useEffect(() => {
+    let active = true;
+    for (const country of usedCountries) {
+      if (cityIndexes[country]) continue;
+      fetch(`/cities/${country}.json`).then((response) => {
+        if (!response.ok) throw new Error(`Index des villes ${country} indisponible`);
+        return response.json();
+      }).then((cities) => {
+        if (active) setCityIndexes((current) => ({ ...current, [country]: cities }));
+      }).catch(() => {});
+    }
+    return () => { active = false; };
+  }, [usedCountries, cityIndexes]);
 
   // Gmail scanning states
   const [gmailScanning, setGmailScanning] = useState(false);
@@ -92,7 +111,7 @@ export function CandidaturesView({
   // Geocode each candidature and enrich with normalized Country and Region
   const enrichedCandidatures = useMemo(() => {
     return candidatures.map((c) => {
-      const geo = geocodeCandidature(c);
+      const geo = geocodeCandidature(c, cityIndexes);
       const now = new Date();
       const createdDate = parseCustomDate(c.created_at) || now;
       const waitingDays = Math.max(0, Math.floor((now - createdDate) / (1000 * 60 * 60 * 24)));
@@ -105,7 +124,7 @@ export function CandidaturesView({
         _waitingDays: waitingDays,
       };
     });
-  }, [candidatures]);
+  }, [candidatures, cityIndexes]);
 
   // Counts per country
   const countryCounts = useMemo(() => {

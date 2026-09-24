@@ -232,8 +232,8 @@ export function CloudApp() {
       setScanJobs(jobs);
       if (jobs[0]) {
         const events = unwrap(await supabase.from('hunter_scan_events').select('id,created_at,level,message')
-          .eq('job_id', jobs[0].id).order('id', { ascending: true }).limit(250));
-        setScanEvents(events || []);
+          .eq('job_id', jobs[0].id).order('id', { ascending: false }).limit(250));
+        setScanEvents((events || []).reverse());
       } else setScanEvents([]);
     } catch (loadError) {
       setError(loadError.message);

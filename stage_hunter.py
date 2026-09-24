@@ -843,7 +843,7 @@ def build_search_queries(profile,emit_log=True):
     source_queries=list(dict.fromkeys(q for q in source_queries if q))
 
     manual_quota=min(len(manual),max(0,budget//6))
-    site_share=max(0.0,min(float(search_cfg.get('site_query_share',0.35)),0.7))
+    site_share=max(0.0,min(safe_float(search_cfg.get('site_query_share'),0.35),0.7))
     source_quota=min(len(source_queries),max(2,round(budget*site_share)))
     generic_quota=max(0,budget-manual_quota-source_quota)
     selected=manual[:manual_quota]+generic[:generic_quota]+source_queries[:source_quota]
@@ -2356,7 +2356,7 @@ def ingest(c,rows,profile):
     crawl_depth=max(0,min(safe_int(os.getenv('LISTING_CRAWL_DEPTH'),2),3))
     recursive_cap=max(0,min(safe_int(os.getenv('MAX_RECURSIVE_LEADS'),160),500))
     per_listing_cap=max(5,min(safe_int(os.getenv('MAX_LEADS_PER_SUBLISTING'),24),80))
-    minimum_lead_priority=float(os.getenv('MIN_LISTING_LEAD_PRIORITY','4'))
+    minimum_lead_priority=safe_float(os.getenv('MIN_LISTING_LEAD_PRIORITY'),4)
     known_urls=set(batch_seen)|{candidate_identity(row.get('url','')) for row in expanded}
     crawled_total=0
     for depth_round in range(crawl_depth):
@@ -2507,7 +2507,7 @@ def ingest(c,rows,profile):
         if not contract_confirmed:
             conf=max(0,conf-(10 if contract_likely else 18))
             reasons.append('Type de contrat à vérifier sur la page officielle')
-        if sc<float(os.getenv('MIN_OPPORTUNITY_SCORE','30')):
+        if sc<safe_float(os.getenv('MIN_OPPORTUNITY_SCORE'),30):
             reason='Score sous le seuil';stats['low']+=1;rejection_reasons[reason]+=1;entry=page_audit_record(r,title,reason,pt,txt,html,structured,contract_state);entry.update({'score':sc,'confidence':conf,'score_reasons':reasons});rejected_examples.append(entry);audit_decision(r,'rejected_low_score',reason,title,pt,txt,html,structured,contract_state,availability,sc,conf,reasons);log_event(f'→ SCORE BAS · {sc}/100 · {short_text(company,24)} · {short_text(title,60)}','yellow');continue
         loc,canton,lang,duration,start,cat,skills=meta
         fingerprint=offer_fingerprint(title,company,loc)
@@ -2622,7 +2622,7 @@ def revalidate_existing_offers(c,profile,limit=None):
             new_score,confidence,reasons=score(effective_title,effective_text,meta,'offer',profile,final_url,company,structured)
             learned_adjustment,learned_reasons=learned_score_adjustment(c,effective_title,company,meta,preference_model)
             new_score=max(0,min(100,round(new_score+learned_adjustment,1)));reasons.extend(learned_reasons)
-            loc,canton,lang,duration,start,cat,skills=meta;threshold=float(os.getenv('MIN_OPPORTUNITY_SCORE','30'))
+            loc,canton,lang,duration,start,cat,skills=meta;threshold=safe_float(os.getenv('MIN_OPPORTUNITY_SCORE'),30)
             status='new' if new_score>=threshold else 'filtered'
             if availability=='unknown':confidence=max(0,confidence-8);reasons.append('Disponibilité à confirmer')
             c.execute('''UPDATE offers SET url=?,canonical_url=?,title=?,company=?,location=?,canton=?,body=?,language=?,duration=?,start_date=?,domain_category=?,skills_found=?,confidence=?,score=?,status=?,reasons=?,availability_status=?,availability_reason=?,last_checked_at=?,learned_adjustment=?,fingerprint=? WHERE id=?''',(final_url,canon(final_url),effective_title,company,loc,canton,effective_text,lang,duration,start,cat,', '.join(skills),confidence,new_score,status,'\n'.join(reasons),availability,reason,datetime.now(timezone.utc).isoformat(),learned_adjustment,offer_fingerprint(effective_title,company,loc),offer_id))
@@ -3167,7 +3167,7 @@ def log_scan_configuration(profile,sheets_enabled=False,gmail_enabled=False):
     circuit_config='désactivé' if circuit_disabled else f'sous {env_float("WEB_MIN_PRODUCTIVITY",0.04,0,1)*100:.0f}% avec minimum {env_int("WEB_MIN_PROBE_LINKS",5,0)} lien(s)'
     log_event(f'CONFIG ADAPTATIVE — sources directes en premier · sonde web {env_int("WEB_PROBE_QUERIES",search_workers*2,1)} requête(s) · coupe-circuit {circuit_config}.','bold blue')
     log_event(f'CONFIG RECHERCHE — tentatives {env_int("SEARCH_RETRIES",1,0,4)} · backoff {env_float("SEARCH_RETRY_BACKOFF",1.0,0.1):g} s · délai workers {env_float("SEARCH_DELAY_MIN",0.15,0):g}–{env_float("SEARCH_DELAY_MAX",0.35,0):g} s · retenter si vide : {yes(retry_empty_effective)}.','blue')
-    log_event(f'CONFIG RÉPARTITION — part site: {float(search.get("site_query_share",0.35))*100:.0f}% · requêtes manuelles activées : {yes(search.get("use_manual_queries",True))} · {len(manual_queries)} requête(s) manuelle(s)/pack disponible(s).','blue')
+    log_event(f'CONFIG RÉPARTITION — part site: {safe_float(search.get("site_query_share"),0.35)*100:.0f}% · requêtes manuelles activées : {yes(search.get("use_manual_queries",True))} · {len(manual_queries)} requête(s) manuelle(s)/pack disponible(s).','blue')
     log_event(f'CONFIG VALIDATION — pertinence obligatoire : {yes(search.get("require_profile_relevance",True))} · contrat non confirmé accepté : {yes(search.get("allow_unconfirmed_contract",False))} · score minimal {env_float("MIN_OPPORTUNITY_SCORE",30,0,100):g}/100 · âge max {env_int("MAX_JOB_AGE_DAYS",90,0)} j.','blue')
 
     log_event(f'CONFIG PAGES — workers {scrape_workers} · maximum {env_int("MAX_IN_FLIGHT_PAGES",scrape_workers*2,1,48)} page(s) simultanément en RAM · taille/page {env_int("MAX_RESPONSE_BYTES",5_000_000,250_000,15_000_000)/1_000_000:g} Mo · timeout HTTP {env_int("HTTP_TIMEOUT_SECONDS",14,1)} s · tentatives HTTP {env_int("HTTP_RETRIES",1,0,3)} · revalidation max {env_int("RECHECK_MAX_OFFERS",100,0)} offre(s).','magenta')
@@ -3267,8 +3267,27 @@ def main():
         if added:log_event(f'SHEETS — {added} ancienne(s) décision(s) Garder/À revoir synchronisée(s).','green')
     log_event('EXPORT — génération du fichier Excel local…','cyan')
     export(c);report(c,since=RUN_STARTED_AT.isoformat())
-    summary={'new':new,'closed':closed+stale,'pending':c.execute("SELECT COUNT(*) FROM offers WHERE status='new' AND review_decision='pending'").fetchone()[0],'direct_candidates':direct_count,'web_candidates':web_count,'duration_seconds':round(time.perf_counter()-RUN_STARTED,2),'metrics':SCAN_METRICS}
+    deferred=[]
+    if DECISION_AUDIT_PATH and DECISION_AUDIT_PATH.exists():
+        original={canon(row.get('url','')):row for row in candidates}
+        seen=set()
+        with DECISION_AUDIT_PATH.open(encoding='utf-8') as decisions:
+            for line in decisions:
+                record=json.loads(line)
+                if record.get('decision')!='time_deferred':continue
+                url=canon(record.get('original_url') or record.get('official_url') or '')
+                if not url or url in seen:continue
+                seen.add(url)
+                source_row=original.get(url) or record
+                replay={key:source_row[key] for key in ('title','company','location','source','origin','snippet','_contract_hint') if source_row.get(key) is not None}
+                replay['url']=url
+                deferred.append(replay)
+    if deferred:
+        save_scan_checkpoint(p,deferred,direct_count,web_count)
+        log_event(f'SCAN EN PAUSE — {len(deferred)} fiche(s) restent à analyser. Relance avec --resume pour terminer ce scan.','bold yellow')
+    summary={'new':new,'closed':closed+stale,'pending':c.execute("SELECT COUNT(*) FROM offers WHERE status='new' AND review_decision='pending'").fetchone()[0],'direct_candidates':direct_count,'web_candidates':web_count,'deferred_candidates':len(deferred),'duration_seconds':round(time.perf_counter()-RUN_STARTED,2),'metrics':SCAN_METRICS}
     finish_scan_run(c,scan_run_id,summary)
-    scan_checkpoint_path().unlink(missing_ok=True)
-    log_event(f'SCAN TERMINÉ — durée totale {elapsed_label()} · résultats : {OUT}.','bold green')
+    if not deferred:
+        scan_checkpoint_path().unlink(missing_ok=True)
+        log_event(f'SCAN TERMINÉ — durée totale {elapsed_label()} · résultats : {OUT}.','bold green')
 if __name__=='__main__':main()

@@ -12,6 +12,7 @@ test_*.py
 
 # Local outputs and databases
 output/
+Cities/
 credentials/
 scheduled_tasks/
 *.sqlite3
