@@ -175,7 +175,7 @@ export default async function handler(request, response) {
         { method: 'DELETE' });
       return response.status(200).json({ connected: false });
     }
-    if (['create-sheet', 'sync-sheet'].includes(action) && request.method === 'POST') {
+    if (['create-sheet', 'sync-sheet', 'pull-sheet'].includes(action) && request.method === 'POST') {
       const profile = await ownedProfile(user.id, request.body?.profileId, settings);
       const token = await googleAccess(user.id, settings);
       const google = profile.config?.integrations?.google || {};
@@ -193,23 +193,137 @@ export default async function handler(request, response) {
       const match = /\/spreadsheets\/d\/([\w-]+)/.exec(sheetId);
       if (match) sheetId = match[1];
       if (!/^[\w-]{20,}$/.test(sheetId)) return response.status(400).json({ error: 'Crée un Sheet ou indique son identifiant dans le profil.' });
-      const tab = String(google.opportunity_tab || 'Opportunités').slice(0, 90);
+      
+      const tabOpp = String(google.opportunity_tab || 'Opportunités').slice(0, 90);
+      const tabCand = String(google.candidature_tab || 'Réponses au formulaire 1').slice(0, 90);
       const sheet = await googleApi(`spreadsheets/${encodeURIComponent(sheetId)}?fields=sheets.properties.title`, token);
-      if (!sheet.sheets?.some((item) => item.properties?.title === tab)) {
+      const existingTitles = (sheet.sheets || []).map((s) => s.properties?.title);
+
+      // Ensure both tabs exist
+      const toAdd = [];
+      if (!existingTitles.includes(tabOpp)) toAdd.push({ addSheet: { properties: { title: tabOpp } } });
+      if (!existingTitles.includes(tabCand)) toAdd.push({ addSheet: { properties: { title: tabCand } } });
+      if (toAdd.length > 0) {
         await googleApi(`spreadsheets/${encodeURIComponent(sheetId)}:batchUpdate`, token, { method: 'POST',
-          body: JSON.stringify({ requests: [{ addSheet: { properties: { title: tab } } }] }) });
+          body: JSON.stringify({ requests: toAdd }) });
       }
+
+      if (action === 'pull-sheet') {
+        // Read candidatures from Sheet
+        let candidatures = [];
+        try {
+          const rangeCand = `'${tabCand.replaceAll("'", "''")}'!A1:Z`;
+          const candData = await googleApi(`spreadsheets/${encodeURIComponent(sheetId)}/values/${encodeURIComponent(rangeCand)}`, token);
+          const rows = candData.values || [];
+          if (rows.length >= 2) {
+            const headerRow = rows[0].map((c) => String(c).toLowerCase().trim());
+            const col = (names) => headerRow.findIndex((h) => names.some((n) => h.includes(n)));
+            const cDate = col(['horodateur', 'date']);
+            const cCanton = col(['canton']);
+            const cComp = col(['nom entreprise', 'entreprise']);
+            const cCity = col(['ville']);
+            const cSec = col(['secteur']);
+            const cAct = col(['activit', 'détaill']);
+            const cL1 = col(['lien 1']);
+            const cL2 = col(['lien 2']);
+            const cL3 = col(['lien 3']);
+            const cDem = col(['démarche', 'demarche']);
+            const cNote = col(['note']);
+            const cStat = col(['statut actuel', 'statut']);
+            const cMail = col(['email', 'mail']);
+            const cRet = col(['retour', 'retours', 'memo']);
+
+            for (let i = 1; i < rows.length; i++) {
+              const r = rows[i];
+              const comp = r[cComp]?.trim();
+              if (!comp) continue;
+              const retoursStr = (cRet >= 0 ? r[cRet] : '') || '';
+              const notes = [];
+              const statusHistory = [];
+              retoursStr.split('||').map((p) => p.trim()).filter(Boolean).forEach((part) => {
+                if (part.includes('Statut passé à :') || part.includes('🔄')) {
+                  statusHistory.push({ text: part, date: part.slice(1, 17) });
+                } else {
+                  notes.push({ text: part, date: part.slice(1, 17) });
+                }
+              });
+
+              candidatures.push({
+                company: comp,
+                canton: (cCanton >= 0 ? r[cCanton] : '') || '',
+                location: (cCity >= 0 ? r[cCity] : '') || '',
+                sector: (cSec >= 0 ? r[cSec] : '') || '',
+                detailed_activity: (cAct >= 0 ? r[cAct] : '') || '',
+                link1: (cL1 >= 0 ? r[cL1] : '') || '',
+                link2: (cL2 >= 0 ? r[cL2] : '') || '',
+                link3: (cL3 >= 0 ? r[cL3] : '') || '',
+                demarche: (cDem >= 0 ? r[cDem] : '') || '',
+                rating: Number(cNote >= 0 ? r[cNote] : 0) || 0,
+                status: (cStat >= 0 ? r[cStat] : 'Demande initiale') || 'Demande initiale',
+                contact_email: (cMail >= 0 ? r[cMail] : '') || '',
+                notes,
+                status_history: statusHistory,
+                created_at: (cDate >= 0 ? r[cDate] : null) || new Date().toISOString(),
+              });
+            }
+          }
+        } catch (pullErr) {
+          console.warn('Error reading candidatures tab:', pullErr.message);
+        }
+
+        return response.status(200).json({
+          sheetId,
+          candidatures,
+          url: `https://docs.google.com/spreadsheets/d/${sheetId}`,
+        });
+      }
+
+      // Sync both tabs:
+      // Tab 1: Opportunités
       const offers = await database(`hunter_offers?profile_id=eq.${encodeURIComponent(profile.id)}&user_id=eq.${encodeURIComponent(user.id)}&review_decision=eq.keep&select=id,score,confidence,company,title,location,canton,language,duration,start_date,domain_category,skills_found,reasons,source,url,discovered_at&order=score.desc&limit=1000`, settings);
-      const values = [['Action', 'Score /100', 'Confiance', 'Entreprise', 'Offre', 'Ville / lieu', 'Canton', 'Langue', 'Durée', 'Début', 'Domaine', 'Compétences détectées', 'Pourquoi', 'Source', 'Lien', 'Date découverte', 'ID Stage Hunter'],
-        ...offers.map((item) => ['Garder', item.score, item.confidence, item.company, item.title, item.location,
+      const valuesOpp = [['Action', 'Score /100', 'Confiance', 'Entreprise', 'Offre', 'Ville / lieu', 'Canton', 'Langue', 'Durée', 'Début', 'Domaine', 'Compétences détectées', 'Pourquoi', 'Source', 'Lien', 'Date découverte', 'ID Stage Hunter'],
+        ...offers.map((item) => ['GARDER', item.score, item.confidence, item.company, item.title, item.location,
           item.canton, item.language, item.duration, item.start_date, item.domain_category,
           item.skills_found, item.reasons, item.source, item.url, item.discovered_at, item.id])];
-      const range = `'${tab.replaceAll("'", "''")}'!A1:Q`;
-      await googleApi(`spreadsheets/${encodeURIComponent(sheetId)}/values/${encodeURIComponent(range)}:clear`, token,
+      const rangeOpp = `'${tabOpp.replaceAll("'", "''")}'!A1:Q`;
+      await googleApi(`spreadsheets/${encodeURIComponent(sheetId)}/values/${encodeURIComponent(rangeOpp)}:clear`, token,
         { method: 'POST', body: '{}' });
-      await googleApi(`spreadsheets/${encodeURIComponent(sheetId)}/values/${encodeURIComponent(range)}?valueInputOption=RAW`, token,
-        { method: 'PUT', body: JSON.stringify({ values }) });
-      return response.status(200).json({ exported: offers.length, sheetId,
+      await googleApi(`spreadsheets/${encodeURIComponent(sheetId)}/values/${encodeURIComponent(rangeOpp)}?valueInputOption=RAW`, token,
+        { method: 'PUT', body: JSON.stringify({ values: valuesOpp }) });
+
+      // Tab 2: Réponses au formulaire 1 (Candidatures)
+      const candRows = request.body?.candidatures || [];
+      if (candRows.length > 0) {
+        const candHeaders = ['Horodateur', 'Cantons', 'Nom Entreprise', "Ville de l'Entreprise", "Secteur d'activité", 'Activité détaillée', 'Lien 1', 'Lien 2', 'Lien 3', 'Démarches', 'Note /10', 'Statut actuel', 'email', 'Retours'];
+        const valuesCand = [candHeaders, ...candRows.map((c) => {
+          const retoursParts = [];
+          (c.status_history || []).forEach((sh) => { if (sh.text) retoursParts.push(sh.text); });
+          (c.notes || []).forEach((n) => { if (n.text) retoursParts.push(n.text); });
+          return [
+            c.created_at || '',
+            c.canton || '',
+            c.company || '',
+            c.location || '',
+            c.sector || '',
+            c.detailed_activity || '',
+            c.link1 || '',
+            c.link2 || '',
+            c.link3 || '',
+            c.demarche || '',
+            c.rating || '',
+            c.status || 'Demande initiale',
+            c.contact_email || '',
+            retoursParts.join(' || ')
+          ];
+        })];
+        const rangeCand = `'${tabCand.replaceAll("'", "''")}'!A1:N`;
+        await googleApi(`spreadsheets/${encodeURIComponent(sheetId)}/values/${encodeURIComponent(rangeCand)}:clear`, token,
+          { method: 'POST', body: '{}' });
+        await googleApi(`spreadsheets/${encodeURIComponent(sheetId)}/values/${encodeURIComponent(rangeCand)}?valueInputOption=RAW`, token,
+          { method: 'PUT', body: JSON.stringify({ values: valuesCand }) });
+      }
+
+      return response.status(200).json({ exported: offers.length, candidatures: candRows.length, sheetId,
         url: `https://docs.google.com/spreadsheets/d/${sheetId}` });
     }
     return response.status(405).json({ error: 'Action non prise en charge.' });

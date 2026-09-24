@@ -5,6 +5,7 @@ import { ProfileView } from '../components/Profile/ProfileView';
 import { DashboardView } from '../components/Dashboard/DashboardView';
 import { ResultsView } from '../components/Results/ResultsView';
 import { DiagnosticView } from '../components/Diagnostic/DiagnosticView';
+import { CandidaturesView } from '../components/Candidatures/CandidaturesView';
 import { CloudSearchView, CloudConnectionsView, CloudAutomationView } from './CloudFeatureViews';
 import { DeleteProfileDialog, ProfileSwitcher } from './ProfileSwitcher';
 import { supabase, unwrap } from './client';
@@ -23,6 +24,7 @@ const NAV_ITEMS = [
   ['dashboard', 'Vue d’ensemble', 'spark'],
   ['swipe', 'Swiper les offres', 'heart'],
   ['results', 'Mes offres', 'briefcase'],
+  ['candidatures', 'Candidatures & Carte', 'map'],
   ['profile', 'Mon profil', 'building'],
   ['search', 'Recherche & Scan', 'search'],
   ['diagnostic', 'Diagnostic', 'layers'],
@@ -81,6 +83,20 @@ function Login({ onError }) {
   );
 }
 
+function parseCustomDate(str) {
+  if (!str) return null;
+  const match = String(str).match(/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/);
+  if (match) {
+    const [, d, m, y] = match;
+    const timeMatch = String(str).match(/(\d{1,2}):(\d{1,2})/);
+    const h = timeMatch ? parseInt(timeMatch[1], 10) : 12;
+    const min = timeMatch ? parseInt(timeMatch[2], 10) : 0;
+    return new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10), h, min);
+  }
+  const iso = new Date(str);
+  return isNaN(iso.getTime()) ? null : iso;
+}
+
 export function CloudApp() {
   const [session, setSession] = useState(null);
   const [authReady, setAuthReady] = useState(false);
@@ -99,6 +115,33 @@ export function CloudApp() {
   const [lastDecision, setLastDecision] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteOfferCount, setDeleteOfferCount] = useState(null);
+  const [candidatures, setCandidatures] = useState([]);
+  const [prefillCandidature, setPrefillCandidature] = useState(null);
+  const [googleConnected, setGoogleConnected] = useState(false);
+
+  // Auto-dismiss notices and errors
+  useEffect(() => {
+    if (!notice) return undefined;
+    const timer = window.setTimeout(() => setNotice(''), 4000);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
+
+  useEffect(() => {
+    if (!error) return undefined;
+    const timer = window.setTimeout(() => setError(''), 6000);
+    return () => window.clearTimeout(timer);
+  }, [error]);
+
+  // Check Google connection status
+  useEffect(() => {
+    if (!session?.access_token) return;
+    fetch('/api/google?action=status', {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+      .then((r) => r.json())
+      .then((res) => setGoogleConnected(!!res.connected))
+      .catch(() => setGoogleConnected(false));
+  }, [session?.access_token]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data, error: authError }) => {
@@ -109,7 +152,7 @@ export function CloudApp() {
     const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
       if (!nextSession) {
-        setProfiles([]); setOffers([]); setProfileId('');
+        setProfiles([]); setOffers([]); setProfileId(''); setCandidatures([]);
       }
     });
     return () => listener.subscription.unsubscribe();
@@ -140,16 +183,42 @@ export function CloudApp() {
     const google = url.searchParams.get('google');
     if (!google) return;
     setPage('connections');
-    if (google === 'connected') setNotice('Compte Google connecté.');
+    if (google === 'connected') { setNotice('Compte Google connecté.'); setGoogleConnected(true); }
     else if (google === 'denied') setError('L’autorisation Google a été refusée.');
     else setError('La connexion Google a échoué. Réessaie depuis la page Connexions Google.');
     url.searchParams.delete('google');
     window.history.replaceState({}, '', url);
   }, []);
 
-  const loadData = useCallback(async () => {
-    if (!profileId) { setOffers([]); setScanJobs([]); setScanEvents([]); return; }
+  const loadCandidatures = useCallback(async () => {
+    if (!profileId || !session?.user?.id) {
+      setCandidatures([]);
+      return;
+    }
     try {
+      const res = await supabase
+        .from('hunter_candidatures')
+        .select('*')
+        .eq('profile_id', profileId)
+        .order('created_at', { ascending: false });
+      if (!res.error && res.data) {
+        setCandidatures(res.data);
+        localStorage.setItem(`sh_candidatures_${profileId}`, JSON.stringify(res.data));
+        return;
+      }
+    } catch (_) {}
+    const cached = localStorage.getItem(`sh_candidatures_${profileId}`);
+    if (cached) {
+      try {
+        setCandidatures(JSON.parse(cached));
+      } catch (_) {}
+    }
+  }, [profileId, session?.user?.id]);
+
+  const loadData = useCallback(async () => {
+    if (!profileId) { setOffers([]); setScanJobs([]); setScanEvents([]); setCandidatures([]); return; }
+    try {
+      loadCandidatures();
       const [offerRows, jobRows] = await Promise.all([
         supabase.from('hunter_offers').select('*').eq('profile_id', profileId)
           .order('score', { ascending: false }).limit(1000),
@@ -169,7 +238,7 @@ export function CloudApp() {
     } catch (loadError) {
       setError(loadError.message);
     }
-  }, [profileId]);
+  }, [profileId, loadCandidatures]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -238,6 +307,165 @@ export function CloudApp() {
       .update({ name, config }).eq('id', profileId));
     await loadProfiles();
   }, 'Profil enregistré.');
+
+  const saveCandidature = (data) => run(async () => {
+    const now = new Date();
+    const candId = data.id || `cand_${Date.now()}`;
+    const payload = {
+      ...data,
+      id: candId,
+      user_id: session.user.id,
+      profile_id: profileId,
+      updated_at: now.toISOString(),
+    };
+    if (!data.id) {
+      payload.created_at = now.toISOString();
+      const day = String(now.getDate()).padStart(2, '0');
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const year = now.getFullYear();
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      payload.status_history = [{
+        date: `${day}/${month}/${year} ${hours}:${minutes}`,
+        status: data.status || 'Demande initiale',
+        text: `[${day}/${month}/${year} ${hours}:${minutes}] 🔄 Statut initial : ${data.status || 'Demande initiale'}`,
+      }];
+      payload.notes = [];
+    }
+
+    try {
+      await supabase.from('hunter_candidatures').upsert(payload);
+    } catch (err) {
+      console.warn('hunter_candidatures storage:', err.message);
+    }
+
+    setCandidatures((prev) => {
+      const next = prev.some((c) => c.id === candId)
+        ? prev.map((c) => (c.id === candId ? { ...c, ...payload } : c))
+        : [payload, ...prev];
+      localStorage.setItem(`sh_candidatures_${profileId}`, JSON.stringify(next));
+      return next;
+    });
+  }, data.id ? 'Candidature modifiée.' : 'Nouvelle candidature enregistrée.');
+
+  const updateCandidatureStatus = (candId, newStatus) => {
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, '0');
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const year = now.getFullYear();
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const timestamp = `[${day}/${month}/${year} ${hours}:${minutes}]`;
+    const autoNote = `${timestamp} 🔄 Statut passé à : ${newStatus}`;
+
+    setCandidatures((prev) => {
+      const next = prev.map((c) => {
+        if (c.id !== candId) return c;
+        const prevHistory = c.status_history || [];
+        const lastEntry = prevHistory[prevHistory.length - 1];
+        let deltaDays = 0;
+        if (lastEntry) {
+          const lastDate = parseCustomDate(lastEntry.date) || parseCustomDate(c.created_at);
+          if (lastDate) deltaDays = Math.max(0, Math.floor((now - lastDate) / (1000 * 60 * 60 * 24)));
+        }
+        const updatedHistory = [
+          ...prevHistory,
+          { date: `${day}/${month}/${year} ${hours}:${minutes}`, status: newStatus, text: autoNote, delta_days: deltaDays },
+        ];
+        const updated = {
+          ...c,
+          status: newStatus,
+          status_history: updatedHistory,
+          updated_at: now.toISOString(),
+        };
+        supabase.from('hunter_candidatures').upsert(updated).catch(() => {});
+        return updated;
+      });
+      localStorage.setItem(`sh_candidatures_${profileId}`, JSON.stringify(next));
+      return next;
+    });
+    setNotice(`Statut mis à jour : ${newStatus}`);
+  };
+
+  const addCandidatureNote = (candId, note) => {
+    setCandidatures((prev) => {
+      const next = prev.map((c) => {
+        if (c.id !== candId) return c;
+        const updated = {
+          ...c,
+          notes: [...(c.notes || []), note],
+          updated_at: new Date().toISOString(),
+        };
+        supabase.from('hunter_candidatures').upsert(updated).catch(() => {});
+        return updated;
+      });
+      localStorage.setItem(`sh_candidatures_${profileId}`, JSON.stringify(next));
+      return next;
+    });
+    setNotice('Mémo Post-it épinglé.');
+  };
+
+  const deleteCandidature = (candId) => run(async () => {
+    try {
+      await supabase.from('hunter_candidatures').delete().eq('id', candId);
+    } catch (_) {}
+    setCandidatures((prev) => {
+      const next = prev.filter((c) => c.id !== candId);
+      localStorage.setItem(`sh_candidatures_${profileId}`, JSON.stringify(next));
+      return next;
+    });
+  }, 'Candidature supprimée.');
+
+  const syncGoogleSheets = () => run(async () => {
+    const res = await fetch('/api/google?action=sync-sheet', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ profileId, candidatures }),
+    });
+    if (!res.ok) throw new Error(`Erreur sync Sheets HTTP ${res.status}`);
+    const data = await res.json();
+    return data;
+  }, 'Synchronisation réussie avec Google Sheets (Opportunités & Réponses).');
+
+  const pullGoogleSheets = () => run(async () => {
+    const res = await fetch('/api/google?action=pull-sheet', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ profileId }),
+    });
+    if (!res.ok) throw new Error(`Erreur import Sheets HTTP ${res.status}`);
+    const data = await res.json();
+    if (data.candidatures && data.candidatures.length > 0) {
+      setCandidatures((prev) => {
+        const existingNames = new Set(prev.map((c) => (c.company || '').toLowerCase().trim()));
+        const toAdd = data.candidatures.filter((c) => !existingNames.has((c.company || '').toLowerCase().trim()));
+        const merged = [...prev, ...toAdd];
+        localStorage.setItem(`sh_candidatures_${profileId}`, JSON.stringify(merged));
+        toAdd.forEach((c) => {
+          supabase.from('hunter_candidatures').upsert({
+            ...c,
+            user_id: session.user.id,
+            profile_id: profileId,
+          }).catch(() => {});
+        });
+        return merged;
+      });
+      setNotice(`${data.candidatures.length} candidatures chargées depuis Google Sheets.`);
+    } else {
+      setNotice('Aucune nouvelle candidature trouvée dans le Sheet.');
+    }
+  });
+
+  const transferOfferToCandidature = (offer) => {
+    setPrefillCandidature(offer);
+    goToPage('candidatures');
+  };
 
   const startScan = (mode) => run(async () => {
     if (!workerReady) throw new Error('Le worker Python doit être configuré avant le lancement.');
@@ -318,6 +546,17 @@ export function CloudApp() {
     stats: metrics.funnel || {},
     runtime: metrics,
   } : {};
+  const urgentCount = useMemo(() => {
+    const now = new Date();
+    return candidatures.filter((c) => {
+      const s = String(c.status || '').toLowerCase();
+      if (!(s.includes('initiale') || s.includes('envoy') || !s)) return false;
+      const d = parseCustomDate(c.created_at);
+      if (!d) return false;
+      return Math.floor((now - d) / (1000 * 60 * 60 * 24)) >= 10;
+    }).length;
+  }, [candidatures]);
+
   const goToPage = (nextPage) => { setPage(nextPage); setMobileMenuOpen(false); };
 
   if (!authReady) return <div className="cloud-login-shell">Chargement…</div>;
@@ -337,6 +576,7 @@ export function CloudApp() {
                 <button key={id} className={`sh-nav-item ${page === id ? 'active' : ''}`}
                   onClick={() => goToPage(id)}><Icon name={icon} size={18} /><span>{label}</span>
                   {id === 'swipe' && stats.pending > 0 && <span className="sh-nav-badge">{stats.pending}</span>}
+                  {id === 'candidatures' && urgentCount > 0 && <span className="sh-nav-badge urgent" title="Relances urgentes">{urgentCount}</span>}
                 </button>
               ))}
             </nav>
@@ -380,7 +620,22 @@ export function CloudApp() {
                   stats={stats} busy={busy} onDecide={decide} onUndo={undo} onRequeue={requeue}
                   onGoToPage={goToPage} />}
                 {page === 'results' && <ResultsView results={offers.filter((offer) => ['keep', 'unsure'].includes(offer.review_decision))}
-                  profileId={profileId} busy={busy} onDecide={decide} onRequeue={requeue} onExport={exportOffersCsv} />}
+                  profileId={profileId} busy={busy} onDecide={decide} onRequeue={requeue} onExport={exportOffersCsv}
+                  onTransferCandidature={transferOfferToCandidature} />}
+                {page === 'candidatures' && <CandidaturesView
+                  candidatures={candidatures}
+                  profileId={profileId}
+                  busy={busy}
+                  onSaveCandidature={saveCandidature}
+                  onUpdateStatus={updateCandidatureStatus}
+                  onAddNote={addCandidatureNote}
+                  onDeleteCandidature={deleteCandidature}
+                  onSyncGoogleSheets={syncGoogleSheets}
+                  onPullGoogleSheets={pullGoogleSheets}
+                  googleConnected={googleConnected}
+                  prefillFromOffer={prefillCandidature}
+                  onClearPrefill={() => setPrefillCandidature(null)}
+                />}
                 {page === 'profile' && <div className="sh-view"><ProfileView profile={profile} onSave={saveProfile} busy={busy} />
                   <section className="sh-form-section"><div className="sh-section-header"><div>
                     <h2>Mes profils de recherche</h2><p>Chaque profil possède ses critères et ses offres.</p>

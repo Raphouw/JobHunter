@@ -29,6 +29,7 @@ export function ResultsView({
   onRequeue,
   onCommand,
   onExport,
+  onTransferCandidature,
 }) {
   const [query, setQuery] = useState('');
   const [filterTab, setFilterTab] = useState('all'); // all | keep | unsure
@@ -201,13 +202,27 @@ export function ResultsView({
                 )}
 
                 <div className="sh-result-actions">
-                  <button
-                    className="sh-btn-text"
-                    onClick={() => setSelectedOffer(offer)}
-                  >
-                    <Icon name="info" size={15} />
-                    <span>Détails & motifs</span>
-                  </button>
+                  <div className="sh-result-left-actions">
+                    <button
+                      className="sh-btn-text"
+                      onClick={() => setSelectedOffer(offer)}
+                    >
+                      <Icon name="info" size={15} />
+                      <span>Détails & motifs</span>
+                    </button>
+
+                    {onTransferCandidature && (
+                      <button
+                        type="button"
+                        className="sh-btn-transfer"
+                        onClick={() => onTransferCandidature(offer)}
+                        title="Créer une candidature pour cette offre et suivre le statut sur la carte"
+                      >
+                        <Icon name="target" size={14} />
+                        <span>Postuler & Suivre</span>
+                      </button>
+                    )}
+                  </div>
 
                   <div className="sh-result-btn-group">
                     {onRequeue && (
