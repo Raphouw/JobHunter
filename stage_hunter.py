@@ -2218,7 +2218,7 @@ def ingest(c,rows,profile):
     DECISION_AUDIT_PATH.with_suffix('.meta.json').write_text(json.dumps(audit_meta,ensure_ascii=False,indent=2,default=str),encoding='utf-8')
     ingest_started=time.perf_counter();inserted=0;closed_count=0;expanded=[];listing_leads=[];retained_examples=[];rejected_examples=[]
     listing_leads_total=0;listing_leads_cap=max(500,min(safe_int(os.getenv('MAX_DIAGNOSTIC_LISTING_LEADS'),5000),20_000))
-    detail_cap=max(100,min(safe_int(os.getenv('MAX_TOTAL_DETAIL_PAGES'),1200),10_000))
+    detail_cap=max(1,min(safe_int(os.getenv('MAX_TOTAL_DETAIL_PAGES'),1200),10_000))
     detail_downloads=0
     def remember_listing_leads(leads):
         nonlocal listing_leads_total
