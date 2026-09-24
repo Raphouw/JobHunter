@@ -633,6 +633,36 @@ function App() {
   );
 }
 
-createRoot(document.getElementById('root')).render(cloudEnabled
-  ? <React.Suspense fallback={<div className="cloud-login-shell">Chargement…</div>}><CloudApp /></React.Suspense>
-  : <App />);
+class AppErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { failed: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch(error, details) {
+    console.error('Erreur interface Job Hunter', error, details);
+  }
+
+  render() {
+    if (this.state.failed) {
+      return <main className="cloud-login-shell" role="alert">
+        <h1>La page n’a pas pu s’afficher</h1>
+        <p>Recharge la page pour retrouver ton espace. Le scan en cours continue sur le serveur.</p>
+        <button type="button" onClick={() => window.location.reload()}>Recharger</button>
+      </main>;
+    }
+    return this.props.children;
+  }
+}
+
+createRoot(document.getElementById('root')).render(
+  <AppErrorBoundary>
+    {cloudEnabled
+      ? <React.Suspense fallback={<div className="cloud-login-shell">Chargement…</div>}><CloudApp /></React.Suspense>
+      : <App />}
+  </AppErrorBoundary>
+);

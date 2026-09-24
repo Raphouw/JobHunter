@@ -6,6 +6,7 @@ function parseLine(line) {
   const timeMatch = line.match(/^(\[\d{2}:\d{2}\])\s*(.*)$/);
   const time = timeMatch ? timeMatch[1] : '';
   const body = timeMatch ? timeMatch[2] : line;
+  const low = body.toLowerCase();
 
   let type = 'info';
   let tag = '';
@@ -215,4 +216,3 @@ export function ColoredTerminal({
     </div>
   );
 }
-
