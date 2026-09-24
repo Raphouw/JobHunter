@@ -1,8 +1,9 @@
 import React, { useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { Icon } from '../Common/Icons';
 import { descriptionText } from './descriptionText';
 
-export function OfferDetailModal({ offer, onClose, onDecide, onTransferCandidature, busy }) {
+export function OfferDetailModal({ offer, onClose, onDecide, onTransferCandidature, busy, layoutId }) {
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') onClose();
@@ -30,8 +31,11 @@ export function OfferDetailModal({ offer, onClose, onDecide, onTransferCandidatu
     .filter(Boolean);
 
   return (
-    <div className="sh-modal-backdrop" onClick={onClose}>
-      <div className="sh-modal-drawer" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+    <motion.div className="sh-modal-backdrop sh-offer-sheet" onClick={onClose} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <motion.div layoutId={layoutId} className="sh-modal-drawer" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={offer.title || 'Détails de l’offre'} initial={{ y: '100%', scale: 0.96 }} animate={{ y: 0, scale: 1 }} exit={{ y: '100%' }} transition={{ type: 'spring', stiffness: 340, damping: 34 }}>
+        <motion.div className="sh-sheet-handle-zone" drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={{ top: 0, bottom: 0.7 }} onDragEnd={(_, info) => { if (info.offset.y > 100 || info.velocity.y > 600) onClose(); }}>
+          <span className="sh-sheet-handle" />
+        </motion.div>
         <header className="sh-modal-header">
           <div className="sh-modal-titlebox">
             <span className="sh-modal-eyebrow">Détails complets de l’opportunité</span>
@@ -204,7 +208,7 @@ export function OfferDetailModal({ offer, onClose, onDecide, onTransferCandidatu
             </button>
           </div>
         </footer>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

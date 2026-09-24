@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion, useMotionValue, useTransform } from 'framer-motion';
 import { Icon } from '../Common/Icons';
 import { descriptionText } from './descriptionText';
 
@@ -28,57 +29,26 @@ function getInitials(name = '') {
 
 export function TinderCard({
   offer,
-  cardRef,
   isFront = false,
-  drag = { x: 0, y: 0 },
-  isDragging = false,
-  flight = '',
-  onPointerDown,
-  onPointerMove,
-  onPointerUp,
+  x,
+  y,
+  rotate,
+  disabled = false,
+  onDragEnd,
   onOpenDetails,
 }) {
+  const fallbackX = useMotionValue(0);
+  const fallbackY = useMotionValue(0);
+  const motionX = x || fallbackX;
+  const motionY = y || fallbackY;
+  const keepOpacity = useTransform(motionX, [20, 100], [0, 1]);
+  const rejectOpacity = useTransform(motionX, [-100, -20], [1, 0]);
+  const unsureOpacity = useTransform(motionY, [20, 100], [0, 1]);
   if (!offer) return null;
 
   const score = Math.max(0, Math.min(100, Math.round(Number(offer.score) || 0)));
   const isOpen = offer.availability_status === 'open';
 
-  // Dynamic transforms for front card
-  let transform = '';
-  let opacity = 1;
-
-  if (flight) {
-    if (flight === 'keep') {
-      transform = 'translate3d(140%, 15%, 0) rotate(22deg)';
-    } else if (flight === 'reject') {
-      transform = 'translate3d(-140%, 15%, 0) rotate(-22deg)';
-    } else if (flight === 'unsure') {
-      transform = 'translate3d(0, 140%, 0) scale(0.92)';
-    }
-    opacity = 0;
-  } else if (isFront) {
-    const rotation = drag.x / 20;
-    transform = `translate3d(${drag.x}px, ${drag.y}px, 0) rotate(${rotation}deg)`;
-  }
-
-  // Stamp opacities
-  let keepOpacity = 0;
-  let rejectOpacity = 0;
-  let unsureOpacity = 0;
-
-  if (isFront && !flight) {
-    if (drag.x > 25) {
-      keepOpacity = Math.min(1, (drag.x - 25) / 85);
-    } else if (drag.x < -25) {
-      rejectOpacity = Math.min(1, (-drag.x - 25) / 85);
-    } else if (drag.y > 35 && Math.abs(drag.y) > Math.abs(drag.x)) {
-      unsureOpacity = Math.min(1, (drag.y - 35) / 75);
-    }
-  } else if (flight) {
-    if (flight === 'keep') keepOpacity = 1;
-    if (flight === 'reject') rejectOpacity = 1;
-    if (flight === 'unsure') unsureOpacity = 1;
-  }
 
   const tags = [
     offer.location || offer.canton,
@@ -112,28 +82,26 @@ export function TinderCard({
       : 'var(--salmon)';
 
   return (
-    <article
-      ref={cardRef}
-      className={`tinder-card ${isFront ? 'front' : 'back'} ${isDragging ? 'dragging' : ''} ${flight ? 'flying' : ''}`}
-      style={{
-        transform,
-        opacity,
-      }}
-      onPointerDown={isFront ? onPointerDown : undefined}
-      onPointerMove={isFront ? onPointerMove : undefined}
-      onPointerUp={isFront ? onPointerUp : undefined}
-      onPointerCancel={isFront ? onPointerUp : undefined}
+    <motion.article
+      className={`tinder-card ${isFront ? 'front' : 'back'}`}
+      layoutId={isFront ? 'active-offer-card' : undefined}
+      style={isFront ? { x: motionX, y: motionY, rotate } : undefined}
+      drag={isFront && !disabled}
+      dragMomentum={false}
+      dragElastic={0.85}
+      onDragEnd={onDragEnd}
+      whileDrag={{ cursor: 'grabbing' }}
     >
       {/* Dynamic Action Stamps */}
-      <div className="stamp-overlay stamp-keep" style={{ opacity: keepOpacity }}>
+      <motion.div className="stamp-overlay stamp-keep" style={{ opacity: isFront ? keepOpacity : 0 }}>
         <span>GARDER</span>
-      </div>
-      <div className="stamp-overlay stamp-reject" style={{ opacity: rejectOpacity }}>
+      </motion.div>
+      <motion.div className="stamp-overlay stamp-reject" style={{ opacity: isFront ? rejectOpacity : 0 }}>
         <span>PASSER</span>
-      </div>
-      <div className="stamp-overlay stamp-unsure" style={{ opacity: unsureOpacity }}>
+      </motion.div>
+      <motion.div className="stamp-overlay stamp-unsure" style={{ opacity: isFront ? unsureOpacity : 0 }}>
         <span>À REVOIR</span>
-      </div>
+      </motion.div>
 
       {/* Card Header */}
       <div className="card-header">
@@ -162,13 +130,6 @@ export function TinderCard({
           title={`Score de correspondance : ${score}/100 calculé selon vos critères`}
         >
           <svg className="sh-gauge-svg" width="62" height="62" viewBox="0 0 60 60">
-            <defs>
-              <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#ec4899" />
-                <stop offset="50%" stopColor="#8b5cf6" />
-                <stop offset="100%" stopColor="#10b981" />
-              </linearGradient>
-            </defs>
             {/* Background track circle */}
             <circle
               className="sh-gauge-track"
@@ -184,7 +145,7 @@ export function TinderCard({
               cy="30"
               r={radius}
               strokeWidth="4.5"
-              stroke={score >= 70 ? 'url(#gaugeGradient)' : scoreColor}
+              stroke={scoreColor}
               strokeDasharray={circumference}
               strokeDashoffset={strokeDashoffset}
               strokeLinecap="round"
@@ -288,9 +249,10 @@ export function TinderCard({
         <button
           type="button"
           className="btn-card-details"
+          disabled={!isFront}
           onClick={(e) => {
             e.stopPropagation();
-            onOpenDetails(offer);
+            onOpenDetails?.(offer);
           }}
         >
           <Icon name="fileText" size={16} />
@@ -311,6 +273,6 @@ export function TinderCard({
           </a>
         )}
       </div>
-    </article>
+    </motion.article>
   );
 }

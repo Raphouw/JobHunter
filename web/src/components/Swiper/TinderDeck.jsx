@@ -1,9 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { animate, AnimatePresence, motion, useMotionValue, useTransform } from 'framer-motion';
 import { Icon } from '../Common/Icons';
 import { TinderCard } from './TinderCard';
 import { OfferDetailModal } from './OfferDetailModal';
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const spring = { type: 'spring', stiffness: 450, damping: 30 };
+
+function Underlay({ offer, depth, progress }) {
+  const scale = useTransform(progress, [0, 1], depth === 1 ? [0.95, 1] : [0.90, 0.95]);
+  const y = useTransform(progress, [0, 1], depth === 1 ? [16, 0] : [32, 16]);
+  const opacity = useTransform(progress, [0, 1], depth === 1 ? [0.85, 1] : [0.6, 0.85]);
+  return <motion.div layout className="card-underlay-wrapper" style={{ scale, y, opacity, zIndex: 3 - depth }} aria-hidden="true"><TinderCard offer={offer} /></motion.div>;
+}
 
 export function TinderDeck({
   offers = [],
@@ -19,12 +27,12 @@ export function TinderDeck({
   const [cantonFilter, setCantonFilter] = useState('all');
   const [selectedOffer, setSelectedOffer] = useState(null);
 
-  // Drag physics state
-  const cardRef = useRef(null);
-  const originRef = useRef(null);
-  const [drag, setDrag] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [flight, setFlight] = useState('');
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+  const rotate = useTransform(x, [-300, 300], [-18, 18]);
+  const dragDistance = useTransform(x, (value) => Math.min(Math.abs(value) / 200, 1));
+  const flightRef = useRef(false);
+  const [flight, setFlight] = useState(false);
 
   // Extract available regions/cantons/locations for quick filtering
   const availableLocations = useMemo(() => {
@@ -57,27 +65,46 @@ export function TinderDeck({
   const next1 = queue[1];
   const next2 = queue[2];
 
-  // Execute decision with flight animation
   const triggerDecision = useCallback(
     async (decision) => {
-      if (!current || busy || flight) return;
-      setFlight(decision);
-      await sleep(280);
+      if (!current || busy || flightRef.current || !onDecide) return;
+      flightRef.current = true;
+      setFlight(true);
+      const target = decision === 'keep' ? window.innerWidth + 400 : decision === 'reject' ? -window.innerWidth - 400 : window.innerHeight + 400;
       try {
+        await animate(decision === 'unsure' ? y : x, target, { duration: 0.32, ease: [0.25, 0.8, 0.35, 1] });
         await onDecide(current, decision);
       } finally {
-        setFlight('');
-        setDrag({ x: 0, y: 0 });
-        setIsDragging(false);
+        x.set(0);
+        y.set(0);
+        flightRef.current = false;
+        setFlight(false);
       }
     },
-    [current, busy, flight, onDecide]
+    [current, busy, onDecide, x, y]
   );
+
+  const handleDragEnd = (_, info) => {
+    const { x: dx, y: dy } = info.offset;
+    const { x: vx, y: vy } = info.velocity;
+    if (dy < -90 && Math.abs(dy) > Math.abs(dx)) {
+      animate(x, 0, spring);
+      animate(y, 0, spring);
+      setSelectedOffer(current);
+    } else if (Math.abs(dx) > 110 || Math.abs(vx) > 500) {
+      triggerDecision(dx > 0 || (dx === 0 && vx > 0) ? 'keep' : 'reject');
+    } else if ((dy > 95 || vy > 500) && Math.abs(dy) > Math.abs(dx)) {
+      triggerDecision('unsure');
+    } else {
+      animate(x, 0, spring);
+      animate(y, 0, spring);
+    }
+  };
 
   // Keyboard controls
   useEffect(() => {
     const handleKey = (e) => {
-      if (e.target.closest('input, textarea, select')) return;
+      if (e.target instanceof Element && e.target.closest('input, textarea, select, button, a, [contenteditable="true"]')) return;
       if (selectedOffer) return; // Modal has focus
 
       if (e.key === 'ArrowLeft') {
@@ -102,44 +129,6 @@ export function TinderDeck({
     return () => window.removeEventListener('keydown', handleKey);
   }, [triggerDecision, current, selectedOffer, busy, onUndo]);
 
-  // Pointer drag events for the front card
-  const handlePointerDown = (e) => {
-    if (e.target.closest('a, button')) return;
-    originRef.current = { x: e.clientX, y: e.clientY, id: e.pointerId };
-    setIsDragging(true);
-    if (cardRef.current && cardRef.current.setPointerCapture) {
-      try {
-        cardRef.current.setPointerCapture(e.pointerId);
-      } catch (_) {}
-    }
-  };
-
-  const handlePointerMove = (e) => {
-    if (!originRef.current) return;
-    const dx = e.clientX - originRef.current.x;
-    const dy = e.clientY - originRef.current.y;
-    setDrag({ x: dx, y: dy });
-  };
-
-  const handlePointerUp = () => {
-    if (!originRef.current) return;
-    originRef.current = null;
-    setIsDragging(false);
-
-    const threshold = 110;
-    const { x, y } = drag;
-
-    if (x > threshold) {
-      triggerDecision('keep');
-    } else if (x < -threshold) {
-      triggerDecision('reject');
-    } else if (y > 95 && Math.abs(y) > Math.abs(x)) {
-      triggerDecision('unsure');
-    } else {
-      // Snap back smoothly
-      setDrag({ x: 0, y: 0 });
-    }
-  };
 
   return (
     <div className="sh-swiper-container">
@@ -210,33 +199,30 @@ export function TinderDeck({
       <div className="sh-deck-stage">
         {current ? (
           <div className="sh-card-stack">
+            <AnimatePresence mode="popLayout">
             {/* 3rd Card in background (subtle depth) */}
             {next2 && (
-              <div className="card-underlay-wrapper depth-2" aria-hidden="true">
-                <TinderCard offer={next2} isFront={false} onOpenDetails={() => {}} />
-              </div>
+              <Underlay key={`third-${next2.id || next2.url || next2.title}`} offer={next2} depth={2} progress={dragDistance} />
             )}
 
             {/* 2nd Card in background (full render for smooth swipe reveal) */}
             {next1 && (
-              <div className="card-underlay-wrapper depth-1" aria-hidden="true">
-                <TinderCard offer={next1} isFront={false} onOpenDetails={() => {}} />
-              </div>
+              <Underlay key={`second-${next1.id || next1.url || next1.title}`} offer={next1} depth={1} progress={dragDistance} />
             )}
 
             {/* Front Interactive Card */}
-            <TinderCard
-              cardRef={cardRef}
+            {!selectedOffer && <TinderCard
+              key={`front-${current.id || current.url || current.title}`}
               offer={current}
               isFront={true}
-              drag={drag}
-              isDragging={isDragging}
-              flight={flight}
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
+              x={x}
+              y={y}
+              rotate={rotate}
+              disabled={busy || flight || !!selectedOffer}
+              onDragEnd={handleDragEnd}
               onOpenDetails={(o) => setSelectedOffer(o)}
-            />
+            />}
+            </AnimatePresence>
           </div>
         ) : (
           /* Empty Deck State */
@@ -307,7 +293,7 @@ export function TinderDeck({
         <div className="sh-tinder-controls-bar">
           <div className="sh-tinder-controls">
             {/* Rewind / Undo Button */}
-            <button
+            <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.92 }}
               className="sh-ctrl-btn ctrl-undo"
               onClick={onUndo}
               disabled={busy || !!flight}
@@ -315,10 +301,10 @@ export function TinderDeck({
               aria-label="Annuler le dernier choix"
             >
               <Icon name="undo" size={20} />
-            </button>
+            </motion.button>
 
             {/* Nope / Reject Button */}
-            <button
+            <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.92 }}
               className="sh-ctrl-btn ctrl-reject"
               onClick={() => triggerDecision('reject')}
               disabled={busy || !!flight}
@@ -326,10 +312,10 @@ export function TinderDeck({
               aria-label="Passer cette offre"
             >
               <Icon name="x" size={28} />
-            </button>
+            </motion.button>
 
             {/* Star / Later Button */}
-            <button
+            <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.92 }}
               className="sh-ctrl-btn ctrl-later"
               onClick={() => triggerDecision('unsure')}
               disabled={busy || !!flight}
@@ -337,10 +323,10 @@ export function TinderDeck({
               aria-label="Revoir plus tard"
             >
               <Icon name="clock" size={24} />
-            </button>
+            </motion.button>
 
             {/* Like / Keep Button */}
-            <button
+            <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.92 }}
               className="sh-ctrl-btn ctrl-keep"
               onClick={() => triggerDecision('keep')}
               disabled={busy || !!flight}
@@ -348,10 +334,10 @@ export function TinderDeck({
               aria-label="Garder en coup de cœur"
             >
               <Icon name="heart" size={30} />
-            </button>
+            </motion.button>
 
             {/* Open Detail Drawer Button */}
-            <button
+            <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.92 }}
               className="sh-ctrl-btn ctrl-details"
               onClick={() => setSelectedOffer(current)}
               disabled={busy || !!flight}
@@ -359,24 +345,26 @@ export function TinderDeck({
               aria-label="Description complète"
             >
               <Icon name="fileText" size={20} />
-            </button>
+            </motion.button>
           </div>
 
           <div className="sh-keyboard-hint">
-            <span>← Refuser</span>
+            <span><kbd>←</kbd> Passer</span>
             <span>·</span>
-            <span>↓ Doute</span>
+            <span><kbd>↓</kbd> À revoir</span>
             <span>·</span>
-            <span>Garder →</span>
+            <span>Garder <kbd>→</kbd></span>
             <span>·</span>
-            <span>Espace = Détails</span>
+            <span><kbd>↑</kbd> / <kbd>Espace</kbd> Détails</span>
           </div>
         </div>
       )}
 
       {/* Detail Drawer Modal */}
+      <AnimatePresence>
       {selectedOffer && (
         <OfferDetailModal
+          layoutId="active-offer-card"
           offer={selectedOffer}
           busy={busy}
           onClose={() => setSelectedOffer(null)}
@@ -386,6 +374,7 @@ export function TinderDeck({
           onTransferCandidature={onTransferCandidature}
         />
       )}
+      </AnimatePresence>
     </div>
   );
 }
