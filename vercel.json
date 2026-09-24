@@ -15,6 +15,6 @@
     { "path": "/api/keepalive", "schedule": "0 9 * * *" }
   ],
   "rewrites": [
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    { "source": "/((?!api/|cities/).*)", "destination": "/index.html" }
   ]
 }
