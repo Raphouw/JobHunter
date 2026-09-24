@@ -291,3 +291,5 @@ export function CloudApp() {
     </>
   );
 }
+
+export default CloudApp;
