@@ -37,7 +37,7 @@ export function CloudSearchView({ scanJobs, onRefresh, busy }) {
       </div>
       {scanJobs.length ? <div className="cloud-result-list">{scanJobs.map((job) =>
         <div className="cloud-result-row" key={job.id}>
-          <strong>{job.mode}</strong>
+          <strong>{job.mode}{job.summary?.origin === 'local_import' ? ' · Import local' : ''}</strong>
           <span>{SCAN_STATUSES[job.status] || job.status} · {SCAN_PHASES[job.phase] || job.phase}
             {' · '}{job.progress_percent}% · {new Date(job.created_at).toLocaleString('fr-FR')}</span>
           {job.error_message && <small>{job.error_message}</small>}

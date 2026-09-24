@@ -5,7 +5,8 @@ Site déployé : https://job-hunter-three-chi.vercel.app/
 État du 24 septembre 2026 : le dépôt GitHub est relié à Vercel, le site est
 accessible et les tables Supabase sont créées avec RLS. Le compte principal et
 le profil web « Raphouw » existent ; les critères et 25 offres actives du
-profil local Raphaël y ont été importés. Le réglage Supabase « Allow new users to sign up » est
+profil local Raphaël y ont été importés, ainsi que le résumé du dernier scan
+pour alimenter la page Diagnostic. Le réglage Supabase « Allow new users to sign up » est
 encore actif : le désactiver dans Authentication > Settings > General avant de
 distribuer l'accès. Configurer aussi l'URL du site dans Authentication > URL
 Configuration pour les futurs courriels d'invitation et de récupération.
