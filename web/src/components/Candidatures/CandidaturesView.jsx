@@ -1,7 +1,12 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Icon } from '../Common/Icons';
-import { SWISS_CANTONS, projectGps } from './swissCantons';
-import { SWISS_CITIES } from './swissCities';
+import {
+  COUNTRIES,
+  REGIONS_BY_COUNTRY,
+  EUROPE_REGIONS_GEO,
+  geocodeCandidature,
+  projectGpsEurope,
+} from './europeMapData';
 import { AddCandidatureModal } from './AddCandidatureModal';
 import { AddNoteModal } from './AddNoteModal';
 
@@ -27,32 +32,19 @@ function parseCustomDate(str) {
   return isNaN(iso.getTime()) ? null : iso;
 }
 
-function formatDelta(days) {
-  if (days <= 0) return 'Le même jour';
-  if (days === 1) return '+1 jour';
-  return `+${days} jours`;
-}
-
-function getCityOffset(cityName) {
-  const lower = cityName.toLowerCase().trim();
-  if (lower.includes('zurich') || lower.includes('zürich')) return { dx: -5, dy: -12 };
-  if (lower.includes('winterthur')) return { dx: 22, dy: -20 };
-  if (lower.includes('geneve') || lower.includes('genève')) return { dx: -15, dy: 8 };
-  if (lower.includes('lausanne')) return { dx: -12, dy: 14 };
-  if (lower.includes('yverdon')) return { dx: -22, dy: -12 };
-  if (lower.includes('berne') || lower.includes('bern')) return { dx: -5, dy: -15 };
-  if (lower.includes('bienne') || lower.includes('biel')) return { dx: -22, dy: -32 };
-  if (lower.includes('bâle') || lower.includes('basel')) return { dx: -2, dy: -5 };
-  if (lower.includes('lugano')) return { dx: 5, dy: 22 };
-  if (lower.includes('lucerne') || lower.includes('luzern')) return { dx: -5, dy: -5 };
-
+function getAvatarGradient(name = 'Stage') {
+  const gradients = [
+    'linear-gradient(135deg, #8b5cf6, #6366f1)',
+    'linear-gradient(135deg, #fb7185, #f43f5e)',
+    'linear-gradient(135deg, #0ea5e9, #2563eb)',
+    'linear-gradient(135deg, #10b981, #059669)',
+    'linear-gradient(135deg, #f59e0b, #d97706)',
+    'linear-gradient(135deg, #ec4899, #be185d)',
+    'linear-gradient(135deg, #14b8a6, #0d9488)',
+  ];
   let hash = 0;
-  for (let i = 0; i < cityName.length; i++) {
-    hash = cityName.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const dx = (Math.abs(hash) % 26) - 13;
-  const dy = (Math.abs(hash >> 3) % 26) - 13;
-  return { dx, dy };
+  for (let i = 0; i < name.length; i++) hash += name.charCodeAt(i);
+  return gradients[Math.abs(hash) % gradients.length];
 }
 
 export function CandidaturesView({
@@ -69,17 +61,25 @@ export function CandidaturesView({
   prefillFromOffer = null,
   onClearPrefill = null,
 }) {
-  const [activeCode, setActiveCode] = useState(null);
+  const [selectedCountry, setSelectedCountry] = useState('ALL'); // ALL, CH, FR, DE, BE, LU, IT, ES
+  const [activeRegionCode, setActiveRegionCode] = useState(null);
   const [activeCityKey, setActiveCityKey] = useState(null);
-  const [viewMode, setViewMode] = useState('map'); // 'map' | 'kanban'
-  const [filterStatus, setFilterStatus] = useState('all'); // all | envoi | entretien | accepte | refus
+  const [filterStatus, setFilterStatus] = useState('all'); // all | urgent | envoi | entretien | valide | refus
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState('recent'); // recent | note | urgent
   const [showAddModal, setShowAddModal] = useState(!!prefillFromOffer);
   const [editingCandidature, setEditingCandidature] = useState(null);
   const [noteTargetCandidature, setNoteTargetCandidature] = useState(null);
-  const [tooltip, setTooltip] = useState({ visible: false, x: 0, y: 0, text: '' });
+  const [tooltip, setTooltip] = useState({ visible: false, x: 0, y: 0, title: '', subtitle: '' });
   const [manualZoom, setManualZoom] = useState(1);
+  const [zoomCenter, setZoomCenter] = useState({ cx: 500, cy: 400 });
+
+  // Gmail scanning states
+  const [gmailScanning, setGmailScanning] = useState(false);
+  const [gmailScanResults, setGmailScanResults] = useState(null);
+  const [showGmailModal, setShowGmailModal] = useState(false);
+  const [gmailNotice, setGmailNotice] = useState('');
+
   const [lastUpdated, setLastUpdated] = useState(() => {
     const now = new Date();
     return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -89,141 +89,194 @@ export function CandidaturesView({
     if (prefillFromOffer) setShowAddModal(true);
   }, [prefillFromOffer]);
 
-  // Reset manual zoom when selection clears
-  useEffect(() => {
-    if (!activeCode && !activeCityKey) {
-      setManualZoom(1);
-    }
-  }, [activeCode, activeCityKey]);
+  // Geocode each candidature and enrich with normalized Country and Region
+  const enrichedCandidatures = useMemo(() => {
+    return candidatures.map((c) => {
+      const geo = geocodeCandidature(c);
+      const now = new Date();
+      const createdDate = parseCustomDate(c.created_at) || now;
+      const waitingDays = Math.max(0, Math.floor((now - createdDate) / (1000 * 60 * 60 * 24)));
 
-  // Compute counts per canton
-  const cantonCounts = useMemo(() => {
-    const counts = {};
-    candidatures.forEach((c) => {
-      const code = String(c.canton || '').toUpperCase();
-      const m = code.match(/\|?\s*([A-Z]{2})\s*\|?/) || code.match(/\b([A-Z]{2})\b/);
-      const iso = m ? m[1] : code.slice(0, 2);
-      if (iso) counts[iso] = (counts[iso] || 0) + 1;
+      return {
+        ...c,
+        _geo: geo,
+        _country: c.country || geo.country || 'CH',
+        _region: c.region || c.canton || geo.region || 'VD',
+        _waitingDays: waitingDays,
+      };
+    });
+  }, [candidatures]);
+
+  // Counts per country
+  const countryCounts = useMemo(() => {
+    const counts = { ALL: enrichedCandidatures.length, CH: 0, FR: 0, DE: 0, BE: 0, LU: 0, IT: 0, ES: 0 };
+    enrichedCandidatures.forEach((c) => {
+      if (counts[c._country] !== undefined) {
+        counts[c._country] += 1;
+      }
     });
     return counts;
-  }, [candidatures]);
+  }, [enrichedCandidatures]);
 
-  // Funnel counts
-  const funnel = useMemo(() => {
-    const total = candidatures.length;
-    const replies = candidatures.filter((d) => {
-      const s = String(d.status || '').toLowerCase();
-      return !s.includes('initiale') && !s.includes('envoy') && s !== '';
-    }).length;
-    const interviews = candidatures.filter((d) => {
-      const s = String(d.status || '').toLowerCase();
-      return s.includes('entretien') || s.includes('accept') || s.includes('valid') || s.includes('offre');
-    }).length;
-    const offers = candidatures.filter((d) => {
-      const s = String(d.status || '').toLowerCase();
-      return s.includes('accept') || s.includes('valid') || s.includes('offre');
-    }).length;
-    return { total, replies, interviews, offers };
-  }, [candidatures]);
+  // Counts per region
+  const regionCounts = useMemo(() => {
+    const counts = {};
+    enrichedCandidatures.forEach((c) => {
+      const key = `${c._country}-${c._region}`;
+      counts[key] = (counts[key] || 0) + 1;
+      counts[c._region] = (counts[c._region] || 0) + 1;
+    });
+    return counts;
+  }, [enrichedCandidatures]);
 
-  // City pins coordinates
+  // City pins coordinates across Europe
   const cityPins = useMemo(() => {
     const map = new Map();
-    candidatures.forEach((c) => {
-      const cityName = String(c.location || '').trim();
+    enrichedCandidatures.forEach((c) => {
+      const cityName = String(c.location || c._geo.cityName || '').trim();
       if (!cityName) return;
-      const code = String(c.canton || '').slice(0, 2).toUpperCase();
-      const key = `${code}---${normalizeString(cityName)}`;
+      const key = `${c._country}---${normalizeString(cityName)}`;
 
       if (!map.has(key)) {
-        map.set(key, { key, name: cityName, canton: code, count: 0, items: [] });
+        map.set(key, {
+          key,
+          name: cityName,
+          country: c._country,
+          region: c._region,
+          x: c._geo.x,
+          y: c._geo.y,
+          count: 0,
+          items: [],
+        });
       }
       const entry = map.get(key);
       entry.count += 1;
       entry.items.push(c);
     });
 
-    const pins = [];
-    const normalizedCities = {};
-    Object.entries(SWISS_CITIES).forEach(([k, v]) => {
-      normalizedCities[normalizeString(k)] = v;
-    });
+    return Array.from(map.values());
+  }, [enrichedCandidatures]);
 
-    map.forEach((item) => {
-      const norm = normalizeString(item.name);
-      const coords = normalizedCities[norm];
-      let pos = null;
-      if (coords) {
-        pos = projectGps(coords.lat, coords.lng);
-      }
-      if (!pos) {
-        const cantonData = SWISS_CANTONS.find((ct) => ct.code === item.canton);
-        if (cantonData && cantonData.centroid) {
-          const offset = getCityOffset(item.name);
-          pos = { x: cantonData.centroid[0] + offset.dx, y: cantonData.centroid[1] + offset.dy };
-        }
-      }
-      if (pos) {
-        pins.push({ ...item, x: pos.x, y: pos.y });
-      }
-    });
+  // Top funnel summary stats
+  const funnel = useMemo(() => {
+    const total = enrichedCandidatures.length;
+    const replies = enrichedCandidatures.filter((d) => {
+      const s = String(d.status || '').toLowerCase();
+      return !s.includes('initiale') && !s.includes('envoy') && s !== '';
+    }).length;
+    const interviews = enrichedCandidatures.filter((d) => {
+      const s = String(d.status || '').toLowerCase();
+      return s.includes('entretien');
+    }).length;
+    const offers = enrichedCandidatures.filter((d) => {
+      const s = String(d.status || '').toLowerCase();
+      return s.includes('accept') || s.includes('valid') || s.includes('offre');
+    }).length;
+    const urgentCount = enrichedCandidatures.filter((d) => {
+      const s = String(d.status || '').toLowerCase();
+      return (s.includes('initiale') || s.includes('envoy') || !s) && d._waitingDays >= 10;
+    }).length;
 
-    return pins;
-  }, [candidatures]);
+    return { total, replies, interviews, offers, urgentCount };
+  }, [enrichedCandidatures]);
 
-  // Compute zoom transform based on active canton, active city pin, or manual zoom
+  // Urgent list (> 10 days waiting without reply)
+  const urgentList = useMemo(() => {
+    return enrichedCandidatures
+      .filter((c) => {
+        const s = String(c.status || '').toLowerCase();
+        const isInitial = s.includes('initiale') || s.includes('envoy') || !s;
+        return isInitial && c._waitingDays >= 10;
+      })
+      .sort((a, b) => b._waitingDays - a._waitingDays);
+  }, [enrichedCandidatures]);
+
+  // Handle country switch with animated auto-zoom
+  const handleSelectCountry = (countryCode) => {
+    setSelectedCountry(countryCode);
+    setActiveRegionCode(null);
+    setActiveCityKey(null);
+    setManualZoom(1);
+
+    const countryObj = COUNTRIES.find((c) => c.code === countryCode);
+    if (countryObj) {
+      setZoomCenter({ cx: countryObj.cx, cy: countryObj.cy });
+    }
+  };
+
+  // Zoom transform calculation for the Western Europe SVG map (1000x800)
   const zoomTransform = useMemo(() => {
-    let scale = manualZoom;
-    let cx = 400;
-    let cy = 250;
+    let baseScale = 1;
+    let cx = 500;
+    let cy = 400;
+
+    const countryObj = COUNTRIES.find((c) => c.code === selectedCountry);
+    if (countryObj && countryObj.code !== 'ALL') {
+      baseScale = countryObj.scale;
+      cx = countryObj.cx;
+      cy = countryObj.cy;
+    }
 
     if (activeCityKey) {
       const pin = cityPins.find((p) => p.key === activeCityKey);
       if (pin) {
         cx = pin.x;
         cy = pin.y;
-        scale = Math.max(scale, 2.3);
+        baseScale = Math.max(baseScale, 4.5);
       }
-    } else if (activeCode) {
-      const canton = SWISS_CANTONS.find((c) => c.code === activeCode);
-      if (canton && canton.centroid) {
-        cx = canton.centroid[0];
-        cy = canton.centroid[1];
-        scale = Math.max(scale, 1.85);
+    } else if (activeRegionCode) {
+      const regGeo = EUROPE_REGIONS_GEO.find(
+        (r) => r.code === activeRegionCode && (selectedCountry === 'ALL' || r.country === selectedCountry)
+      );
+      if (regGeo) {
+        cx = regGeo.cx;
+        cy = regGeo.cy;
+        baseScale = Math.max(baseScale, 3.2);
       }
     }
 
-    if (scale <= 1) return 'translate(0px, 0px) scale(1)';
+    const effectiveScale = baseScale * manualZoom;
+    if (effectiveScale <= 1.05) return 'translate(0px, 0px) scale(1)';
 
-    const dx = Math.max(-800 * (scale - 1), Math.min(0, 400 - cx * scale));
-    const dy = Math.max(-500 * (scale - 1), Math.min(0, 250 - cy * scale));
-    return `translate(${dx}px, ${dy}px) scale(${scale})`;
-  }, [activeCode, activeCityKey, cityPins, manualZoom]);
+    const dx = 500 - cx * effectiveScale;
+    const dy = 400 - cy * effectiveScale;
+    return `translate(${dx}px, ${dy}px) scale(${effectiveScale})`;
+  }, [selectedCountry, activeRegionCode, activeCityKey, cityPins, manualZoom]);
 
   // Filtered & sorted candidatures
   const filteredCandidatures = useMemo(() => {
-    let list = candidatures.filter((d) => {
-      // 1. Canton / City filter
-      if (activeCode) {
-        const cCode = String(d.canton || '').toUpperCase();
-        if (!cCode.includes(activeCode)) return false;
+    let list = enrichedCandidatures.filter((d) => {
+      // 1. Country filter
+      if (selectedCountry !== 'ALL' && d._country !== selectedCountry) {
+        return false;
       }
+
+      // 2. Region / Canton filter
+      if (activeRegionCode && d._region !== activeRegionCode && !String(d.canton || '').includes(activeRegionCode)) {
+        return false;
+      }
+
+      // 3. City Pin filter
       if (activeCityKey) {
-        const cKey = `${String(d.canton || '').slice(0, 2).toUpperCase()}---${normalizeString(d.location || '')}`;
+        const cKey = `${d._country}---${normalizeString(d.location || d._geo.cityName || '')}`;
         if (cKey !== activeCityKey) return false;
       }
 
-      // 2. Status pill filter
+      // 4. Status pill filter
       const s = String(d.status || '').toLowerCase();
-      if (filterStatus === 'envoi' && !(s.includes('envoy') || s.includes('initiale') || s === '')) return false;
+      if (filterStatus === 'urgent') {
+        const isInit = s.includes('envoy') || s.includes('initiale') || !s;
+        if (!isInit || d._waitingDays < 10) return false;
+      }
+      if (filterStatus === 'envoi' && !(s.includes('envoy') || s.includes('initiale') || !s)) return false;
       if (filterStatus === 'entretien' && !s.includes('entretien')) return false;
-      if (filterStatus === 'accepte' && !(s.includes('accept') || s.includes('offre') || s.includes('valid'))) return false;
+      if (filterStatus === 'valide' && !(s.includes('accept') || s.includes('offre') || s.includes('valid'))) return false;
       if (filterStatus === 'refus' && !(s.includes('refus') || s.includes('rejet'))) return false;
 
-      // 3. Search query
+      // 5. Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
-        const text = `${d.company} ${d.location} ${d.canton} ${d.sector} ${d.detailed_activity} ${d.demarche}`.toLowerCase();
+        const text = `${d.company} ${d.location} ${d._region} ${d._country} ${d.sector} ${d.detailed_activity} ${d.demarche}`.toLowerCase();
         if (!text.includes(q)) return false;
       }
 
@@ -237,15 +290,7 @@ export function CandidaturesView({
         return (Number(b.rating) || 0) - (Number(a.rating) || 0);
       }
       if (sortOrder === 'urgent') {
-        const sA = String(a.status || '').toLowerCase();
-        const sB = String(b.status || '').toLowerCase();
-        const isAInit = sA.includes('initiale') || sA.includes('envoy') || sA === '';
-        const isBInit = sB.includes('initiale') || sB.includes('envoy') || sB === '';
-        const dateA = parseCustomDate(a.created_at) || now;
-        const dateB = parseCustomDate(b.created_at) || now;
-        if (isAInit && !isBInit) return -1;
-        if (!isAInit && isBInit) return 1;
-        if (isAInit && isBInit) return dateA - dateB; // Oldest waiting first
+        return b._waitingDays - a._waitingDays;
       }
       // 'recent' by default
       const dateA = parseCustomDate(a.created_at) || new Date(0);
@@ -254,46 +299,7 @@ export function CandidaturesView({
     });
 
     return list;
-  }, [candidatures, activeCode, activeCityKey, filterStatus, searchQuery, sortOrder]);
-
-  // Urgent relance list (>= 10 days in initial status)
-  const urgentList = useMemo(() => {
-    const now = new Date();
-    return candidatures.filter((c) => {
-      const s = String(c.status || '').toLowerCase();
-      const isInitial = s.includes('initiale') || s.includes('envoy') || s === '';
-      if (!isInitial) return false;
-      const d = parseCustomDate(c.created_at);
-      if (!d) return false;
-      const diffDays = Math.floor((now - d) / (1000 * 60 * 60 * 24));
-      c._diffDays = diffDays;
-      return diffDays >= 10;
-    }).sort((a, b) => b._diffDays - a._diffDays);
-  }, [candidatures]);
-
-  // Helper for canton level styling
-  const getCantonLevelClass = (count) => {
-    if (!count || count === 0) return '';
-    if (count === 1) return 'lv1';
-    if (count <= 3) return 'lv2';
-    if (count <= 6) return 'lv3';
-    return 'lv4';
-  };
-
-  // Drag and Drop for Kanban
-  const handleDragStart = (e, candidature) => {
-    e.dataTransfer.setData('text/plain', candidature.id);
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleDrop = (e, newStatus) => {
-    e.preventDefault();
-    const candId = e.dataTransfer.getData('text/plain');
-    if (!candId) return;
-    if (onUpdateStatus) {
-      onUpdateStatus(candId, newStatus);
-    }
-  };
+  }, [enrichedCandidatures, selectedCountry, activeRegionCode, activeCityKey, filterStatus, searchQuery, sortOrder]);
 
   const handleStatusChange = (candId, newStatus) => {
     if (onUpdateStatus) {
@@ -307,489 +313,592 @@ export function CandidaturesView({
     if (onPullGoogleSheets) onPullGoogleSheets();
   };
 
+  // Gmail scanning trigger
+  const handleScanGmail = async () => {
+    setGmailScanning(true);
+    setGmailNotice('');
+    setShowGmailModal(true);
+
+    try {
+      const res = await fetch('/api/google?action=scan-gmail', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('sb_access_token') || ''}`,
+        },
+        body: JSON.stringify({
+          profileId,
+          candidatures: enrichedCandidatures.map((c) => ({
+            id: c.id,
+            company: c.company,
+            status: c.status,
+          })),
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Erreur lors du scan Gmail (HTTP ${res.status})`);
+      }
+
+      const data = await res.json();
+      setGmailScanResults(data);
+      if (data.updates && data.updates.length > 0) {
+        setGmailNotice(`🎉 ${data.updates.length} correspondance(s) détectée(s) dans tes emails !`);
+      } else {
+        setGmailNotice(`${data.scannedCount || 0} emails récents analysés. Aucun changement détecté.`);
+      }
+    } catch (err) {
+      setGmailNotice(`Scan impossible : ${err.message}`);
+    } finally {
+      setGmailScanning(false);
+    }
+  };
+
+  // Apply a detected Gmail update with 1 click
+  const applyGmailUpdate = (update) => {
+    handleStatusChange(update.candidatureId, update.detectedStatus);
+    if (onAddNote) {
+      onAddNote(update.candidatureId, {
+        id: `gmail_${Date.now()}`,
+        date: new Date().toLocaleDateString('fr-FR'),
+        text: `📬 Email détecté : "${update.emailSubject}" de ${update.emailFrom} -> Statut passé à ${update.detectedStatus}`,
+      });
+    }
+    setGmailScanResults((prev) => ({
+      ...prev,
+      updates: prev.updates.filter((u) => u.messageId !== update.messageId),
+    }));
+  };
+
   return (
-    <div className="sh-view candidatures-view">
-      {/* ── TOP FUNNEL BAR ── */}
-      <div className="cand-funnel-wrapper">
-        <div className="cand-funnel-container">
-          <div className="cand-funnel-step active">
-            <span className="cand-funnel-val">{funnel.total}</span>
-            <span>Envoyés</span>
-          </div>
-          <div className={`cand-funnel-step ${funnel.replies > 0 ? 'active' : ''}`}>
-            <span className="cand-funnel-val">{funnel.replies}</span>
-            <span>Retours</span>
-          </div>
-          <div className={`cand-funnel-step ${funnel.interviews > 0 ? 'active' : ''}`}>
-            <span className="cand-funnel-val">{funnel.interviews}</span>
-            <span>Entretiens</span>
-          </div>
-          <div className={`cand-funnel-step ${funnel.offers > 0 ? 'active' : ''}`}>
-            <span className="cand-funnel-val">{funnel.offers}</span>
-            <span>Offres</span>
-          </div>
-        </div>
-      </div>
-
-      {/* ── TOP ACTION / REFRESH BAR ── */}
-      <div className="cand-refresh-bar">
-        <div className="cand-refresh-left">
-          <span className="cand-last-update">Mis à jour à {lastUpdated}</span>
-          {activeCode && (
-            <span className="cand-filter-tag" onClick={() => { setActiveCode(null); setActiveCityKey(null); }}>
-              Canton: <strong>{activeCode}</strong> <button>×</button>
-            </span>
-          )}
-          {activeCityKey && (
-            <span className="cand-filter-tag" onClick={() => setActiveCityKey(null)}>
-              Ville: <strong>{activeCityKey.split('---')[1]}</strong> <button>×</button>
-            </span>
-          )}
+    <div className="sh-view candidatures-view-native">
+      {/* ── HEADER ── */}
+      <div className="sh-view-header">
+        <div>
+          <span className="sh-eyebrow">SUIVI & CARTOGRAPHIE</span>
+          <h1>Mes Candidatures en Europe</h1>
+          <p>
+            Suivi temps réel de tes candidatures et relances en Suisse, France, Allemagne, Belgique, Luxembourg, Italie et Espagne.
+          </p>
         </div>
 
-        <div className="cand-refresh-actions">
+        <div className="sh-header-actions">
           <button
             type="button"
-            className="cand-btn-refresh"
+            className="sh-btn-secondary"
+            onClick={handleScanGmail}
+            disabled={busy || gmailScanning}
+            title="Analyser mes emails Gmail pour détecter les réponses, invitations et refus"
+          >
+            <Icon name="mail" size={16} />
+            <span>Scanner Gmail 📬</span>
+          </button>
+
+          <button
+            type="button"
+            className="sh-btn-secondary"
             onClick={handleRefresh}
             disabled={busy}
-            title="Rafraîchir les données"
+            title="Actualiser les candidatures"
           >
-            <Icon name="refresh" size={14} />
+            <Icon name="refresh" size={16} />
             <span>Actualiser</span>
           </button>
 
           {googleConnected && onSyncGoogleSheets && (
             <button
               type="button"
-              className="cand-btn-sheet"
+              className="sh-btn-secondary"
               onClick={onSyncGoogleSheets}
               disabled={busy}
-              title="Synchroniser vers Google Sheets (Opportunités + Candidatures)"
+              title="Exporter vers Google Sheets (Onglets Opportunités + Réponses)"
             >
-              <Icon name="external" size={14} />
+              <Icon name="external" size={16} />
               <span>Sync Sheets</span>
             </button>
           )}
 
-          {googleConnected && onPullGoogleSheets && (
-            <button
-              type="button"
-              className="cand-btn-sheet secondary"
-              onClick={onPullGoogleSheets}
-              disabled={busy}
-              title="Importer les réponses depuis Google Sheets"
-            >
-              <Icon name="download" size={14} />
-              <span>Importer Sheet</span>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* ── FILTER & SEARCH TOOLBAR ── */}
-      <div className="cand-toolbar">
-        <div className="cand-toolbar-top">
-          <div className="cand-search-group">
-            <div className="cand-search-box">
-              <Icon name="search" size={16} />
-              <input
-                type="text"
-                placeholder="🔍 Rechercher (entreprise, ville, secteur, démarches)..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-              {searchQuery && (
-                <button className="cand-clear-btn" onClick={() => setSearchQuery('')}>
-                  <Icon name="x" size={14} />
-                </button>
-              )}
-            </div>
-
-            <select
-              className="cand-sort-select"
-              value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value)}
-            >
-              <option value="recent">⏱️ Plus récentes</option>
-              <option value="note">⭐ Mieux notées</option>
-              <option value="urgent">🚨 Urgences (&gt; 10j)</option>
-            </select>
-          </div>
-
-          <div className="cand-toolbar-buttons">
-            <button
-              className="cand-btn-add"
-              onClick={() => { setEditingCandidature(null); setShowAddModal(true); }}
-            >
-              <span>➕</span>
-              <span>Saisir un stage</span>
-            </button>
-
-            <button
-              className={`cand-toggle-view ${viewMode === 'kanban' ? 'active' : ''}`}
-              onClick={() => setViewMode(viewMode === 'map' ? 'kanban' : 'map')}
-            >
-              <Icon name={viewMode === 'map' ? 'columns' : 'map'} size={15} />
-              <span>{viewMode === 'map' ? 'Vue Kanban' : 'Vue Carte'}</span>
-            </button>
-          </div>
-        </div>
-
-        <div className="cand-pills">
           <button
-            className={`cand-pill ${filterStatus === 'all' ? 'active' : ''}`}
-            onClick={() => setFilterStatus('all')}
+            type="button"
+            className="sh-btn-primary"
+            onClick={() => {
+              setEditingCandidature(null);
+              setShowAddModal(true);
+            }}
           >
-            Tout ({candidatures.length})
-          </button>
-          <button
-            className={`cand-pill ${filterStatus === 'envoi' ? 'active' : ''}`}
-            onClick={() => setFilterStatus('envoi')}
-          >
-            🔥 À relancer ({candidatures.filter((c) => String(c.status || '').includes('initiale') || String(c.status || '').includes('envoy') || !c.status).length})
-          </button>
-          <button
-            className={`cand-pill ${filterStatus === 'entretien' ? 'active' : ''}`}
-            onClick={() => setFilterStatus('entretien')}
-          >
-            💬 Entretiens ({candidatures.filter((c) => String(c.status || '').includes('entretien')).length})
-          </button>
-          <button
-            className={`cand-pill ${filterStatus === 'accepte' ? 'active' : ''}`}
-            onClick={() => setFilterStatus('accepte')}
-          >
-            ✅ Acceptés ({candidatures.filter((c) => String(c.status || '').includes('valid') || String(c.status || '').includes('accept')).length})
-          </button>
-          <button
-            className={`cand-pill ${filterStatus === 'refus' ? 'active' : ''}`}
-            onClick={() => setFilterStatus('refus')}
-          >
-            ❌ Refus ({candidatures.filter((c) => String(c.status || '').includes('refus')).length})
+            <Icon name="plus" size={16} />
+            <span>Nouvelle candidature</span>
           </button>
         </div>
       </div>
 
-      {/* ── MAIN CONTENT (MAP OR KANBAN) ── */}
-      <div className="cand-main-wrapper">
-        {viewMode === 'kanban' ? (
-          /* ── KANBAN VIEW ── */
-          <div className="cand-kanban-board">
-            {[
-              { id: 'envoi', title: 'À Relancer / Envoyé', color: '#818cf8', dropStatus: 'Demande initiale' },
-              { id: 'reponse', title: 'Réponse Obtenue', color: '#10b981', dropStatus: 'Réponse obtenue' },
-              { id: 'entretien', title: 'Entretiens', color: '#34d399', dropStatus: 'Entretien' },
-              { id: 'accepte', title: 'Accepté / Offre', color: '#6ee7b7', dropStatus: 'Validé' },
-              { id: 'refus', title: 'Refusé', color: '#f87171', dropStatus: 'Refusé' },
-            ].map((col) => {
-              const colItems = filteredCandidatures.filter((d) => {
-                const s = String(d.status || '').toLowerCase();
-                if (col.id === 'refus') return s.includes('refus') || s.includes('rejet');
-                if (col.id === 'accepte') return s.includes('accept') || s.includes('valid') || s.includes('offre');
-                if (col.id === 'entretien') return s.includes('entretien');
-                if (col.id === 'reponse') return s.includes('réponse') || s.includes('reponse');
-                return s.includes('initiale') || s.includes('envoy') || s === '';
-              });
-
-              return (
-                <div
-                  key={col.id}
-                  className="cand-kanban-col"
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => handleDrop(e, col.dropStatus)}
-                >
-                  <div className="cand-kanban-header">
-                    <span style={{ color: col.color }}>{col.title}</span>
-                    <span className="cand-col-badge">{colItems.length}</span>
-                  </div>
-
-                  <div className="cand-kanban-cards">
-                    {colItems.map((j) => (
-                      <div
-                        key={j.id}
-                        className="cand-k-card"
-                        draggable="true"
-                        onDragStart={(e) => handleDragStart(e, j)}
-                        onClick={() => setEditingCandidature(j)}
-                      >
-                        <div className="cand-k-title">{j.company}</div>
-                        <div className="cand-k-meta">
-                          <span>{j.location || 'Suisse'}</span>
-                          <span className="cand-k-code">{j.canton || 'CH'}</span>
-                        </div>
-                        {j.rating > 0 && (
-                          <div className="cand-k-rating">
-                            {'★'.repeat(Math.min(5, Math.round(j.rating / 2)))}
-                            <small>{j.rating}/10</small>
-                          </div>
-                        )}
-                        <div className="cand-k-actions">
-                          <button
-                            type="button"
-                            className="cand-k-note-btn"
-                            onClick={(e) => { e.stopPropagation(); setNoteTargetCandidature(j); }}
-                            title="Ajouter un mémo"
-                          >
-                            📝 Note
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
+      {/* ── STATS FUNNEL CARDS (LIGHT THEME) ── */}
+      <div className="cand-funnel-grid">
+        <div className="cand-stat-card">
+          <div className="cand-stat-icon purple">📬</div>
+          <div>
+            <span className="cand-stat-val">{funnel.total}</span>
+            <span className="cand-stat-label">Candidatures envoyées</span>
           </div>
-        ) : (
-          /* ── MAP & DETAILS SPLIT LAYOUT ── */
-          <div className="cand-split-layout">
-            {/* LEFT: SVG SWISS MAP */}
-            <div className="cand-map-section">
-              {/* Map Floating Zoom Controls */}
-              <div className="cand-map-controls">
-                <button
-                  type="button"
-                  title="Zoomer (+)"
-                  onClick={() => setManualZoom((z) => Math.min(Number((z + 0.3).toFixed(1)), 3.2))}
-                >
-                  +
-                </button>
-                <button
-                  type="button"
-                  title="Dézoomer (−)"
-                  onClick={() => setManualZoom((z) => Math.max(Number((z - 0.3).toFixed(1)), 1))}
-                >
-                  −
-                </button>
-                <button
-                  type="button"
-                  title="Vue globale"
-                  onClick={() => {
-                    setActiveCode(null);
-                    setActiveCityKey(null);
-                    setManualZoom(1);
-                  }}
-                >
-                  ⤢
-                </button>
-              </div>
+        </div>
 
-              <svg viewBox="0 0 800 500" className="cand-svg-map">
-                <g
-                  className="cand-map-zoom-group"
-                  style={{
-                    transform: zoomTransform,
-                    transformOrigin: '0 0',
-                    transition: 'transform 0.55s cubic-bezier(0.16, 1, 0.3, 1)',
-                  }}
-                >
-                  {/* Canton Polygons */}
-                  <g className="cantons-layer">
-                    {SWISS_CANTONS.map((canton) => {
-                      const count = cantonCounts[canton.code] || 0;
-                      const isActive = activeCode === canton.code;
-                      const lvl = getCantonLevelClass(count);
+        <div className="cand-stat-card">
+          <div className="cand-stat-icon blue">💬</div>
+          <div>
+            <span className="cand-stat-val">{funnel.replies}</span>
+            <span className="cand-stat-label">
+              Retours reçus ({funnel.total > 0 ? Math.round((funnel.replies / funnel.total) * 100) : 0}%)
+            </span>
+          </div>
+        </div>
 
-                      return (
-                        <path
-                          key={canton.code}
-                          d={canton.d}
-                          className={`cand-canton ${lvl} ${isActive ? 'active' : ''}`}
-                          onClick={() => {
-                            setActiveCityKey(null);
-                            setActiveCode(isActive ? null : canton.code);
-                          }}
-                        >
-                          <title>{canton.name} ({count} candidatures)</title>
-                        </path>
-                      );
-                    })}
-                  </g>
+        <div className="cand-stat-card">
+          <div className="cand-stat-icon emerald">🎯</div>
+          <div>
+            <span className="cand-stat-val">{funnel.interviews}</span>
+            <span className="cand-stat-label">Entretiens planifiés</span>
+          </div>
+        </div>
 
-                  {/* Canton Labels & Counts */}
-                  <g className="canton-labels-layer">
-                    {SWISS_CANTONS.map((canton) => {
-                      const count = cantonCounts[canton.code] || 0;
-                      const cx = canton.centroid[0];
-                      const cy = canton.centroid[1];
+        <div className="cand-stat-card">
+          <div className="cand-stat-icon gold">🏆</div>
+          <div>
+            <span className="cand-stat-val">{funnel.offers}</span>
+            <span className="cand-stat-label">Offres & Validations</span>
+          </div>
+        </div>
 
-                      return (
-                        <g key={`lbl-${canton.code}`} pointerEvents="none">
-                          <text
-                            x={cx}
-                            y={cy - 5}
-                            className={`cand-ct-num ${count === 0 ? 'zero' : ''}`}
-                          >
-                            {count > 0 ? count : '·'}
-                          </text>
-                          <text
-                            x={cx}
-                            y={cy + 8}
-                            className="cand-ct-lbl"
-                          >
-                            {canton.code}
-                          </text>
-                        </g>
-                      );
-                    })}
-                  </g>
-
-                  {/* City Pins Layer */}
-                  <g className="city-pins-layer">
-                    {cityPins.map((pin) => {
-                      const isCityActive = activeCityKey === pin.key;
-                      return (
-                        <g
-                          key={pin.key}
-                          className={`cand-city-pin ${isCityActive ? 'active' : ''}`}
-                          transform={`translate(${pin.x}, ${pin.y})`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActiveCode(pin.canton);
-                            setActiveCityKey(isCityActive ? null : pin.key);
-                          }}
-                          onMouseEnter={(e) => {
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            setTooltip({
-                              visible: true,
-                              x: rect.left + rect.width / 2,
-                              y: rect.top - 8,
-                              text: `${pin.name} (${pin.count})`,
-                            });
-                          }}
-                          onMouseLeave={() => setTooltip((t) => ({ ...t, visible: false }))}
-                        >
-                          <path
-                            className="cand-pin-shape"
-                            d="M0,0 C-5,-6 -8,-11 -8,-15 A8,8 0 1,1 8,-15 C8,-11 5,-6 0,0 Z"
-                            fill="#d4233a"
-                            stroke="#181c25"
-                            strokeWidth="1.5"
-                          />
-                          <text
-                            x="0"
-                            y="-13"
-                            fill="#ffffff"
-                            fontSize="9"
-                            fontWeight="700"
-                            textAnchor="middle"
-                            dominantBaseline="central"
-                            pointerEvents="none"
-                          >
-                            {pin.count}
-                          </text>
-                        </g>
-                      );
-                    })}
-                  </g>
-                </g>
-              </svg>
-
-              {/* Legend */}
-              <div className="cand-map-legend">
-                <div className="cand-legend-item"><div className="cand-legend-sw" style={{ background: '#205a8d' }} />1</div>
-                <div className="cand-legend-item"><div className="cand-legend-sw" style={{ background: '#2681d4' }} />2–3</div>
-                <div className="cand-legend-item"><div className="cand-legend-sw" style={{ background: '#48a6fa' }} />4–6</div>
-                <div className="cand-legend-item"><div className="cand-legend-sw" style={{ background: '#8cc8ff' }} />7+</div>
-              </div>
-            </div>
-
-            {/* RIGHT: CANDIDATURES DETAILS LIST */}
-            <div className="cand-detail-section">
-              {/* Header */}
-              <div className="cand-detail-header">
-                <div>
-                  <h2 className="cand-detail-title">
-                    <span className="cand-code-badge">{activeCode || 'ALL'}</span>
-                    <span>{activeCode ? SWISS_CANTONS.find((c) => c.code === activeCode)?.name || activeCode : 'Toutes les demandes'}</span>
-                  </h2>
-                  <p className="cand-detail-sub">
-                    {filteredCandidatures.length} candidature{filteredCandidatures.length > 1 ? 's' : ''} au total
-                  </p>
-                </div>
-                {(activeCode || activeCityKey) && (
-                  <button
-                    className="cand-reset-btn"
-                    onClick={() => { setActiveCode(null); setActiveCityKey(null); }}
-                  >
-                    Voir tout
-                  </button>
-                )}
-              </div>
-
-              {/* Urgent Action Banner */}
-              {urgentList.length > 0 && !activeCode && (
-                <div className="cand-urgent-banner">
-                  <div className="cand-urgent-title">
-                    <span>⚡ ACTIONS REQUISES ({urgentList.length})</span>
-                  </div>
-                  <div className="cand-urgent-list">
-                    {urgentList.slice(0, 4).map((u) => (
-                      <div key={u.id} className="cand-urgent-item">
-                        <div>
-                          <strong>{u.company}</strong>
-                          <small>En attente depuis <span className="cand-urgent-days">{u._diffDays} jours</span></small>
-                        </div>
-                        <a
-                          href={`mailto:${u.contact_email || ''}?subject=Candidature - ${encodeURIComponent(u.company)}`}
-                          className="cand-urgent-btn"
-                        >
-                          Relancer
-                        </a>
-                      </div>
-                    ))}
-                    {urgentList.length > 4 && (
-                      <div className="cand-urgent-more">
-                        + {urgentList.length - 4} autres requêtes en attente…
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Cards List */}
-              {filteredCandidatures.length > 0 ? (
-                <div className="cand-cards-list">
-                  {filteredCandidatures.map((c) => (
-                    <CandidatureCard
-                      key={c.id}
-                      candidature={c}
-                      onEdit={() => setEditingCandidature(c)}
-                      onStatusChange={(newStatus) => handleStatusChange(c.id, newStatus)}
-                      onAddNote={() => setNoteTargetCandidature(c)}
-                      onDelete={() => onDeleteCandidature && onDeleteCandidature(c.id)}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="cand-empty-state">
-                  <span className="cand-empty-icon">📍</span>
-                  <h3>Aucune candidature dans cette vue</h3>
-                  <p>Clique sur un canton ou saisis un nouveau stage pour alimenter le suivi.</p>
-                  <button
-                    className="sh-btn-secondary"
-                    onClick={() => { setActiveCode(null); setActiveCityKey(null); setFilterStatus('all'); setSearchQuery(''); }}
-                  >
-                    Réinitialiser les filtres
-                  </button>
-                </div>
-              )}
+        {funnel.urgentCount > 0 && (
+          <div
+            className="cand-stat-card urgent-highlight"
+            onClick={() => setFilterStatus(filterStatus === 'urgent' ? 'all' : 'urgent')}
+            title="Cliquer pour filtrer les candidatures en attente depuis plus de 10 jours"
+          >
+            <div className="cand-stat-icon red">🚨</div>
+            <div>
+              <span className="cand-stat-val text-red">{funnel.urgentCount}</span>
+              <span className="cand-stat-label text-red">À relancer (&gt; 10j)</span>
             </div>
           </div>
         )}
       </div>
 
-      {/* ── TOOLTIP ── */}
+      {/* ── COUNTRY SWITCHER TABS (7 COUNTRIES + EUROPE) ── */}
+      <div className="cand-country-tabs-wrapper">
+        <div className="cand-country-tabs">
+          {COUNTRIES.map((c) => {
+            const count = countryCounts[c.code] || 0;
+            const isSelected = selectedCountry === c.code;
+
+            return (
+              <button
+                key={c.code}
+                type="button"
+                className={`cand-country-tab ${isSelected ? 'active' : ''}`}
+                onClick={() => handleSelectCountry(c.code)}
+              >
+                <span className="cand-tab-flag">{c.flag}</span>
+                <span className="cand-tab-name">{c.name}</span>
+                <span className={`cand-tab-badge ${count > 0 ? 'has-cand' : ''}`}>{count}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── TOOLBAR: SEARCH & STATUS PILLS ── */}
+      <div className="cand-sub-toolbar">
+        <div className="cand-search-bar">
+          <Icon name="search" size={16} />
+          <input
+            type="text"
+            placeholder="Rechercher par entreprise, ville, région, secteur..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <button className="sh-btn-clear" onClick={() => setSearchQuery('')}>
+              <Icon name="x" size={14} />
+            </button>
+          )}
+        </div>
+
+        <div className="cand-status-pills">
+          <button
+            className={`cand-pill ${filterStatus === 'all' ? 'active' : ''}`}
+            onClick={() => setFilterStatus('all')}
+          >
+            Tout ({enrichedCandidatures.length})
+          </button>
+          <button
+            className={`cand-pill urgent ${filterStatus === 'urgent' ? 'active' : ''}`}
+            onClick={() => setFilterStatus('urgent')}
+          >
+            🚨 À relancer ({funnel.urgentCount})
+          </button>
+          <button
+            className={`cand-pill ${filterStatus === 'envoi' ? 'active' : ''}`}
+            onClick={() => setFilterStatus('envoi')}
+          >
+            ✉️ Envoyés ({enrichedCandidatures.filter((c) => String(c.status || '').includes('initiale') || String(c.status || '').includes('envoy') || !c.status).length})
+          </button>
+          <button
+            className={`cand-pill ${filterStatus === 'entretien' ? 'active' : ''}`}
+            onClick={() => setFilterStatus('entretien')}
+          >
+            💬 Entretiens ({funnel.interviews})
+          </button>
+          <button
+            className={`cand-pill ${filterStatus === 'valide' ? 'active' : ''}`}
+            onClick={() => setFilterStatus('valide')}
+          >
+            ✅ Validés ({funnel.offers})
+          </button>
+          <button
+            className={`cand-pill ${filterStatus === 'refus' ? 'active' : ''}`}
+            onClick={() => setFilterStatus('refus')}
+          >
+            ❌ Refus ({enrichedCandidatures.filter((c) => String(c.status || '').includes('refus')).length})
+          </button>
+        </div>
+
+        <select
+          className="cand-sort-dropdown"
+          value={sortOrder}
+          onChange={(e) => setSortOrder(e.target.value)}
+        >
+          <option value="recent">⏱️ Plus récentes</option>
+          <option value="note">⭐ Mieux notées</option>
+          <option value="urgent">⏳ Plus longue attente</option>
+        </select>
+      </div>
+
+      {/* ── SPLIT VIEW: EUROPE MAP (LEFT) & CANDIDATURES LIST (RIGHT) ── */}
+      <div className="cand-interactive-layout">
+        {/* LEFT: WESTERN EUROPE SVG MAP */}
+        <div className="cand-map-card">
+          <div className="cand-map-card-header">
+            <div className="cand-map-title">
+              <strong>
+                {COUNTRIES.find((c) => c.code === selectedCountry)?.flag}{' '}
+                {COUNTRIES.find((c) => c.code === selectedCountry)?.name}
+              </strong>
+              <small>
+                {activeRegionCode
+                  ? `Région : ${activeRegionCode}`
+                  : activeCityKey
+                  ? `Ville : ${activeCityKey.split('---')[1]}`
+                  : 'Clique sur une région ou une épingle pour filtrer'}
+              </small>
+            </div>
+
+            <div className="cand-map-floating-controls">
+              <button
+                type="button"
+                title="Zoomer (+)"
+                onClick={() => setManualZoom((z) => Math.min(Number((z + 0.3).toFixed(1)), 3.5))}
+              >
+                +
+              </button>
+              <button
+                type="button"
+                title="Dézoomer (−)"
+                onClick={() => setManualZoom((z) => Math.max(Number((z - 0.3).toFixed(1)), 0.8))}
+              >
+                −
+              </button>
+              <button
+                type="button"
+                title="Vue globale"
+                onClick={() => {
+                  setSelectedCountry('ALL');
+                  setActiveRegionCode(null);
+                  setActiveCityKey(null);
+                  setManualZoom(1);
+                }}
+              >
+                ⤢
+              </button>
+            </div>
+          </div>
+
+          <div className="cand-svg-container">
+            <svg
+              viewBox="0 0 1000 800"
+              className="cand-europe-svg"
+              onMouseLeave={() => setTooltip((t) => ({ ...t, visible: false }))}
+            >
+              <defs>
+                <filter id="pin-shadow" x="-30%" y="-30%" width="160%" height="160%">
+                  <feDropShadow dx="0" dy="2" stdDeviation="2.5" floodColor="#0f172a" floodOpacity="0.25" />
+                </filter>
+                <linearGradient id="regionGradient" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stopColor="#f8fafc" />
+                  <stop offset="100%" stopColor="#f1f5f9" />
+                </linearGradient>
+              </defs>
+
+              <g
+                style={{
+                  transform: zoomTransform,
+                  transformOrigin: '0 0',
+                  transition: 'transform 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
+                }}
+              >
+                {/* 1. Regional Polygons Layer */}
+                <g className="europe-regions-layer">
+                  {EUROPE_REGIONS_GEO.map((reg) => {
+                    const count = regionCounts[`${reg.country}-${reg.code}`] || regionCounts[reg.code] || 0;
+                    const isCountryActive = selectedCountry === 'ALL' || selectedCountry === reg.country;
+                    const isRegionActive = activeRegionCode === reg.code;
+
+                    return (
+                      <path
+                        key={reg.id}
+                        d={reg.path}
+                        className={`cand-region-polygon ${isRegionActive ? 'active' : ''} ${
+                          !isCountryActive ? 'dimmed' : ''
+                        } ${count > 0 ? 'has-candidatures' : ''}`}
+                        onClick={() => {
+                          setActiveCityKey(null);
+                          if (selectedCountry !== reg.country && selectedCountry !== 'ALL') {
+                            setSelectedCountry(reg.country);
+                          }
+                          setActiveRegionCode(isRegionActive ? null : reg.code);
+                        }}
+                        onMouseEnter={(e) => {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          setTooltip({
+                            visible: true,
+                            x: rect.left + rect.width / 2,
+                            y: rect.top - 12,
+                            title: `${reg.flag} ${reg.name} (${reg.code})`,
+                            subtitle: `${count} candidature${count > 1 ? 's' : ''}`,
+                          });
+                        }}
+                      />
+                    );
+                  })}
+                </g>
+
+                {/* 2. Region Labels Layer (Centered coordinates) */}
+                <g className="europe-labels-layer" pointerEvents="none">
+                  {EUROPE_REGIONS_GEO.map((reg) => {
+                    const count = regionCounts[`${reg.country}-${reg.code}`] || regionCounts[reg.code] || 0;
+                    const isCountryActive = selectedCountry === 'ALL' || selectedCountry === reg.country;
+                    if (!isCountryActive) return null;
+
+                    return (
+                      <g key={`lbl-${reg.id}`}>
+                        <text x={reg.cx} y={reg.cy - 3} className={`cand-region-count ${count > 0 ? 'active' : 'zero'}`}>
+                          {count > 0 ? count : '·'}
+                        </text>
+                        <text x={reg.cx} y={reg.cy + 9} className="cand-region-code">
+                          {reg.code}
+                        </text>
+                      </g>
+                    );
+                  })}
+                </g>
+
+                {/* 3. Accurate City Pins Layer */}
+                <g className="europe-city-pins-layer">
+                  {cityPins.map((pin) => {
+                    const isCountryActive = selectedCountry === 'ALL' || selectedCountry === pin.country;
+                    if (!isCountryActive) return null;
+                    const isCityActive = activeCityKey === pin.key;
+
+                    return (
+                      <g
+                        key={pin.key}
+                        className={`cand-city-pin-group ${isCityActive ? 'active' : ''}`}
+                        transform={`translate(${pin.x}, ${pin.y})`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedCountry(pin.country);
+                          setActiveRegionCode(pin.region);
+                          setActiveCityKey(isCityActive ? null : pin.key);
+                        }}
+                        onMouseEnter={(e) => {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const compNames = pin.items.map((i) => i.company).slice(0, 3).join(', ');
+                          setTooltip({
+                            visible: true,
+                            x: rect.left + rect.width / 2,
+                            y: rect.top - 16,
+                            title: `📍 ${pin.name} (${pin.count})`,
+                            subtitle: compNames + (pin.items.length > 3 ? '…' : ''),
+                          });
+                        }}
+                      >
+                        <path
+                          className="cand-city-pin-marker"
+                          d="M0,0 C-6,-8 -10,-14 -10,-19 A10,10 0 1,1 10,-19 C10,-14 6,-8 0,0 Z"
+                          filter="url(#pin-shadow)"
+                        />
+                        <circle cx="0" cy="-19" r="4.5" fill="#ffffff" />
+                        <text
+                          x="0"
+                          y="-18"
+                          className="cand-city-pin-label"
+                          textAnchor="middle"
+                          dominantBaseline="central"
+                        >
+                          {pin.count > 1 ? pin.count : ''}
+                        </text>
+                      </g>
+                    );
+                  })}
+                </g>
+              </g>
+            </svg>
+          </div>
+
+          {/* Map Legend */}
+          <div className="cand-map-bottom-legend">
+            <div className="cand-legend-swatch">
+              <span className="swatch-color empty" /> 0 offre
+            </div>
+            <div className="cand-legend-swatch">
+              <span className="swatch-color low" /> 1-2 offres
+            </div>
+            <div className="cand-legend-swatch">
+              <span className="swatch-color med" /> 3-5 offres
+            </div>
+            <div className="cand-legend-swatch">
+              <span className="swatch-color high" /> 6+ offres
+            </div>
+            <div className="cand-legend-swatch">
+              <span className="swatch-color pin" /> Épingle ville
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT: CANDIDATURES LIST & ACTIONS */}
+        <div className="cand-list-panel">
+          {/* Active Filter Chips Bar */}
+          <div className="cand-list-header">
+            <div>
+              <h3>
+                {selectedCountry === 'ALL'
+                  ? '🌍 Toute l’Europe'
+                  : `${COUNTRIES.find((c) => c.code === selectedCountry)?.flag} ${
+                      COUNTRIES.find((c) => c.code === selectedCountry)?.name
+                    }`}
+                {activeRegionCode && <span className="cand-active-subfilter"> › Région {activeRegionCode}</span>}
+                {activeCityKey && <span className="cand-active-subfilter"> › {activeCityKey.split('---')[1]}</span>}
+              </h3>
+              <p>
+                {filteredCandidatures.length} candidature{filteredCandidatures.length > 1 ? 's' : ''} affichée
+                {filteredCandidatures.length > 1 ? 's' : ''}
+              </p>
+            </div>
+
+            {(selectedCountry !== 'ALL' || activeRegionCode || activeCityKey || filterStatus !== 'all' || searchQuery) && (
+              <button
+                type="button"
+                className="sh-link-btn"
+                onClick={() => {
+                  setSelectedCountry('ALL');
+                  setActiveRegionCode(null);
+                  setActiveCityKey(null);
+                  setFilterStatus('all');
+                  setSearchQuery('');
+                  setManualZoom(1);
+                }}
+              >
+                Réinitialiser
+              </button>
+            )}
+          </div>
+
+          {/* Urgent Relance Banner */}
+          {urgentList.length > 0 && filterStatus !== 'urgent' && (
+            <div className="cand-urgent-box">
+              <div className="cand-urgent-head">
+                <span className="urgent-badge">🚨 ACTIONS REQUISES ({urgentList.length})</span>
+                <small>Plus de 10 jours sans réponse</small>
+              </div>
+              <div className="cand-urgent-items">
+                {urgentList.slice(0, 3).map((u) => (
+                  <div key={u.id} className="cand-urgent-card">
+                    <div>
+                      <strong>{u.company}</strong>
+                      <span>
+                        Attente depuis <strong className="text-red">{u._waitingDays} jours</strong> ({u.location || u._country})
+                      </span>
+                    </div>
+                    {u.contact_email ? (
+                      <a
+                        href={`mailto:${u.contact_email}?subject=Relance candidature - ${encodeURIComponent(u.company)}`}
+                        className="cand-urgent-action-btn"
+                      >
+                        Relancer ✉️
+                      </a>
+                    ) : (
+                      <a
+                        href={`https://www.linkedin.com/search/results/all/?keywords=${encodeURIComponent(u.company)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="cand-urgent-action-btn linkedin"
+                      >
+                        LinkedIn 💼
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Cards List */}
+          {filteredCandidatures.length > 0 ? (
+            <div className="cand-cards-stack">
+              {filteredCandidatures.map((c) => (
+                <CandidatureCardNative
+                  key={c.id}
+                  candidature={c}
+                  onEdit={() => setEditingCandidature(c)}
+                  onStatusChange={(newStatus) => handleStatusChange(c.id, newStatus)}
+                  onAddNote={() => setNoteTargetCandidature(c)}
+                  onDelete={() => onDeleteCandidature && onDeleteCandidature(c.id)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="cand-empty-card">
+              <span className="cand-empty-icon">📍</span>
+              <h4>Aucune candidature dans cette sélection</h4>
+              <p>
+                Déplace-toi sur un autre pays ou clique sur le bouton pour enregistrer une nouvelle démarche.
+              </p>
+              <button
+                type="button"
+                className="sh-btn-primary"
+                onClick={() => {
+                  setEditingCandidature(null);
+                  setShowAddModal(true);
+                }}
+              >
+                ➕ Ajouter une candidature
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── TOOLTIP COMPONENT ── */}
       {tooltip.visible && (
         <div
-          className="cand-tooltip"
+          className="cand-floating-tooltip"
           style={{ left: `${tooltip.x}px`, top: `${tooltip.y}px` }}
         >
-          📍 {tooltip.text}
+          <div className="tooltip-title">{tooltip.title}</div>
+          {tooltip.subtitle && <div className="tooltip-sub">{tooltip.subtitle}</div>}
         </div>
       )}
 
-      {/* ── MODALS ── */}
+      {/* ── ADD / EDIT CANDIDATURE MODAL ── */}
       {showAddModal && (
         <AddCandidatureModal
           prefill={prefillFromOffer}
@@ -818,6 +927,7 @@ export function CandidaturesView({
         />
       )}
 
+      {/* ── NOTE / MÉMO POST-IT MODAL ── */}
       {noteTargetCandidature && (
         <AddNoteModal
           candidature={noteTargetCandidature}
@@ -829,143 +939,243 @@ export function CandidaturesView({
           }}
         />
       )}
+
+      {/* ── GMAIL AUTO-SCAN MODAL ── */}
+      {showGmailModal && (
+        <div className="sh-modal-backdrop" onClick={() => setShowGmailModal(false)}>
+          <div className="sh-modal-card gmail-scan-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="sh-modal-header">
+              <div className="sh-modal-title">
+                <span className="sh-modal-icon">📬</span>
+                <div>
+                  <h3>Synchronisation Gmail</h3>
+                  <p>Détection intelligente des réponses RH et invitations d'entretien</p>
+                </div>
+              </div>
+              <button className="sh-modal-close" onClick={() => setShowGmailModal(false)}>
+                <Icon name="x" size={18} />
+              </button>
+            </div>
+
+            <div className="gmail-scan-body">
+              {gmailScanning ? (
+                <div className="gmail-scanning-state">
+                  <div className="sh-spinner lg" />
+                  <h4>Analyse de ta boîte de réception en cours…</h4>
+                  <p>Recherche des emails récents contenant des réponses à tes candidatures.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="gmail-summary-notice">
+                    {gmailNotice}
+                  </div>
+
+                  {gmailScanResults?.updates && gmailScanResults.updates.length > 0 ? (
+                    <div className="gmail-updates-list">
+                      <h4>Mises à jour suggérées ({gmailScanResults.updates.length})</h4>
+                      {gmailScanResults.updates.map((upd, idx) => (
+                        <div key={idx} className="gmail-update-item">
+                          <div className="gmail-item-left">
+                            <strong>{upd.company}</strong>
+                            <div className="gmail-item-snippet">
+                              <em>"{upd.snippet.slice(0, 140)}…"</em>
+                            </div>
+                            <small className="gmail-item-meta">
+                              De : {upd.emailFrom} • Objet : {upd.emailSubject}
+                            </small>
+                          </div>
+                          <div className="gmail-item-right">
+                            <span className={`cand-badge b-${upd.detectedStatus.toLowerCase().replace(/\s+/g, '')}`}>
+                              {upd.detectedStatus}
+                            </span>
+                            <button
+                              type="button"
+                              className="sh-btn-primary sm"
+                              onClick={() => applyGmailUpdate(upd)}
+                            >
+                              Appliquer ✓
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="gmail-no-matches">
+                      <p>Aucune nouvelle réponse n'a été détectée dans les 30 derniers emails.</p>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div className="sh-modal-actions">
+              <button
+                type="button"
+                className="sh-btn-secondary"
+                onClick={() => setShowGmailModal(false)}
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-// ── RICH CANDIDATURE CARD COMPONENT ──
-function CandidatureCard({ candidature, onEdit, onStatusChange, onAddNote, onDelete }) {
-  const [showDetails, setShowDetails] = useState(false);
-  const [showTimeline, setShowTimeline] = useState(false);
+// ── NATIVE STAGE HUNTER CANDIDATURE CARD COMPONENT ──
+function CandidatureCardNative({ candidature, onEdit, onStatusChange, onAddNote, onDelete }) {
+  const [showDrawer, setShowDrawer] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const status = candidature.status || 'Demande initiale';
   const sLow = status.toLowerCase();
 
-  // Status Badge Class
   const badgeClass = useMemo(() => {
-    if (sLow.includes('refus') || sLow.includes('rejet')) return 'b-refus';
-    if (sLow.includes('accept') || sLow.includes('valid') || sLow.includes('offre')) return 'b-accepte';
-    if (sLow.includes('entretien')) return 'b-entretien';
-    if (sLow.includes('réponse') || sLow.includes('reponse')) return 'b-relance';
-    return 'b-envoi';
+    if (sLow.includes('refus') || sLow.includes('rejet')) return 'badge-refus';
+    if (sLow.includes('accept') || sLow.includes('valid') || sLow.includes('offre')) return 'badge-valide';
+    if (sLow.includes('entretien')) return 'badge-entretien';
+    if (sLow.includes('réponse') || sLow.includes('reponse')) return 'badge-reponse';
+    return 'badge-envoi';
   }, [sLow]);
 
-  // Stepper state
-  const stepState = useMemo(() => {
-    // Steps: 0: Demande, 1: Réponse, 2: Entretien, 3: Décision
-    if (sLow.includes('refus')) return { step: 3, rejected: true };
-    if (sLow.includes('accept') || sLow.includes('valid') || sLow.includes('offre')) return { step: 3, done: true };
+  const stepIndex = useMemo(() => {
+    if (sLow.includes('refus')) return { step: 3, isRefused: true };
+    if (sLow.includes('accept') || sLow.includes('valid') || sLow.includes('offre')) return { step: 3, isDone: true };
     if (sLow.includes('entretien')) return { step: 2 };
     if (sLow.includes('réponse') || sLow.includes('reponse')) return { step: 1 };
     return { step: 0 };
   }, [sLow]);
 
-  // Copy name helper
   const copyCompanyName = () => {
     navigator.clipboard.writeText(candidature.company);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const isUrgent = (sLow.includes('initiale') || sLow.includes('envoy') || !candidature.status) && candidature._waitingDays >= 10;
+
   return (
-    <article className="cand-card">
-      {/* Top row: 50% / 50% split */}
-      <div className="cand-card-top">
-        <div className="cand-card-company" onClick={onEdit} title="Modifier la fiche">
-          {candidature.company}
-        </div>
-        <div className={`cand-badge ${badgeClass}`}>
-          {status}
-        </div>
-      </div>
-
-      {/* Stepper */}
-      <div className="cand-stepper">
-        <div className={`cand-step ${stepState.step >= 0 ? (stepState.step > 0 ? 'done' : 'active') : ''}`}>
-          <div className="cand-step-dot" />
-          <span className="cand-step-lbl">Envoyé</span>
-        </div>
-        <div className={`cand-step ${stepState.step >= 1 ? (stepState.step > 1 ? 'done' : 'active') : ''}`}>
-          <div className="cand-step-dot" />
-          <span className="cand-step-lbl">Retour</span>
-        </div>
-        <div className={`cand-step ${stepState.step >= 2 ? (stepState.step > 2 ? 'done' : 'active') : ''}`}>
-          <div className="cand-step-dot" />
-          <span className="cand-step-lbl">Entretien</span>
-        </div>
-        <div className={`cand-step ${stepState.step >= 3 ? (stepState.rejected ? 'rejected' : 'done') : ''}`}>
-          <div className="cand-step-dot" />
-          <span className="cand-step-lbl">{stepState.rejected ? 'Refus' : 'Décision'}</span>
-        </div>
-      </div>
-
-      {/* Meta row */}
-      <div className="cand-card-meta">
-        <span className="cand-meta-code">{candidature.canton || 'CH'}</span>
-        {candidature.location && <span>{candidature.location}</span>}
-        {candidature.sector && <span>{candidature.sector}</span>}
-      </div>
-
-      {/* Stars Interest Rating */}
-      {candidature.rating > 0 && (
-        <div className="cand-stars-row">
-          <div className="cand-stars">
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((starIdx) => (
-              <span key={starIdx} className={`cand-star ${starIdx <= Math.round(candidature.rating) ? 'on' : 'off'}`}>
-                ★
-              </span>
-            ))}
+    <article className={`cand-native-card ${isUrgent ? 'card-urgent' : ''}`}>
+      {/* Top Header: Company Avatar + Name + Badges */}
+      <div className="cand-card-header-row">
+        <div className="cand-card-left-group" onClick={onEdit} title="Modifier la fiche">
+          <div
+            className="cand-company-avatar"
+            style={{ background: getAvatarGradient(candidature.company) }}
+          >
+            {String(candidature.company || 'SH').slice(0, 2).toUpperCase()}
           </div>
-          <span className="cand-note-val">{candidature.rating}/10</span>
+          <div>
+            <h4 className="cand-card-title">{candidature.company}</h4>
+            <div className="cand-card-geo-tags">
+              <span className="cand-tag country-tag">
+                {candidature._country === 'CH' ? '🇨🇭 CH' :
+                 candidature._country === 'FR' ? '🇫🇷 FR' :
+                 candidature._country === 'DE' ? '🇩🇪 DE' :
+                 candidature._country === 'BE' ? '🇧🇪 BE' :
+                 candidature._country === 'LU' ? '🇱🇺 LU' :
+                 candidature._country === 'IT' ? '🇮🇹 IT' :
+                 candidature._country === 'ES' ? '🇪🇸 ES' : '🇪🇺'} {candidature._region}
+              </span>
+              {candidature.location && (
+                <span className="cand-tag city-tag">
+                  <Icon name="pin" size={11} /> {candidature.location}
+                </span>
+              )}
+              {candidature.sector && (
+                <span className="cand-tag sector-tag">{candidature.sector}</span>
+              )}
+            </div>
+          </div>
         </div>
-      )}
 
-      {/* Detailed activity or démarche */}
+        <div className="cand-card-right-group">
+          <span className={`cand-status-pill ${badgeClass}`}>{status}</span>
+          {candidature.rating > 0 && (
+            <span className="cand-score-pill">
+              ⭐ {candidature.rating}/10
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Progress Stepper */}
+      <div className="cand-native-stepper">
+        <div className={`cand-stepper-node ${stepIndex.step >= 0 ? (stepIndex.step > 0 ? 'passed' : 'current') : ''}`}>
+          <div className="cand-node-bullet" />
+          <span>Envoyé</span>
+        </div>
+        <div className={`cand-stepper-node ${stepIndex.step >= 1 ? (stepIndex.step > 1 ? 'passed' : 'current') : ''}`}>
+          <div className="cand-node-bullet" />
+          <span>Retour</span>
+        </div>
+        <div className={`cand-stepper-node ${stepIndex.step >= 2 ? (stepIndex.step > 2 ? 'passed' : 'current') : ''}`}>
+          <div className="cand-node-bullet" />
+          <span>Entretien</span>
+        </div>
+        <div className={`cand-stepper-node ${stepIndex.step >= 3 ? (stepIndex.isRefused ? 'refused' : 'passed') : ''}`}>
+          <div className="cand-node-bullet" />
+          <span>{stepIndex.isRefused ? 'Refus' : 'Offre'}</span>
+        </div>
+      </div>
+
+      {/* Waiting Days Alert */}
+      <div className="cand-waiting-row">
+        <span className={`cand-waiting-badge ${isUrgent ? 'urgent' : ''}`}>
+          ⏱️ {candidature._waitingDays === 0 ? "Envoyé aujourd'hui" : `Il y a ${candidature._waitingDays} jour${candidature._waitingDays > 1 ? 's' : ''}`}
+          {isUrgent && ' — Relance recommandée !'}
+        </span>
+      </div>
+
+      {/* Detailed Activity Snippet */}
       {candidature.detailed_activity && (
-        <p className="cand-card-desc">{candidature.detailed_activity}</p>
+        <p className="cand-card-description">{candidature.detailed_activity}</p>
       )}
 
-      {/* Links */}
-      <div className="cand-card-links">
+      {/* Links Bar */}
+      <div className="cand-card-links-row">
         {candidature.link1 && (
-          <a href={candidature.link1} target="_blank" rel="noopener noreferrer" className="cand-link-pill">
-            <Icon name="external" size={11} />
-            <span>Lien 1</span>
+          <a href={candidature.link1} target="_blank" rel="noopener noreferrer" className="cand-card-link-chip">
+            <Icon name="external" size={12} />
+            <span>Offre</span>
           </a>
         )}
         {candidature.link2 && (
-          <a href={candidature.link2} target="_blank" rel="noopener noreferrer" className="cand-link-pill">
-            <Icon name="external" size={11} />
-            <span>Lien 2</span>
+          <a href={candidature.link2} target="_blank" rel="noopener noreferrer" className="cand-card-link-chip">
+            <Icon name="external" size={12} />
+            <span>RH / Site</span>
           </a>
         )}
         {candidature.link3 && (
-          <a href={candidature.link3} target="_blank" rel="noopener noreferrer" className="cand-link-pill">
-            <Icon name="external" size={11} />
+          <a href={candidature.link3} target="_blank" rel="noopener noreferrer" className="cand-card-link-chip">
+            <Icon name="external" size={12} />
             <span>Lien 3</span>
           </a>
         )}
       </div>
 
-      {/* Status Changer & Quick Actions */}
-      <div className="cand-card-controls">
-        <select
-          className="cand-status-select"
-          value={status}
-          onChange={(e) => onStatusChange(e.target.value)}
-        >
-          <option value="Demande initiale">Demande initiale</option>
-          <option value="Réponse obtenue">Réponse obtenue</option>
-          <option value="Entretien">Entretien</option>
-          <option value="Validé">Validé / Offre</option>
-          <option value="Refusé">Refusé</option>
-        </select>
+      {/* Controls & Quick Actions */}
+      <div className="cand-card-actions-bar">
+        <div className="cand-actions-left">
+          <select
+            className="cand-status-quick-select"
+            value={status}
+            onChange={(e) => onStatusChange(e.target.value)}
+          >
+            <option value="Demande initiale">Demande initiale (Envoyé)</option>
+            <option value="Réponse obtenue">Réponse obtenue</option>
+            <option value="Entretien">Entretien</option>
+            <option value="Validé">Validé / Offre</option>
+            <option value="Refusé">Refusé</option>
+          </select>
+        </div>
 
-        <div className="cand-card-actions">
+        <div className="cand-actions-right">
           <button
             type="button"
-            className="cand-action-btn"
+            className="cand-tool-btn"
             onClick={copyCompanyName}
             title="Copier le nom"
           >
@@ -976,7 +1186,7 @@ function CandidatureCard({ candidature, onEdit, onStatusChange, onAddNote, onDel
             href={`https://www.linkedin.com/search/results/all/?keywords=${encodeURIComponent(candidature.company)}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="cand-action-btn"
+            className="cand-tool-btn"
             title="Chercher sur LinkedIn"
           >
             💼 LinkedIn
@@ -985,7 +1195,7 @@ function CandidatureCard({ candidature, onEdit, onStatusChange, onAddNote, onDel
           {candidature.contact_email && (
             <a
               href={`mailto:${candidature.contact_email}?subject=Candidature - ${encodeURIComponent(candidature.company)}`}
-              className="cand-action-btn"
+              className="cand-tool-btn email"
               title="Envoyer un email"
             >
               ✉️ Email
@@ -994,7 +1204,7 @@ function CandidatureCard({ candidature, onEdit, onStatusChange, onAddNote, onDel
 
           <button
             type="button"
-            className="cand-action-btn note"
+            className="cand-tool-btn note"
             onClick={onAddNote}
             title="Ajouter un mémo Post-it"
           >
@@ -1003,61 +1213,66 @@ function CandidatureCard({ candidature, onEdit, onStatusChange, onAddNote, onDel
 
           <button
             type="button"
-            className="cand-action-btn toggle"
-            onClick={() => setShowTimeline(!showTimeline)}
-            title="Voir l'historique et mémos"
+            className="cand-tool-btn drawer-toggle"
+            onClick={() => setShowDrawer(!showDrawer)}
           >
-            {showTimeline ? 'Masquer' : `Historique (${(candidature.status_history || []).length + (candidature.notes || []).length})`}
+            {showDrawer ? 'Masquer' : `Détails (${(candidature.notes || []).length})`}
+          </button>
+
+          <button
+            type="button"
+            className="cand-tool-btn delete"
+            onClick={onDelete}
+            title="Supprimer la candidature"
+          >
+            🗑️
           </button>
         </div>
       </div>
 
-      {/* Expandable Dual Timeline & Post-its */}
-      {showTimeline && (
-        <div className="cand-timeline-box">
-          {/* Status Change History */}
+      {/* Expandable Mémos & History Drawer */}
+      {showDrawer && (
+        <div className="cand-native-drawer">
+          {/* Post-it Notes Section */}
+          <div className="cand-drawer-notes">
+            <div className="drawer-header">
+              <h5>📝 Mémos Post-it ({(candidature.notes || []).length})</h5>
+              <button type="button" className="drawer-add-note-btn" onClick={onAddNote}>
+                + Nouveau mémo
+              </button>
+            </div>
+
+            {(candidature.notes || []).length > 0 ? (
+              <div className="cand-notes-grid">
+                {candidature.notes.map((n, idx) => (
+                  <div key={idx} className="cand-postit-card">
+                    <span className="postit-date">{n.date || 'Mémo'}</span>
+                    <p className="postit-text">{n.text || n}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="cand-no-notes-text">Aucun mémo pour le moment.</p>
+            )}
+          </div>
+
+          {/* Status History Timeline */}
           {(candidature.status_history || []).length > 0 && (
-            <div className="cand-history-section">
-              <h4>Historique des statuts</h4>
-              <div className="cand-history-timeline">
+            <div className="cand-drawer-history">
+              <h5>⏱️ Historique des statuts</h5>
+              <div className="cand-history-track">
                 {candidature.status_history.map((sh, idx) => (
-                  <div key={idx} className="cand-history-entry">
-                    <span className="cand-history-dot" />
-                    <div className="cand-history-content">
-                      <span className="cand-history-date">{sh.date || 'Date'}</span>
-                      <span className="cand-history-text">{sh.text || sh.status}</span>
-                      {sh.delta_days != null && (
-                        <span className="cand-history-delta">{formatDelta(sh.delta_days)}</span>
-                      )}
+                  <div key={idx} className="cand-history-item">
+                    <div className="cand-history-item-dot" />
+                    <div>
+                      <span className="cand-history-item-date">{sh.date || 'Date'}</span>
+                      <p className="cand-history-item-text">{sh.text || sh.status}</p>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
           )}
-
-          {/* Yellow Post-it Memos */}
-          <div className="cand-postits-section">
-            <div className="cand-postits-header">
-              <h4>Mémos Post-it ({(candidature.notes || []).length})</h4>
-              <button type="button" className="cand-postit-add" onClick={onAddNote}>
-                + Ajouter
-              </button>
-            </div>
-
-            {(candidature.notes || []).length > 0 ? (
-              <div className="cand-postits-grid">
-                {candidature.notes.map((n, idx) => (
-                  <div key={idx} className="cand-postit">
-                    <div className="cand-postit-date">{n.date || 'Mémo'}</div>
-                    <div className="cand-postit-text">{n.text || n}</div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="cand-no-notes">Aucun mémo pour le moment.</p>
-            )}
-          </div>
         </div>
       )}
     </article>

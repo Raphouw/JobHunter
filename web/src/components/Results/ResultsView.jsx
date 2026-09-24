@@ -30,6 +30,7 @@ export function ResultsView({
   onCommand,
   onExport,
   onTransferCandidature,
+  candidatures = [],
 }) {
   const [query, setQuery] = useState('');
   const [filterTab, setFilterTab] = useState('all'); // all | keep | unsure
@@ -150,6 +151,13 @@ export function ResultsView({
             const score = Math.max(0, Math.min(100, Math.round(Number(offer.score) || 0)));
             const isKeep = offer.review_decision === 'keep';
             const isOpen = offer.availability_status === 'open';
+            const alreadyApplied = (candidatures || []).some(
+              (c) =>
+                (c.offer_id && String(c.offer_id) === String(offer.id)) ||
+                (c.company &&
+                  offer.company &&
+                  c.company.toLowerCase().trim() === offer.company.toLowerCase().trim())
+            );
 
             return (
               <article key={offer.id} className="sh-result-item">
@@ -174,9 +182,15 @@ export function ResultsView({
                     <span className={`sh-score-badge ${score >= 70 ? 'high' : score >= 45 ? 'mid' : 'low'}`}>
                       {score}%
                     </span>
-                    <span className={`sh-status-indicator ${isKeep ? 'keep' : 'unsure'}`}>
-                      {isKeep ? '♥ Gardée' : '🕒 À revoir'}
-                    </span>
+                    {alreadyApplied ? (
+                      <span className="sh-status-indicator applied" title="Cette offre est déjà postulée et suivie sur la carte">
+                        🚀 Postulée
+                      </span>
+                    ) : (
+                      <span className={`sh-status-indicator ${isKeep ? 'keep' : 'unsure'}`}>
+                        {isKeep ? '♥ Gardée' : '🕒 À revoir'}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -214,12 +228,16 @@ export function ResultsView({
                     {onTransferCandidature && (
                       <button
                         type="button"
-                        className="sh-btn-transfer"
+                        className={`sh-btn-transfer ${alreadyApplied ? 'is-applied' : ''}`}
                         onClick={() => onTransferCandidature(offer)}
-                        title="Créer une candidature pour cette offre et suivre le statut sur la carte"
+                        title={
+                          alreadyApplied
+                            ? 'Déjà ajoutée aux candidatures. Cliquer pour afficher/modifier la fiche.'
+                            : 'Créer une candidature pour cette offre et suivre le statut sur la carte'
+                        }
                       >
-                        <Icon name="target" size={14} />
-                        <span>Postuler & Suivre</span>
+                        <Icon name={alreadyApplied ? 'check' : 'target'} size={14} />
+                        <span>{alreadyApplied ? 'Déjà suivie sur la carte' : 'Postuler & Suivre'}</span>
                       </button>
                     )}
                   </div>

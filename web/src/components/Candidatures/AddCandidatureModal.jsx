@@ -1,38 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Icon } from '../Common/Icons';
-
-export const SWISS_CANTONS_LIST = [
-  { code: 'AG', label: 'Argovie | AG | AL' },
-  { code: 'AI', label: 'Appenzell Rhodes-Intérieures | AI | AL' },
-  { code: 'AR', label: 'Appenzell Rhodes-Extérieures | AR | AL' },
-  { code: 'BE', label: 'Berne | BE | AL/FR' },
-  { code: 'BL', label: 'Bâle-Campagne | BL | AL' },
-  { code: 'BS', label: 'Bâle-Ville | BS | AL' },
-  { code: 'FR', label: 'Fribourg | FR | FR/AL' },
-  { code: 'GE', label: 'Genève | GE | FR' },
-  { code: 'GL', label: 'Glaris | GL | AL' },
-  { code: 'GR', label: 'Grisons | GR | AL/ROM/IT' },
-  { code: 'JU', label: 'Jura | JU | FR' },
-  { code: 'LU', label: 'Lucerne | LU | AL' },
-  { code: 'NE', label: 'Neuchâtel | NE | FR' },
-  { code: 'NW', label: 'Nidwald | NW | AL' },
-  { code: 'OW', label: 'Obwald | OW | AL' },
-  { code: 'SG', label: 'Saint-Gall | SG | AL' },
-  { code: 'SH', label: 'Schaffhouse | SH | AL' },
-  { code: 'SO', label: 'Soleure | SO | AL' },
-  { code: 'SZ', label: 'Schwytz | SZ | AL' },
-  { code: 'TG', label: 'Thurgovie | TG | AL' },
-  { code: 'TI', label: 'Tessin | TI | IT' },
-  { code: 'UR', label: 'Uri | UR | AL' },
-  { code: 'VD', label: 'Vaud | VD | FR' },
-  { code: 'VS', label: 'Valais | VS | FR/AL' },
-  { code: 'ZG', label: 'Zoug | ZG | AL' },
-  { code: 'ZH', label: 'Zurich | ZH | AL' },
-];
+import { COUNTRIES, REGIONS_BY_COUNTRY, geocodeCandidature } from './europeMapData';
 
 export function AddCandidatureModal({ prefill = null, onClose, onSave, busy = false }) {
   const [company, setCompany] = useState('');
-  const [canton, setCanton] = useState('VD');
+  const [country, setCountry] = useState('CH');
+  const [region, setRegion] = useState('VD');
   const [location, setLocation] = useState('');
   const [sector, setSector] = useState('');
   const [detailedActivity, setDetailedActivity] = useState('');
@@ -45,27 +18,59 @@ export function AddCandidatureModal({ prefill = null, onClose, onSave, busy = fa
   const [contactEmail, setContactEmail] = useState('');
   const [error, setError] = useState('');
 
+  // Update region when country changes if current region doesn't belong to new country
+  const availableRegions = REGIONS_BY_COUNTRY[country] || [];
+
+  const handleCountryChange = (newCountry) => {
+    setCountry(newCountry);
+    const regs = REGIONS_BY_COUNTRY[newCountry] || [];
+    if (regs.length > 0) {
+      setRegion(regs[0].code);
+    }
+  };
+
   useEffect(() => {
     if (prefill) {
       if (prefill.company) setCompany(prefill.company);
-      if (prefill.canton) {
-        const raw = String(prefill.canton).trim().toUpperCase();
-        const found = SWISS_CANTONS_LIST.find((c) => raw.includes(c.code) || c.label.toUpperCase().includes(raw));
-        if (found) setCanton(found.code);
-      }
       if (prefill.location) setLocation(prefill.location);
-      if (prefill.sector || prefill.domain_category) setSector(prefill.sector || prefill.domain_category);
-      if (prefill.detailed_activity || prefill.title) setDetailedActivity(prefill.detailed_activity || `${prefill.title || ''}${prefill.snippet ? ' — ' + prefill.snippet : ''}`);
+      if (prefill.sector || prefill.domain_category) {
+        setSector(prefill.sector || prefill.domain_category);
+      }
+      if (prefill.detailed_activity || prefill.title) {
+        setDetailedActivity(
+          prefill.detailed_activity ||
+            `${prefill.title || ''}${prefill.snippet ? ' — ' + prefill.snippet : ''}`
+        );
+      }
       if (prefill.link1 || prefill.url) setLink1(prefill.link1 || prefill.url);
       if (prefill.link2) setLink2(prefill.link2);
       if (prefill.link3) setLink3(prefill.link3);
       if (prefill.demarche) setDemarche(prefill.demarche);
       if (prefill.rating || prefill.score) {
-        const r = prefill.rating ? Number(prefill.rating) : Math.round(Number(prefill.score || 80) / 10);
+        const r = prefill.rating
+          ? Number(prefill.rating)
+          : Math.round(Number(prefill.score || 80) / 10);
         setRating(String(Math.max(1, Math.min(10, r))));
       }
       if (prefill.status) setStatus(prefill.status);
-      if (prefill.contact_email || prefill.email) setContactEmail(prefill.contact_email || prefill.email);
+      if (prefill.contact_email || prefill.email) {
+        setContactEmail(prefill.contact_email || prefill.email);
+      }
+
+      // Geocode to infer Country & Region
+      const geo = geocodeCandidature({
+        location: prefill.location,
+        canton: prefill.canton || prefill.region,
+        country: prefill.country,
+        company: prefill.company,
+      });
+
+      if (geo && geo.country) {
+        setCountry(geo.country);
+        if (geo.region) setRegion(geo.region);
+      } else if (prefill.canton) {
+        setRegion(String(prefill.canton).slice(0, 4).toUpperCase());
+      }
     }
   }, [prefill]);
 
@@ -79,7 +84,9 @@ export function AddCandidatureModal({ prefill = null, onClose, onSave, busy = fa
 
     const candidature = {
       company: company.trim(),
-      canton: canton || 'VD',
+      country: country || 'CH',
+      canton: region || 'VD',
+      region: region || 'VD',
       location: location.trim(),
       sector: sector.trim(),
       detailed_activity: detailedActivity.trim(),
@@ -96,15 +103,23 @@ export function AddCandidatureModal({ prefill = null, onClose, onSave, busy = fa
     onSave(candidature);
   };
 
+  const selectableCountries = COUNTRIES.filter((c) => c.code !== 'ALL');
+
   return (
     <div className="sh-modal-backdrop" onClick={onClose}>
       <div className="sh-modal-card candidature-modal" onClick={(e) => e.stopPropagation()}>
         <div className="sh-modal-header">
           <div className="sh-modal-title">
-            <span className="sh-modal-icon">✨</span>
+            <span className="sh-modal-icon">💼</span>
             <div>
-              <h3>{prefill?.id ? 'Modifier la candidature' : prefill?.company ? 'Transférer en candidature' : 'Nouvelle Candidature'}</h3>
-              <p>Suis tes démarches, entretiens et relances pour ce stage.</p>
+              <h3>
+                {prefill?.id
+                  ? 'Modifier la candidature'
+                  : prefill?.company
+                  ? 'Ajouter aux candidatures postulées'
+                  : 'Nouvelle Candidature'}
+              </h3>
+              <p>Positionnement sur la carte d’Europe, suivi des étapes et mémos.</p>
             </div>
           </div>
           <button className="sh-modal-close" onClick={onClose} aria-label="Fermer">
@@ -116,24 +131,37 @@ export function AddCandidatureModal({ prefill = null, onClose, onSave, busy = fa
 
         <form onSubmit={handleSubmit} className="cand-form">
           <div className="cand-row">
-            <div className="cand-field">
-              <label>Canton *</label>
-              <select value={canton} onChange={(e) => setCanton(e.target.value)}>
-                {SWISS_CANTONS_LIST.map((c) => (
-                  <option key={c.code} value={c.code}>{c.label}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="cand-field" style={{ flex: 1.5 }}>
+            <div className="cand-field" style={{ flex: 1.2 }}>
               <label>Entreprise *</label>
               <input
                 type="text"
                 required
-                placeholder="ex: Logitech, EPFL, Rolex..."
+                placeholder="ex: Logitech, Airbus, Novartis, Sanofi..."
                 value={company}
                 onChange={(e) => setCompany(e.target.value)}
               />
+            </div>
+
+            <div className="cand-field" style={{ flex: 1 }}>
+              <label>Pays *</label>
+              <select value={country} onChange={(e) => handleCountryChange(e.target.value)}>
+                {selectableCountries.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.flag} {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="cand-field" style={{ flex: 1.2 }}>
+              <label>Région / Canton *</label>
+              <select value={region} onChange={(e) => setRegion(e.target.value)}>
+                {availableRegions.map((r) => (
+                  <option key={r.code} value={r.code}>
+                    {r.name} ({r.code})
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -142,7 +170,7 @@ export function AddCandidatureModal({ prefill = null, onClose, onSave, busy = fa
               <label>Ville de l'Entreprise</label>
               <input
                 type="text"
-                placeholder="ex: Lausanne, Genève, Zurich..."
+                placeholder="ex: Lausanne, Paris, Munich, Bruxelles..."
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
               />
@@ -152,18 +180,31 @@ export function AddCandidatureModal({ prefill = null, onClose, onSave, busy = fa
               <label>Secteur d'activité</label>
               <input
                 type="text"
-                placeholder="ex: MedTech, FinTech, Robotique..."
+                placeholder="ex: MedTech, FinTech, Luxe, Aérospatial..."
                 value={sector}
                 onChange={(e) => setSector(e.target.value)}
               />
             </div>
+
+            <div className="cand-field">
+              <label>Note d'intérêt (/10)</label>
+              <select value={rating} onChange={(e) => setRating(e.target.value)}>
+                <option value="10">⭐⭐⭐⭐⭐ 10/10 (Top Priorité)</option>
+                <option value="9">⭐⭐⭐⭐ 9/10</option>
+                <option value="8">⭐⭐⭐⭐ 8/10 (Très intéressé)</option>
+                <option value="7">⭐⭐⭐ 7/10</option>
+                <option value="6">⭐⭐⭐ 6/10</option>
+                <option value="5">⭐⭐ 5/10 (Moyen)</option>
+                <option value="3">⭐ 3/10 (File d'attente)</option>
+              </select>
+            </div>
           </div>
 
           <div className="cand-field">
-            <label>Activité détaillée (l'entreprise / le poste)</label>
+            <label>Activité détaillée (l'entreprise / le poste visé)</label>
             <textarea
               rows="2"
-              placeholder="ex: Stage Data Engineer, développement de pipelines..."
+              placeholder="ex: Stage Data & IA, modélisation prédictive et automatisation..."
               value={detailedActivity}
               onChange={(e) => setDetailedActivity(e.target.value)}
             />
@@ -171,7 +212,7 @@ export function AddCandidatureModal({ prefill = null, onClose, onSave, busy = fa
 
           <div className="cand-row">
             <div className="cand-field">
-              <label>Lien 1 (Offre)</label>
+              <label>Lien 1 (Offre / Site)</label>
               <input
                 type="url"
                 placeholder="https://..."
@@ -180,7 +221,7 @@ export function AddCandidatureModal({ prefill = null, onClose, onSave, busy = fa
               />
             </div>
             <div className="cand-field">
-              <label>Lien 2</label>
+              <label>Lien 2 (Contact / RH)</label>
               <input
                 type="url"
                 placeholder="https://..."
@@ -189,55 +230,36 @@ export function AddCandidatureModal({ prefill = null, onClose, onSave, busy = fa
               />
             </div>
             <div className="cand-field">
-              <label>Lien 3</label>
-              <input
-                type="url"
-                placeholder="https://..."
-                value={link3}
-                onChange={(e) => setLink3(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="cand-field">
-            <label>Statut / Démarche effectuée</label>
-            <textarea
-              rows="2"
-              placeholder="ex: Candidature spontanée envoyée par mail, message LinkedIn envoyé..."
-              value={demarche}
-              onChange={(e) => setDemarche(e.target.value)}
-            />
-          </div>
-
-          <div className="cand-row">
-            <div className="cand-field" style={{ flex: 0.6 }}>
-              <label>Note d'intérêt (/10)</label>
-              <select value={rating} onChange={(e) => setRating(e.target.value)}>
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
-                  <option key={n} value={String(n)}>{n} / 10</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="cand-field">
-              <label>Statut actuel</label>
-              <select value={status} onChange={(e) => setStatus(e.target.value)}>
-                <option value="Demande initiale">Demande initiale</option>
-                <option value="Réponse obtenue">Réponse obtenue</option>
-                <option value="Entretien">Entretien</option>
-                <option value="Validé">Validé / Offre</option>
-                <option value="Refusé">Refusé</option>
-              </select>
-            </div>
-
-            <div className="cand-field" style={{ flex: 1.2 }}>
-              <label>Email de contact</label>
+              <label>Email contact / RH</label>
               <input
                 type="email"
-                placeholder="contact@entreprise.ch"
+                placeholder="recrutement@entreprise.com"
                 value={contactEmail}
                 onChange={(e) => setContactEmail(e.target.value)}
               />
+            </div>
+          </div>
+
+          <div className="cand-row">
+            <div className="cand-field">
+              <label>Démarches effectuées</label>
+              <input
+                type="text"
+                placeholder="ex: Candidature spontanée envoyée via formulaire + message LinkedIn"
+                value={demarche}
+                onChange={(e) => setDemarche(e.target.value)}
+              />
+            </div>
+
+            <div className="cand-field">
+              <label>Statut initial</label>
+              <select value={status} onChange={(e) => setStatus(e.target.value)}>
+                <option value="Demande initiale">Demande initiale (Envoyé)</option>
+                <option value="Réponse obtenue">Réponse obtenue</option>
+                <option value="Entretien">Entretien fixé</option>
+                <option value="Validé">Validé / Offre reçue</option>
+                <option value="Refusé">Refusé</option>
+              </select>
             </div>
           </div>
 
@@ -246,7 +268,7 @@ export function AddCandidatureModal({ prefill = null, onClose, onSave, busy = fa
               Annuler
             </button>
             <button type="submit" className="sh-btn-primary" disabled={busy}>
-              {busy ? 'Enregistrement…' : prefill?.company ? 'Ajouter aux Candidatures' : 'Créer la fiche'}
+              {busy ? 'Enregistrement…' : prefill?.id ? 'Mettre à jour' : '🚀 Ajouter & Placer sur la carte'}
             </button>
           </div>
         </form>

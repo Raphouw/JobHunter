@@ -622,7 +622,7 @@ export function CloudApp() {
                   onGoToPage={goToPage} onTransferCandidature={transferOfferToCandidature} />}
                 {page === 'results' && <ResultsView results={offers.filter((offer) => ['keep', 'unsure'].includes(offer.review_decision))}
                   profileId={profileId} busy={busy} onDecide={decide} onRequeue={requeue} onExport={exportOffersCsv}
-                  onTransferCandidature={transferOfferToCandidature} />}
+                  onTransferCandidature={transferOfferToCandidature} candidatures={candidatures} />}
                 {page === 'candidatures' && <CandidaturesView
                   candidatures={candidatures}
                   profileId={profileId}

@@ -562,6 +562,7 @@ function App() {
                   onRequeue={handleRequeue}
                   onCommand={handleCommand}
                   onTransferCandidature={handleTransferCandidature}
+                  candidatures={candidatures}
                 />
               )}
 

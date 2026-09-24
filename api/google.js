@@ -175,6 +175,104 @@ export default async function handler(request, response) {
         { method: 'DELETE' });
       return response.status(200).json({ connected: false });
     }
+    if (action === 'scan-gmail' && request.method === 'POST') {
+      const token = await googleAccess(user.id, settings);
+      const candidatures = Array.isArray(request.body?.candidatures) ? request.body.candidatures : [];
+      const query = String(request.body?.query || 'candidature OR stage OR entretien OR intern OR interview OR recrutement').slice(0, 200);
+
+      // Search recent messages in Gmail
+      const listRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=35`, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(15000),
+      });
+
+      if (!listRes.ok) {
+        throw new Error(`Gmail API HTTP ${listRes.status}`);
+      }
+
+      const listData = await listRes.json();
+      const messageItems = listData.messages || [];
+
+      // Fetch metadata & snippet for the first 25 messages
+      const details = await Promise.all(
+        messageItems.slice(0, 25).map(async (m) => {
+          try {
+            const msgRes = await fetch(
+              `https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`,
+              {
+                headers: { Authorization: `Bearer ${token}` },
+                signal: AbortSignal.timeout(8000),
+              }
+            );
+            if (!msgRes.ok) return null;
+            const msgJson = await msgRes.json();
+            const headers = msgJson.payload?.headers || [];
+            const subject = headers.find((h) => h.name.toLowerCase() === 'subject')?.value || '';
+            const from = headers.find((h) => h.name.toLowerCase() === 'from')?.value || '';
+            const date = headers.find((h) => h.name.toLowerCase() === 'date')?.value || '';
+            return {
+              id: m.id,
+              threadId: m.threadId,
+              snippet: msgJson.snippet || '',
+              subject,
+              from,
+              date,
+            };
+          } catch {
+            return null;
+          }
+        })
+      );
+
+      const validDetails = details.filter(Boolean);
+
+      // Match against user candidatures
+      const detectedUpdates = [];
+      validDetails.forEach((msg) => {
+        const fullText = `${msg.subject} ${msg.from} ${msg.snippet}`.toLowerCase();
+
+        for (const cand of candidatures) {
+          const companyName = String(cand.company || '').toLowerCase().trim();
+          if (!companyName || companyName.length < 3) continue;
+
+          if (fullText.includes(companyName)) {
+            let detectedStatus = 'Réponse obtenue';
+            let confidence = 0.8;
+            if (/entretien|interview|invitation|disponibilit|teams|zoom|meet|call|change/i.test(fullText)) {
+              detectedStatus = 'Entretien';
+              confidence = 0.95;
+            } else if (/malheureusement|regret|ne pouvons pas donner suite|autre candidat|pas retenu|refus|non retenu|dclin/i.test(fullText)) {
+              detectedStatus = 'Refusé';
+              confidence = 0.95;
+            } else if (/accept|retenu|flicitation|offre/i.test(fullText)) {
+              detectedStatus = 'Validé';
+              confidence = 0.9;
+            }
+
+            detectedUpdates.push({
+              candidatureId: cand.id,
+              company: cand.company,
+              currentStatus: cand.status || 'Demande initiale',
+              detectedStatus,
+              confidence,
+              emailSubject: msg.subject,
+              emailFrom: msg.from,
+              emailDate: msg.date,
+              snippet: msg.snippet,
+              messageId: msg.id,
+            });
+            break;
+          }
+        }
+      });
+
+      return response.status(200).json({
+        scannedCount: validDetails.length,
+        updates: detectedUpdates,
+        recentEmails: validDetails.slice(0, 10),
+      });
+    }
+
     if (['create-sheet', 'sync-sheet', 'pull-sheet'].includes(action) && request.method === 'POST') {
       const profile = await ownedProfile(user.id, request.body?.profileId, settings);
       const token = await googleAccess(user.id, settings);
