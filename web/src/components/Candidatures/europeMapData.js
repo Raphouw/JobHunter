@@ -1,513 +1,3280 @@
-// Western Europe Regions, Countries & Geocoding Dataset
-// Covers Switzerland, France, Germany, Belgium, Luxembourg, Italy, and Spain
+// Western Europe Cartography Dataset (Eurostat GISCO NUTS Standard)
+// Seamless, contiguous geographic borders with ZERO boundary gaps
+// Covers Switzerland (26 cantons), France (13 régions), Germany (16 Länder),
+// Belgium (11 provinces), Luxembourg, Italy (21 regions), Spain (17 autonomous communities)
 
 export const WESTERN_EUROPE_BOUNDS = {
-  minLng: -9.5,
-  maxLng: 16.5,
-  minLat: 35.5,
-  maxLat: 55.0,
+  minLng: -9.8,
+  maxLng: 18.8,
+  minLat: 35.8,
+  maxLat: 55.2,
   svgWidth: 1000,
-  svgHeight: 800,
+  svgHeight: 980,
 };
 
-// Mercator projection for Western Europe
-export function projectGpsEurope(lat, lng, width = 1000, height = 800) {
+// Conformal Mercator projection (Web Mercator) calibrated for Western Europe
+export function projectGpsEurope(lat, lng) {
   if (lat == null || lng == null) return null;
   const numLat = Number(lat);
   const numLng = Number(lng);
   if (isNaN(numLat) || isNaN(numLng)) return null;
 
-  const { minLng, maxLng, minLat, maxLat } = WESTERN_EUROPE_BOUNDS;
-  const x = ((numLng - minLng) / (maxLng - minLng)) * width;
+  const minLngRad = (-9.8 * Math.PI) / 180;
+  const maxLngRad = (18.8 * Math.PI) / 180;
+  const R = 1000.0 / (maxLngRad - minLngRad);
 
+  const mercMax = Math.log(Math.tan(Math.PI / 4 + (55.2 * Math.PI) / 360));
+  const lngRad = (numLng * Math.PI) / 180;
   const latRad = (numLat * Math.PI) / 180;
-  const minLatRad = (minLat * Math.PI) / 180;
-  const maxLatRad = (maxLat * Math.PI) / 180;
-
   const mercY = Math.log(Math.tan(Math.PI / 4 + latRad / 2));
-  const mercMin = Math.log(Math.tan(Math.PI / 4 + minLatRad / 2));
-  const mercMax = Math.log(Math.tan(Math.PI / 4 + maxLatRad / 2));
 
-  const y = height - ((mercY - mercMin) / (mercMax - mercMin)) * height;
+  const x = (lngRad - minLngRad) * R;
+  const y = (mercMax - mercY) * R;
   return { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 };
 }
 
 export const COUNTRIES = [
-  { code: 'ALL', name: 'Europe de l’Ouest', flag: '🌍', viewBox: '0 0 1000 800', scale: 1, cx: 500, cy: 400 },
-  { code: 'CH', name: 'Suisse', flag: '🇨🇭', viewBox: '560 280 200 160', scale: 4.0, cx: 650, cy: 350 },
-  { code: 'FR', name: 'France', flag: '🇫🇷', viewBox: '320 180 340 330', scale: 2.2, cx: 490, cy: 340 },
-  { code: 'DE', name: 'Allemagne', flag: '🇩🇪', viewBox: '600 70 320 300', scale: 2.4, cx: 760, cy: 220 },
-  { code: 'BE', name: 'Belgique', flag: '🇧🇪', viewBox: '470 140 120 100', scale: 5.5, cx: 530, cy: 190 },
-  { code: 'LU', name: 'Luxembourg', flag: '🇱🇺', viewBox: '560 190 70 60', scale: 8.0, cx: 595, cy: 220 },
-  { code: 'IT', name: 'Italie', flag: '🇮🇹', viewBox: '620 330 320 350', scale: 2.2, cx: 770, cy: 500 },
-  { code: 'ES', name: 'Espagne', flag: '🇪🇸', viewBox: '140 450 360 300', scale: 2.1, cx: 320, cy: 600 },
+  {
+    "code": "ALL",
+    "name": "Europe de l’Ouest",
+    "flag": "🌍",
+    "viewBox": "0 0 1000 980",
+    "scale": 1.0,
+    "cx": 500,
+    "cy": 490
+  },
+  {
+    "code": "CH",
+    "name": "Suisse",
+    "flag": "🇨🇭",
+    "viewBox": "544.6 412.7 171.0 108.9",
+    "scale": 5.37,
+    "cx": 630.0,
+    "cy": 467.1
+  },
+  {
+    "code": "FR",
+    "name": "France",
+    "flag": "🇫🇷",
+    "viewBox": "142.6 220.2 554.7 532.2",
+    "scale": 1.65,
+    "cx": 419.9,
+    "cy": 486.3
+  },
+  {
+    "code": "DE",
+    "name": "Allemagne",
+    "flag": "🇩🇪",
+    "viewBox": "535.3 -8.5 345.6 470.2",
+    "scale": 1.91,
+    "cx": 708.1,
+    "cy": 226.6
+  },
+  {
+    "code": "BE",
+    "name": "Belgique",
+    "flag": "🇧🇪",
+    "viewBox": "426.3 212.4 145.7 119.0",
+    "scale": 6.3,
+    "cx": 499.1,
+    "cy": 271.9
+  },
+  {
+    "code": "LU",
+    "name": "Luxembourg",
+    "flag": "🇱🇺",
+    "viewBox": "542.5 288.2 28.8 43.0",
+    "scale": 20.93,
+    "cx": 557.0,
+    "cy": 309.7
+  },
+  {
+    "code": "IT",
+    "name": "Italie",
+    "flag": "🇮🇹",
+    "viewBox": "557.9 432.3 448.8 585.4",
+    "scale": 1.54,
+    "cx": 782.3,
+    "cy": 725.0
+  },
+  {
+    "code": "ES",
+    "name": "Espagne",
+    "flag": "🇪🇸",
+    "viewBox": "-0.7 605.6 512.7 381.8",
+    "scale": 1.79,
+    "cx": 255.7,
+    "cy": 796.5
+  }
 ];
 
 export const REGIONS_BY_COUNTRY = {
-  CH: [
-    { code: 'VD', name: 'Vaud', country: 'CH', flag: '🇨🇭', lat: 46.52, lng: 6.63 },
-    { code: 'GE', name: 'Genève', country: 'CH', flag: '🇨🇭', lat: 46.20, lng: 6.14 },
-    { code: 'ZH', name: 'Zurich', country: 'CH', flag: '🇨🇭', lat: 47.37, lng: 8.54 },
-    { code: 'BE', name: 'Berne', country: 'CH', flag: '🇨🇭', lat: 46.94, lng: 7.44 },
-    { code: 'FR', name: 'Fribourg', country: 'CH', flag: '🇨🇭', lat: 46.80, lng: 7.15 },
-    { code: 'VS', name: 'Valais', country: 'CH', flag: '🇨🇭', lat: 46.23, lng: 7.36 },
-    { code: 'NE', name: 'Neuchâtel', country: 'CH', flag: '🇨🇭', lat: 46.99, lng: 6.93 },
-    { code: 'BS', name: 'Bâle', country: 'CH', flag: '🇨🇭', lat: 47.55, lng: 7.59 },
-    { code: 'TI', name: 'Tessin', country: 'CH', flag: '🇨🇭', lat: 46.19, lng: 9.02 },
-    { code: 'SG', name: 'Saint-Gall', country: 'CH', flag: '🇨🇭', lat: 47.42, lng: 9.37 },
-    { code: 'LU', name: 'Lucerne', country: 'CH', flag: '🇨🇭', lat: 47.05, lng: 8.30 },
-    { code: 'ZG', name: 'Zoug', country: 'CH', flag: '🇨🇭', lat: 47.16, lng: 8.51 },
-    { code: 'JU', name: 'Jura', country: 'CH', flag: '🇨🇭', lat: 47.36, lng: 7.34 },
-    { code: 'AG', name: 'Argovie', country: 'CH', flag: '🇨🇭', lat: 47.39, lng: 8.04 },
-    { code: 'GR', name: 'Grisons', country: 'CH', flag: '🇨🇭', lat: 46.85, lng: 9.53 },
+  "CH": [
+    {
+      "code": "BL",
+      "name": "Bâle-Campagne",
+      "country": "CH",
+      "flag": "🇨🇭",
+      "lat": 47.48,
+      "lng": 7.73
+    },
+    {
+      "code": "AG",
+      "name": "Argovie",
+      "country": "CH",
+      "flag": "🇨🇭",
+      "lat": 47.39,
+      "lng": 8.04
+    },
+    {
+      "code": "ZH",
+      "name": "Zurich",
+      "country": "CH",
+      "flag": "🇨🇭",
+      "lat": 47.37,
+      "lng": 8.54
+    },
+    {
+      "code": "GL",
+      "name": "Glaris",
+      "country": "CH",
+      "flag": "🇨🇭",
+      "lat": 46.98,
+      "lng": 9.02
+    },
+    {
+      "code": "SH",
+      "name": "Schaffhouse",
+      "country": "CH",
+      "flag": "🇨🇭",
+      "lat": 47.7,
+      "lng": 8.63
+    },
+    {
+      "code": "AR",
+      "name": "Appenzell R.-E.",
+      "country": "CH",
+      "flag": "🇨🇭",
+      "lat": 47.38,
+      "lng": 9.28
+    },
+    {
+      "code": "AI",
+      "name": "Appenzell R.-I.",
+      "country": "CH",
+      "flag": "🇨🇭",
+      "lat": 47.33,
+      "lng": 9.41
+    },
+    {
+      "code": "SG",
+      "name": "Saint-Gall",
+      "country": "CH",
+      "flag": "🇨🇭",
+      "lat": 47.42,
+      "lng": 9.37
+    },
+    {
+      "code": "GR",
+      "name": "Grisons",
+      "country": "CH",
+      "flag": "🇨🇭",
+      "lat": 46.85,
+      "lng": 9.53
+    },
+    {
+      "code": "TG",
+      "name": "Thurgovie",
+      "country": "CH",
+      "flag": "🇨🇭",
+      "lat": 47.55,
+      "lng": 8.89
+    },
+    {
+      "code": "LU",
+      "name": "Lucerne",
+      "country": "CH",
+      "flag": "🇨🇭",
+      "lat": 47.05,
+      "lng": 8.3
+    },
+    {
+      "code": "UR",
+      "name": "Uri",
+      "country": "CH",
+      "flag": "🇨🇭",
+      "lat": 46.88,
+      "lng": 8.64
+    },
+    {
+      "code": "SZ",
+      "name": "Schwyz",
+      "country": "CH",
+      "flag": "🇨🇭",
+      "lat": 47.02,
+      "lng": 8.65
+    },
+    {
+      "code": "OW",
+      "name": "Obwald",
+      "country": "CH",
+      "flag": "🇨🇭",
+      "lat": 46.89,
+      "lng": 8.24
+    },
+    {
+      "code": "NW",
+      "name": "Nidwald",
+      "country": "CH",
+      "flag": "🇨🇭",
+      "lat": 46.93,
+      "lng": 8.39
+    },
+    {
+      "code": "ZG",
+      "name": "Zoug",
+      "country": "CH",
+      "flag": "🇨🇭",
+      "lat": 47.16,
+      "lng": 8.51
+    },
+    {
+      "code": "TI",
+      "name": "Tessin",
+      "country": "CH",
+      "flag": "🇨🇭",
+      "lat": 46.19,
+      "lng": 9.02
+    },
+    {
+      "code": "VD",
+      "name": "Vaud",
+      "country": "CH",
+      "flag": "🇨🇭",
+      "lat": 46.52,
+      "lng": 6.63
+    },
+    {
+      "code": "VS",
+      "name": "Valais",
+      "country": "CH",
+      "flag": "🇨🇭",
+      "lat": 46.23,
+      "lng": 7.36
+    },
+    {
+      "code": "GE",
+      "name": "Genève",
+      "country": "CH",
+      "flag": "🇨🇭",
+      "lat": 46.2,
+      "lng": 6.14
+    },
+    {
+      "code": "BE",
+      "name": "Berne",
+      "country": "CH",
+      "flag": "🇨🇭",
+      "lat": 46.94,
+      "lng": 7.44
+    },
+    {
+      "code": "FR",
+      "name": "Fribourg",
+      "country": "CH",
+      "flag": "🇨🇭",
+      "lat": 46.8,
+      "lng": 7.15
+    },
+    {
+      "code": "SO",
+      "name": "Soleure",
+      "country": "CH",
+      "flag": "🇨🇭",
+      "lat": 47.21,
+      "lng": 7.53
+    },
+    {
+      "code": "NE",
+      "name": "Neuchâtel",
+      "country": "CH",
+      "flag": "🇨🇭",
+      "lat": 46.99,
+      "lng": 6.93
+    },
+    {
+      "code": "JU",
+      "name": "Jura",
+      "country": "CH",
+      "flag": "🇨🇭",
+      "lat": 47.36,
+      "lng": 7.34
+    },
+    {
+      "code": "BS",
+      "name": "Bâle-Ville",
+      "country": "CH",
+      "flag": "🇨🇭",
+      "lat": 47.55,
+      "lng": 7.59
+    }
   ],
-  FR: [
-    { code: 'IDF', name: 'Île-de-France', country: 'FR', flag: '🇫🇷', lat: 48.85, lng: 2.35 },
-    { code: 'ARA', name: 'Auvergne-Rhône-Alpes', country: 'FR', flag: '🇫🇷', lat: 45.76, lng: 4.83 },
-    { code: 'PACA', name: 'Provence-Alpes-Côte d’Azur', country: 'FR', flag: '🇫🇷', lat: 43.52, lng: 5.44 },
-    { code: 'OCC', name: 'Occitanie', country: 'FR', flag: '🇫🇷', lat: 43.60, lng: 1.44 },
-    { code: 'NAQ', name: 'Nouvelle-Aquitaine', country: 'FR', flag: '🇫🇷', lat: 44.83, lng: -0.57 },
-    { code: 'GES', name: 'Grand Est', country: 'FR', flag: '🇫🇷', lat: 48.57, lng: 7.75 },
-    { code: 'HDF', name: 'Hauts-de-France', country: 'FR', flag: '🇫🇷', lat: 50.62, lng: 3.05 },
-    { code: 'PDL', name: 'Pays de la Loire', country: 'FR', flag: '🇫🇷', lat: 47.21, lng: -1.55 },
-    { code: 'BRE', name: 'Bretagne', country: 'FR', flag: '🇫🇷', lat: 48.11, lng: -1.67 },
-    { code: 'BFC', name: 'Bourgogne-Franche-Comté', country: 'FR', flag: '🇫🇷', lat: 47.32, lng: 5.04 },
-    { code: 'NOR', name: 'Normandie', country: 'FR', flag: '🇫🇷', lat: 49.44, lng: 1.09 },
-    { code: 'CVL', name: 'Centre-Val de Loire', country: 'FR', flag: '🇫🇷', lat: 47.90, lng: 1.90 },
-    { code: 'COR', name: 'Corse', country: 'FR', flag: '🇫🇷', lat: 42.03, lng: 9.01 },
+  "FR": [
+    {
+      "code": "IDF",
+      "name": "Île-de-France",
+      "country": "FR",
+      "flag": "🇫🇷",
+      "lat": 48.85,
+      "lng": 2.35
+    },
+    {
+      "code": "CVL",
+      "name": "Centre-Val de Loire",
+      "country": "FR",
+      "flag": "🇫🇷",
+      "lat": 47.9,
+      "lng": 1.9
+    },
+    {
+      "code": "BFC",
+      "name": "Bourgogne-Franche-Comté",
+      "country": "FR",
+      "flag": "🇫🇷",
+      "lat": 47.32,
+      "lng": 5.04
+    },
+    {
+      "code": "NOR",
+      "name": "Normandie",
+      "country": "FR",
+      "flag": "🇫🇷",
+      "lat": 49.44,
+      "lng": 1.09
+    },
+    {
+      "code": "HDF",
+      "name": "Hauts-de-France",
+      "country": "FR",
+      "flag": "🇫🇷",
+      "lat": 50.62,
+      "lng": 3.05
+    },
+    {
+      "code": "GES",
+      "name": "Grand Est",
+      "country": "FR",
+      "flag": "🇫🇷",
+      "lat": 48.57,
+      "lng": 7.75
+    },
+    {
+      "code": "PDL",
+      "name": "Pays de la Loire",
+      "country": "FR",
+      "flag": "🇫🇷",
+      "lat": 47.21,
+      "lng": -1.55
+    },
+    {
+      "code": "BRE",
+      "name": "Bretagne",
+      "country": "FR",
+      "flag": "🇫🇷",
+      "lat": 48.11,
+      "lng": -1.67
+    },
+    {
+      "code": "NAQ",
+      "name": "Nouvelle-Aquitaine",
+      "country": "FR",
+      "flag": "🇫🇷",
+      "lat": 44.83,
+      "lng": -0.57
+    },
+    {
+      "code": "OCC",
+      "name": "Occitanie",
+      "country": "FR",
+      "flag": "🇫🇷",
+      "lat": 43.6,
+      "lng": 1.44
+    },
+    {
+      "code": "ARA",
+      "name": "Auvergne-Rhône-Alpes",
+      "country": "FR",
+      "flag": "🇫🇷",
+      "lat": 45.76,
+      "lng": 4.83
+    },
+    {
+      "code": "PACA",
+      "name": "Provence-Alpes-Côte d’Azur",
+      "country": "FR",
+      "flag": "🇫🇷",
+      "lat": 43.52,
+      "lng": 5.44
+    },
+    {
+      "code": "COR",
+      "name": "Corse",
+      "country": "FR",
+      "flag": "🇫🇷",
+      "lat": 42.03,
+      "lng": 9.01
+    }
   ],
-  DE: [
-    { code: 'BY', name: 'Bavière (Bayern)', country: 'DE', flag: '🇩🇪', lat: 48.13, lng: 11.58 },
-    { code: 'BW', name: 'Bade-Wurtemberg', country: 'DE', flag: '🇩🇪', lat: 48.77, lng: 9.18 },
-    { code: 'NW', name: 'Rhénanie-du-Nord-Westphalie', country: 'DE', flag: '🇩🇪', lat: 51.22, lng: 6.77 },
-    { code: 'HE', name: 'Hesse (Frankfurt)', country: 'DE', flag: '🇩🇪', lat: 50.11, lng: 8.68 },
-    { code: 'BE', name: 'Berlin', country: 'DE', flag: '🇩🇪', lat: 52.52, lng: 13.40 },
-    { code: 'HH', name: 'Hambourg', country: 'DE', flag: '🇩🇪', lat: 53.55, lng: 9.99 },
-    { code: 'SN', name: 'Saxe (Leipzig/Dresden)', country: 'DE', flag: '🇩🇪', lat: 51.05, lng: 13.73 },
-    { code: 'NI', name: 'Basse-Saxe (Hannover)', country: 'DE', flag: '🇩🇪', lat: 52.37, lng: 9.73 },
-    { code: 'RP', name: 'Rhénanie-Palatinat', country: 'DE', flag: '🇩🇪', lat: 49.99, lng: 8.27 },
+  "DE": [
+    {
+      "code": "NI",
+      "name": "Basse-Saxe",
+      "country": "DE",
+      "flag": "🇩🇪",
+      "lat": 52.37,
+      "lng": 9.73
+    },
+    {
+      "code": "NW",
+      "name": "Rhénanie-du-Nord-Westphalie",
+      "country": "DE",
+      "flag": "🇩🇪",
+      "lat": 51.22,
+      "lng": 6.77
+    },
+    {
+      "code": "RP",
+      "name": "Rhénanie-Palatinat",
+      "country": "DE",
+      "flag": "🇩🇪",
+      "lat": 49.99,
+      "lng": 8.27
+    },
+    {
+      "code": "SL",
+      "name": "Sarre",
+      "country": "DE",
+      "flag": "🇩🇪",
+      "lat": 49.24,
+      "lng": 6.99
+    },
+    {
+      "code": "SN",
+      "name": "Saxe",
+      "country": "DE",
+      "flag": "🇩🇪",
+      "lat": 51.05,
+      "lng": 13.73
+    },
+    {
+      "code": "ST",
+      "name": "Saxe-Anhalt",
+      "country": "DE",
+      "flag": "🇩🇪",
+      "lat": 52.13,
+      "lng": 11.61
+    },
+    {
+      "code": "SH",
+      "name": "Schleswig-Holstein",
+      "country": "DE",
+      "flag": "🇩🇪",
+      "lat": 54.32,
+      "lng": 10.13
+    },
+    {
+      "code": "TH",
+      "name": "Thuringe",
+      "country": "DE",
+      "flag": "🇩🇪",
+      "lat": 50.98,
+      "lng": 11.02
+    },
+    {
+      "code": "BW",
+      "name": "Bade-Wurtemberg",
+      "country": "DE",
+      "flag": "🇩🇪",
+      "lat": 48.77,
+      "lng": 9.18
+    },
+    {
+      "code": "BY",
+      "name": "Bavière",
+      "country": "DE",
+      "flag": "🇩🇪",
+      "lat": 48.13,
+      "lng": 11.58
+    },
+    {
+      "code": "BE",
+      "name": "Berlin",
+      "country": "DE",
+      "flag": "🇩🇪",
+      "lat": 52.52,
+      "lng": 13.4
+    },
+    {
+      "code": "BB",
+      "name": "Brandebourg",
+      "country": "DE",
+      "flag": "🇩🇪",
+      "lat": 52.41,
+      "lng": 12.55
+    },
+    {
+      "code": "HB",
+      "name": "Brême",
+      "country": "DE",
+      "flag": "🇩🇪",
+      "lat": 53.07,
+      "lng": 8.8
+    },
+    {
+      "code": "HH",
+      "name": "Hambourg",
+      "country": "DE",
+      "flag": "🇩🇪",
+      "lat": 53.55,
+      "lng": 9.99
+    },
+    {
+      "code": "HE",
+      "name": "Hesse",
+      "country": "DE",
+      "flag": "🇩🇪",
+      "lat": 50.11,
+      "lng": 8.68
+    },
+    {
+      "code": "MV",
+      "name": "Mecklembourg-V.-P.",
+      "country": "DE",
+      "flag": "🇩🇪",
+      "lat": 53.63,
+      "lng": 11.41
+    }
   ],
-  BE: [
-    { code: 'BRU', name: 'Bruxelles-Capitale', country: 'BE', flag: '🇧🇪', lat: 50.85, lng: 4.35 },
-    { code: 'VLA', name: 'Flandre (Antwerpen/Gent)', country: 'BE', flag: '🇧🇪', lat: 51.21, lng: 4.40 },
-    { code: 'WAL', name: 'Wallonie (Liège/Namur/LLN)', country: 'BE', flag: '🇧🇪', lat: 50.63, lng: 5.57 },
+  "BE": [
+    {
+      "code": "BRU",
+      "name": "Bruxelles-Capitale",
+      "country": "BE",
+      "flag": "🇧🇪",
+      "lat": 50.85,
+      "lng": 4.35
+    },
+    {
+      "code": "VAN",
+      "name": "Anvers",
+      "country": "BE",
+      "flag": "🇧🇪",
+      "lat": 51.21,
+      "lng": 4.4
+    },
+    {
+      "code": "VLI",
+      "name": "Limbourg (BE)",
+      "country": "BE",
+      "flag": "🇧🇪",
+      "lat": 50.93,
+      "lng": 5.33
+    },
+    {
+      "code": "VOV",
+      "name": "Flandre-Orientale (Gand)",
+      "country": "BE",
+      "flag": "🇧🇪",
+      "lat": 51.05,
+      "lng": 3.72
+    },
+    {
+      "code": "VBR",
+      "name": "Brabant flamand (Leuven)",
+      "country": "BE",
+      "flag": "🇧🇪",
+      "lat": 50.87,
+      "lng": 4.7
+    },
+    {
+      "code": "VWV",
+      "name": "Flandre-Occidentale (Bruges)",
+      "country": "BE",
+      "flag": "🇧🇪",
+      "lat": 51.2,
+      "lng": 3.22
+    },
+    {
+      "code": "WBR",
+      "name": "Brabant wallon (LLN)",
+      "country": "BE",
+      "flag": "🇧🇪",
+      "lat": 50.66,
+      "lng": 4.61
+    },
+    {
+      "code": "WHT",
+      "name": "Hainaut (Mons/Charleroi)",
+      "country": "BE",
+      "flag": "🇧🇪",
+      "lat": 50.45,
+      "lng": 3.95
+    },
+    {
+      "code": "WLG",
+      "name": "Liège",
+      "country": "BE",
+      "flag": "🇧🇪",
+      "lat": 50.63,
+      "lng": 5.57
+    },
+    {
+      "code": "WLX",
+      "name": "Luxembourg (BE - Arlon)",
+      "country": "BE",
+      "flag": "🇧🇪",
+      "lat": 49.68,
+      "lng": 5.81
+    },
+    {
+      "code": "WNA",
+      "name": "Namur",
+      "country": "BE",
+      "flag": "🇧🇪",
+      "lat": 50.46,
+      "lng": 4.86
+    }
   ],
-  LU: [
-    { code: 'LU', name: 'Luxembourg (Centre / Esch / Kirchberg)', country: 'LU', flag: '🇱🇺', lat: 49.61, lng: 6.13 },
+  "LU": [
+    {
+      "code": "LU",
+      "name": "Luxembourg",
+      "country": "LU",
+      "flag": "🇱🇺",
+      "lat": 49.61,
+      "lng": 6.13
+    }
   ],
-  IT: [
-    { code: 'LOM', name: 'Lombardie (Milano)', country: 'IT', flag: '🇮🇹', lat: 45.46, lng: 9.19 },
-    { code: 'PIE', name: 'Piémont (Torino)', country: 'IT', flag: '🇮🇹', lat: 45.07, lng: 7.68 },
-    { code: 'VEN', name: 'Vénétie (Venezia/Verona)', country: 'IT', flag: '🇮🇹', lat: 45.43, lng: 12.33 },
-    { code: 'EMR', name: 'Émilie-Romagne (Bologna)', country: 'IT', flag: '🇮🇹', lat: 44.49, lng: 11.34 },
-    { code: 'TOS', name: 'Toscane (Firenze)', country: 'IT', flag: '🇮🇹', lat: 43.76, lng: 11.25 },
-    { code: 'LAZ', name: 'Latium (Roma)', country: 'IT', flag: '🇮🇹', lat: 41.90, lng: 12.49 },
+  "IT": [
+    {
+      "code": "VEN",
+      "name": "Vénétie (Venezia)",
+      "country": "IT",
+      "flag": "🇮🇹",
+      "lat": 45.43,
+      "lng": 12.33
+    },
+    {
+      "code": "FVG",
+      "name": "Frioul-Vénétie Julienne",
+      "country": "IT",
+      "flag": "🇮🇹",
+      "lat": 45.65,
+      "lng": 13.78
+    },
+    {
+      "code": "EMR",
+      "name": "Émilie-Romagne (Bologna)",
+      "country": "IT",
+      "flag": "🇮🇹",
+      "lat": 44.49,
+      "lng": 11.34
+    },
+    {
+      "code": "TOS",
+      "name": "Toscane (Firenze)",
+      "country": "IT",
+      "flag": "🇮🇹",
+      "lat": 43.77,
+      "lng": 11.25
+    },
+    {
+      "code": "UMB",
+      "name": "Ombrie (Perugia)",
+      "country": "IT",
+      "flag": "🇮🇹",
+      "lat": 43.11,
+      "lng": 12.38
+    },
+    {
+      "code": "MAR",
+      "name": "Marches (Ancona)",
+      "country": "IT",
+      "flag": "🇮🇹",
+      "lat": 43.61,
+      "lng": 13.51
+    },
+    {
+      "code": "LAZ",
+      "name": "Latium (Roma)",
+      "country": "IT",
+      "flag": "🇮🇹",
+      "lat": 41.9,
+      "lng": 12.5
+    },
+    {
+      "code": "PIE",
+      "name": "Piémont (Torino)",
+      "country": "IT",
+      "flag": "🇮🇹",
+      "lat": 45.07,
+      "lng": 7.68
+    },
+    {
+      "code": "VDA",
+      "name": "Vallée d’Aoste",
+      "country": "IT",
+      "flag": "🇮🇹",
+      "lat": 45.73,
+      "lng": 7.32
+    },
+    {
+      "code": "LIG",
+      "name": "Ligurie (Genova)",
+      "country": "IT",
+      "flag": "🇮🇹",
+      "lat": 44.4,
+      "lng": 8.93
+    },
+    {
+      "code": "LOM",
+      "name": "Lombardie (Milano)",
+      "country": "IT",
+      "flag": "🇮🇹",
+      "lat": 45.46,
+      "lng": 9.19
+    },
+    {
+      "code": "ABR",
+      "name": "Abruzzes (L’Aquila)",
+      "country": "IT",
+      "flag": "🇮🇹",
+      "lat": 42.35,
+      "lng": 13.39
+    },
+    {
+      "code": "MOL",
+      "name": "Molise (Campobasso)",
+      "country": "IT",
+      "flag": "🇮🇹",
+      "lat": 41.56,
+      "lng": 14.66
+    },
+    {
+      "code": "CAM",
+      "name": "Campanie (Napoli)",
+      "country": "IT",
+      "flag": "🇮🇹",
+      "lat": 40.85,
+      "lng": 14.26
+    },
+    {
+      "code": "PUG",
+      "name": "Pouilles (Bari)",
+      "country": "IT",
+      "flag": "🇮🇹",
+      "lat": 41.12,
+      "lng": 16.87
+    },
+    {
+      "code": "BAS",
+      "name": "Basilicate (Potenza)",
+      "country": "IT",
+      "flag": "🇮🇹",
+      "lat": 40.64,
+      "lng": 15.8
+    },
+    {
+      "code": "CAL",
+      "name": "Calabre (Catanzaro)",
+      "country": "IT",
+      "flag": "🇮🇹",
+      "lat": 38.9,
+      "lng": 16.59
+    },
+    {
+      "code": "SIC",
+      "name": "Sicile (Palermo)",
+      "country": "IT",
+      "flag": "🇮🇹",
+      "lat": 38.11,
+      "lng": 13.36
+    },
+    {
+      "code": "SAR",
+      "name": "Sardaigne (Cagliari)",
+      "country": "IT",
+      "flag": "🇮🇹",
+      "lat": 39.22,
+      "lng": 9.12
+    },
+    {
+      "code": "BZ",
+      "name": "Bolzano / Haut-Adige",
+      "country": "IT",
+      "flag": "🇮🇹",
+      "lat": 46.49,
+      "lng": 11.35
+    },
+    {
+      "code": "TN",
+      "name": "Trente / Trentin",
+      "country": "IT",
+      "flag": "🇮🇹",
+      "lat": 46.06,
+      "lng": 11.12
+    }
   ],
-  ES: [
-    { code: 'MAD', name: 'Communauté de Madrid', country: 'ES', flag: '🇪🇸', lat: 40.41, lng: -3.70 },
-    { code: 'CAT', name: 'Catalogne (Barcelona)', country: 'ES', flag: '🇪🇸', lat: 41.38, lng: 2.17 },
-    { code: 'PVA', name: 'Pays basque (Bilbao/San Sebastián)', country: 'ES', flag: '🇪🇸', lat: 43.26, lng: -2.93 },
-    { code: 'VAL', name: 'Valence (València)', country: 'ES', flag: '🇪🇸', lat: 39.46, lng: -0.37 },
-    { code: 'AND', name: 'Andalousie (Sevilla/Málaga)', country: 'ES', flag: '🇪🇸', lat: 37.38, lng: -5.98 },
-    { code: 'GAL', name: 'Galice (Vigo/A Coruña)', country: 'ES', flag: '🇪🇸', lat: 42.87, lng: -8.54 },
-  ],
+  "ES": [
+    {
+      "code": "GAL",
+      "name": "Galice (A Coruña/Vigo)",
+      "country": "ES",
+      "flag": "🇪🇸",
+      "lat": 42.87,
+      "lng": -8.54
+    },
+    {
+      "code": "AST",
+      "name": "Asturies (Oviedo/Gijón)",
+      "country": "ES",
+      "flag": "🇪🇸",
+      "lat": 43.36,
+      "lng": -5.84
+    },
+    {
+      "code": "CAN",
+      "name": "Cantabrie (Santander)",
+      "country": "ES",
+      "flag": "🇪🇸",
+      "lat": 43.46,
+      "lng": -3.8
+    },
+    {
+      "code": "PVA",
+      "name": "Pays basque (Bilbao/Donostia)",
+      "country": "ES",
+      "flag": "🇪🇸",
+      "lat": 43.26,
+      "lng": -2.93
+    },
+    {
+      "code": "NAV",
+      "name": "Navarre (Pamplona)",
+      "country": "ES",
+      "flag": "🇪🇸",
+      "lat": 42.81,
+      "lng": -1.64
+    },
+    {
+      "code": "RIO",
+      "name": "La Rioja (Logroño)",
+      "country": "ES",
+      "flag": "🇪🇸",
+      "lat": 42.46,
+      "lng": -2.44
+    },
+    {
+      "code": "ARA",
+      "name": "Aragon (Zaragoza)",
+      "country": "ES",
+      "flag": "🇪🇸",
+      "lat": 41.64,
+      "lng": -0.88
+    },
+    {
+      "code": "MAD",
+      "name": "Communauté de Madrid",
+      "country": "ES",
+      "flag": "🇪🇸",
+      "lat": 40.41,
+      "lng": -3.7
+    },
+    {
+      "code": "CYL",
+      "name": "Castille-et-Léon (Valladolid)",
+      "country": "ES",
+      "flag": "🇪🇸",
+      "lat": 41.65,
+      "lng": -4.72
+    },
+    {
+      "code": "CLM",
+      "name": "Castille-La Manche (Toledo)",
+      "country": "ES",
+      "flag": "🇪🇸",
+      "lat": 39.86,
+      "lng": -4.02
+    },
+    {
+      "code": "EXT",
+      "name": "Estrémadure (Mérida/Badajoz)",
+      "country": "ES",
+      "flag": "🇪🇸",
+      "lat": 38.91,
+      "lng": -6.34
+    },
+    {
+      "code": "CAT",
+      "name": "Catalogne (Barcelona)",
+      "country": "ES",
+      "flag": "🇪🇸",
+      "lat": 41.38,
+      "lng": 2.17
+    },
+    {
+      "code": "VAL",
+      "name": "Communauté valencienne",
+      "country": "ES",
+      "flag": "🇪🇸",
+      "lat": 39.46,
+      "lng": -0.37
+    },
+    {
+      "code": "BAL",
+      "name": "Îles Baléares (Palma)",
+      "country": "ES",
+      "flag": "🇪🇸",
+      "lat": 39.56,
+      "lng": 2.65
+    },
+    {
+      "code": "AND",
+      "name": "Andalousie (Sevilla/Málaga)",
+      "country": "ES",
+      "flag": "🇪🇸",
+      "lat": 37.38,
+      "lng": -5.98
+    },
+    {
+      "code": "MUR",
+      "name": "Région de Murcie",
+      "country": "ES",
+      "flag": "🇪🇸",
+      "lat": 37.99,
+      "lng": -1.13
+    }
+  ]
 };
 
-// Western Europe Stylized Regional Geometries (SVG Polygons on 1000x800 canvas)
 export const EUROPE_REGIONS_GEO = [
-  // --- SUISSE (CH) ---
   {
-    id: 'CH-VD', code: 'VD', name: 'Vaud', country: 'CH', flag: '🇨🇭',
-    path: 'M 605,350 L 625,345 L 638,358 L 628,372 L 610,368 L 600,358 Z',
-    cx: 618, cy: 358,
+    "id": "CH-BL",
+    "nuts_id": "CH032",
+    "code": "BL",
+    "name": "Bâle-Campagne",
+    "country": "CH",
+    "flag": "🇨🇭",
+    "path": "M 605.2,430.5 L 606.8,429.1 L 608.1,430.8 L 609.6,429.3 L 612.4,430.4 L 615.3,432.3 L 617.4,431.2 L 620.9,434.7 L 620.3,436.8 L 614.4,440.5 L 609.9,438.6 L 611.9,434.5 L 610.4,433.0 L 609.1,433.2 L 608.1,436.4 L 603.8,437.7 L 603.3,435.7 L 605.7,434.1 L 605.3,432.3 L 605.2,430.5 Z M 600.5,436.9 L 602.7,437.0 L 602.9,437.9 L 602.7,438.6 L 600.5,436.9 Z M 600.5,436.9 L 598.8,435.5 L 599.2,435.5 L 599.7,435.8 L 600.7,435.9 L 600.5,436.9 Z M 602.9,435.2 L 602.7,435.2 L 602.3,435.3 L 602.1,435.2 L 603.0,434.4 L 603.0,434.7 L 603.0,435.0 L 602.9,435.2 Z",
+    "cx": 604.9,
+    "cy": 434.8
   },
   {
-    id: 'CH-GE', code: 'GE', name: 'Genève', country: 'CH', flag: '🇨🇭',
-    path: 'M 596,366 L 606,364 L 608,375 L 598,378 L 594,372 Z',
-    cx: 601, cy: 371,
+    "id": "CH-AG",
+    "nuts_id": "CH033",
+    "code": "AG",
+    "name": "Argovie",
+    "country": "CH",
+    "flag": "🇨🇭",
+    "path": "M 618.7,427.9 L 619.7,429.6 L 623.5,429.7 L 629.9,426.4 L 637.3,428.9 L 635.1,432.7 L 637.1,441.7 L 636.7,445.4 L 636.8,450.9 L 635.0,450.1 L 631.8,443.8 L 628.6,446.3 L 621.7,444.0 L 616.7,446.1 L 616.2,444.5 L 618.7,441.3 L 622.7,440.1 L 623.0,438.2 L 620.9,434.7 L 617.4,431.2 L 615.3,432.3 L 612.4,430.4 L 618.7,427.9 Z",
+    "cx": 625.0,
+    "cy": 437.6
   },
   {
-    id: 'CH-ZH', code: 'ZH', name: 'Zurich', country: 'CH', flag: '🇨🇭',
-    path: 'M 685,312 L 705,310 L 712,326 L 696,332 L 684,324 Z',
-    cx: 696, cy: 320,
+    "id": "CH-ZH",
+    "nuts_id": "CH040",
+    "code": "ZH",
+    "name": "Zurich",
+    "country": "CH",
+    "flag": "🇨🇭",
+    "path": "M 650.6,446.8 L 647.4,447.9 L 646.6,449.8 L 642.6,447.1 L 638.1,447.0 L 636.7,445.4 L 637.1,441.7 L 635.1,432.7 L 637.3,428.9 L 640.3,425.8 L 642.1,427.3 L 641.2,428.2 L 641.7,429.4 L 643.2,427.0 L 643.6,423.7 L 645.6,422.8 L 645.8,422.8 L 647.5,424.6 L 650.5,425.0 L 649.9,427.9 L 653.2,431.5 L 655.4,438.8 L 656.3,442.1 L 654.6,444.7 L 651.0,445.6 L 650.6,446.8 Z",
+    "cx": 645.5,
+    "cy": 435.4
   },
   {
-    id: 'CH-BE', code: 'BE', name: 'Berne', country: 'CH', flag: '🇨🇭',
-    path: 'M 632,328 L 658,322 L 666,346 L 652,362 L 634,354 L 626,338 Z',
-    cx: 645, cy: 342,
+    "id": "CH-GL",
+    "nuts_id": "CH051",
+    "code": "GL",
+    "name": "Glaris",
+    "country": "CH",
+    "flag": "🇨🇭",
+    "path": "M 653.0,467.7 L 655.4,464.5 L 655.1,462.3 L 656.0,460.6 L 654.0,456.8 L 655.9,454.7 L 657.5,449.3 L 659.7,451.3 L 663.7,452.0 L 663.1,456.1 L 665.6,457.6 L 666.0,462.5 L 661.5,465.4 L 659.6,465.1 L 657.1,467.8 L 653.0,467.7 Z",
+    "cx": 658.5,
+    "cy": 460.1
   },
   {
-    id: 'CH-FR', code: 'FR', name: 'Fribourg', country: 'CH', flag: '🇨🇭',
-    path: 'M 622,344 L 635,340 L 640,355 L 628,362 L 620,352 Z',
-    cx: 629, cy: 351,
+    "id": "CH-SH",
+    "nuts_id": "CH052",
+    "code": "SH",
+    "name": "Schaffhouse",
+    "country": "CH",
+    "flag": "🇨🇭",
+    "path": "M 647.0,419.2 L 647.8,422.4 L 647.5,422.5 L 646.6,421.7 L 645.6,422.8 L 643.6,423.7 L 640.1,424.7 L 637.3,423.5 L 637.0,422.0 L 640.2,418.1 L 642.0,417.2 L 642.6,416.7 L 643.8,416.8 L 647.0,419.2 Z M 643.2,427.0 L 641.7,429.4 L 641.2,428.2 L 642.1,427.3 L 643.2,427.0 Z M 652.2,422.1 L 653.0,424.4 L 650.2,423.3 L 649.6,421.6 L 650.8,421.0 L 652.2,422.1 Z",
+    "cx": 645.1,
+    "cy": 422.6
   },
   {
-    id: 'CH-VS', code: 'VS', name: 'Valais', country: 'CH', flag: '🇨🇭',
-    path: 'M 625,372 L 655,364 L 680,370 L 672,390 L 638,392 L 620,380 Z',
-    cx: 650, cy: 379,
+    "id": "CH-AR",
+    "nuts_id": "CH053",
+    "code": "AR",
+    "name": "Appenzell R.-E.",
+    "country": "CH",
+    "flag": "🇨🇭",
+    "path": "M 669.3,445.4 L 665.0,443.8 L 664.5,440.2 L 665.3,438.3 L 671.6,437.2 L 676.2,434.4 L 678.9,435.7 L 677.8,436.3 L 677.7,436.5 L 677.6,436.7 L 677.6,436.9 L 677.7,437.1 L 677.2,437.5 L 676.8,437.8 L 676.7,437.3 L 676.4,437.2 L 675.1,437.9 L 674.9,440.3 L 670.0,438.7 L 668.4,442.2 L 669.3,445.4 Z",
+    "cx": 675.7,
+    "cy": 437.6
   },
   {
-    id: 'CH-NE', code: 'NE', name: 'Neuchâtel', country: 'CH', flag: '🇨🇭',
-    path: 'M 616,332 L 630,326 L 636,338 L 622,344 Z',
-    cx: 626, cy: 335,
+    "id": "CH-AI",
+    "nuts_id": "CH054",
+    "code": "AI",
+    "name": "Appenzell R.-I.",
+    "country": "CH",
+    "flag": "🇨🇭",
+    "path": "M 673.0,444.8 L 669.3,445.4 L 668.4,442.2 L 670.0,438.7 L 674.9,440.3 L 673.0,444.8 Z M 676.8,437.8 L 675.1,437.9 L 676.4,437.2 L 676.7,437.3 L 676.8,437.8 Z M 677.7,437.1 L 677.6,436.9 L 677.6,436.7 L 677.7,436.5 L 677.8,436.3 L 678.9,435.7 L 677.7,437.1 Z",
+    "cx": 676.6,
+    "cy": 437.7
   },
   {
-    id: 'CH-BS', code: 'BS', name: 'Bâle', country: 'CH', flag: '🇨🇭',
-    path: 'M 650,305 L 665,304 L 668,316 L 654,318 Z',
-    cx: 660, cy: 310,
+    "id": "CH-SG",
+    "nuts_id": "CH055",
+    "code": "SG",
+    "name": "Saint-Gall",
+    "country": "CH",
+    "flag": "🇨🇭",
+    "path": "M 666.0,462.5 L 665.6,457.6 L 663.1,456.1 L 663.7,452.0 L 659.7,451.3 L 657.5,449.3 L 655.7,447.2 L 650.6,446.8 L 651.0,445.6 L 654.6,444.7 L 656.3,442.1 L 655.4,438.8 L 658.3,435.1 L 658.5,433.0 L 666.9,433.5 L 668.8,431.3 L 671.4,433.1 L 675.1,429.8 L 676.9,430.2 L 677.6,433.5 L 680.1,435.3 L 680.2,438.3 L 675.9,444.3 L 675.2,446.3 L 674.7,447.6 L 674.4,448.4 L 674.7,450.1 L 675.4,451.9 L 675.3,453.8 L 674.3,454.7 L 674.0,455.5 L 676.0,459.2 L 673.0,464.2 L 666.0,462.5 Z M 669.3,445.4 L 673.0,444.8 L 674.9,440.3 L 675.1,437.9 L 676.8,437.8 L 677.2,437.5 L 677.7,437.1 L 678.9,435.7 L 676.2,434.4 L 671.6,437.2 L 665.3,438.3 L 664.5,440.2 L 665.0,443.8 L 669.3,445.4 Z",
+    "cx": 669.3,
+    "cy": 444.1
   },
   {
-    id: 'CH-TI', code: 'TI', name: 'Tessin', country: 'CH', flag: '🇨🇭',
-    path: 'M 686,368 L 710,366 L 716,395 L 698,405 L 688,385 Z',
-    cx: 700, cy: 384,
+    "id": "CH-GR",
+    "nuts_id": "CH056",
+    "code": "GR",
+    "name": "Grisons",
+    "country": "CH",
+    "flag": "🇨🇭",
+    "path": "M 708.1,482.1 L 702.9,481.0 L 700.4,477.2 L 696.1,478.5 L 694.1,481.8 L 693.8,485.3 L 694.5,487.1 L 697.8,488.4 L 696.3,491.9 L 698.1,496.1 L 696.4,497.3 L 694.3,497.1 L 690.1,489.9 L 683.0,492.0 L 681.9,493.9 L 676.8,493.5 L 673.6,489.4 L 673.3,484.0 L 671.8,484.9 L 667.9,483.8 L 666.4,486.6 L 667.5,492.5 L 666.0,497.2 L 662.9,500.4 L 660.7,498.3 L 659.5,494.3 L 660.8,487.8 L 658.3,482.9 L 658.3,478.9 L 655.1,477.6 L 651.9,480.3 L 646.1,479.7 L 645.5,476.7 L 646.2,474.1 L 650.9,471.1 L 653.0,467.7 L 657.1,467.8 L 659.6,465.1 L 661.5,465.4 L 666.0,462.5 L 673.0,464.2 L 676.0,459.2 L 674.0,455.5 L 676.2,454.8 L 678.4,455.0 L 678.6,455.1 L 687.4,457.4 L 688.5,461.7 L 695.4,465.9 L 697.4,465.8 L 700.0,464.9 L 700.9,462.2 L 703.2,461.7 L 705.5,458.4 L 709.0,461.5 L 708.7,465.6 L 706.0,474.5 L 706.5,476.3 L 709.2,477.9 L 708.1,482.1 Z",
+    "cx": 680.4,
+    "cy": 477.4
   },
   {
-    id: 'CH-SG', code: 'SG', name: 'Saint-Gall', country: 'CH', flag: '🇨🇭',
-    path: 'M 714,312 L 735,310 L 740,332 L 720,338 L 710,326 Z',
-    cx: 725, cy: 322,
+    "id": "CH-TG",
+    "nuts_id": "CH057",
+    "code": "TG",
+    "name": "Thurgovie",
+    "country": "CH",
+    "flag": "🇨🇭",
+    "path": "M 655.4,438.8 L 653.2,431.5 L 649.9,427.9 L 650.5,425.0 L 647.5,424.6 L 645.8,422.8 L 647.5,422.5 L 647.8,422.4 L 650.2,423.3 L 653.0,424.4 L 658.4,422.9 L 663.7,424.3 L 670.6,426.0 L 675.1,429.8 L 671.4,433.1 L 668.8,431.3 L 666.9,433.5 L 658.5,433.0 L 658.3,435.1 L 655.4,438.8 Z",
+    "cx": 657.4,
+    "cy": 428.6
   },
   {
-    id: 'CH-REST', code: 'CH-REST', name: 'Suisse Centrale / Est', country: 'CH', flag: '🇨🇭',
-    path: 'M 666,326 L 688,322 L 710,336 L 730,350 L 710,366 L 680,355 L 664,342 Z',
-    cx: 690, cy: 345,
-  },
-
-  // --- FRANCE (FR) ---
-  {
-    id: 'FR-IDF', code: 'IDF', name: 'Île-de-France', country: 'FR', flag: '🇫🇷',
-    path: 'M 436,242 L 476,238 L 484,272 L 445,278 L 430,260 Z',
-    cx: 456, cy: 258,
-  },
-  {
-    id: 'FR-ARA', code: 'ARA', name: 'Auvergne-Rhône-Alpes', country: 'FR', flag: '🇫🇷',
-    path: 'M 495,350 L 565,338 L 594,365 L 585,420 L 530,432 L 485,395 Z',
-    cx: 540, cy: 385,
+    "id": "CH-LU",
+    "nuts_id": "CH061",
+    "code": "LU",
+    "name": "Lucerne",
+    "country": "CH",
+    "flag": "🇨🇭",
+    "path": "M 616.7,446.1 L 621.7,444.0 L 628.6,446.3 L 631.8,443.8 L 635.0,450.1 L 636.8,450.9 L 639.1,452.0 L 639.6,453.0 L 637.7,454.3 L 639.4,457.0 L 638.7,458.4 L 635.2,457.6 L 630.4,459.6 L 625.1,463.7 L 624.1,469.0 L 621.6,469.3 L 617.8,465.4 L 618.2,462.4 L 620.5,458.5 L 618.1,456.0 L 618.3,450.0 L 616.7,446.1 Z",
+    "cx": 627.8,
+    "cy": 455.2
   },
   {
-    id: 'FR-PACA', code: 'PACA', name: 'Provence-Alpes-Côte d’Azur', country: 'FR', flag: '🇫🇷',
-    path: 'M 532,434 L 588,422 L 615,455 L 598,495 L 542,488 L 526,456 Z',
-    cx: 568, cy: 462,
+    "id": "CH-UR",
+    "nuts_id": "CH062",
+    "code": "UR",
+    "name": "Uri",
+    "country": "CH",
+    "flag": "🇨🇭",
+    "path": "M 636.7,475.9 L 638.1,470.2 L 639.4,469.1 L 639.7,466.2 L 638.9,465.6 L 639.1,463.4 L 641.3,461.6 L 642.4,458.7 L 647.4,462.0 L 650.9,461.6 L 652.5,463.6 L 655.1,462.3 L 655.4,464.5 L 653.0,467.7 L 650.9,471.1 L 646.2,474.1 L 645.5,476.7 L 646.1,479.7 L 641.3,479.6 L 639.1,482.3 L 637.0,480.2 L 636.7,475.9 Z",
+    "cx": 644.2,
+    "cy": 469.6
   },
   {
-    id: 'FR-OCC', code: 'OCC', name: 'Occitanie', country: 'FR', flag: '🇫🇷',
-    path: 'M 425,410 L 490,398 L 524,455 L 496,515 L 430,518 L 405,465 Z',
-    cx: 465, cy: 460,
+    "id": "CH-SZ",
+    "nuts_id": "CH063",
+    "code": "SZ",
+    "name": "Schwyz",
+    "country": "CH",
+    "flag": "🇨🇭",
+    "path": "M 642.4,458.7 L 639.8,459.3 L 638.7,458.4 L 639.4,457.0 L 637.7,454.3 L 639.6,453.0 L 644.3,453.4 L 646.6,449.8 L 647.4,447.9 L 650.6,446.8 L 655.7,447.2 L 657.5,449.3 L 655.9,454.7 L 654.0,456.8 L 656.0,460.6 L 655.1,462.3 L 652.5,463.6 L 650.9,461.6 L 647.4,462.0 L 642.4,458.7 Z",
+    "cx": 647.7,
+    "cy": 455.8
   },
   {
-    id: 'FR-NAQ', code: 'NAQ', name: 'Nouvelle-Aquitaine', country: 'FR', flag: '🇫🇷',
-    path: 'M 355,340 L 435,335 L 455,405 L 418,485 L 360,505 L 340,435 L 345,375 Z',
-    cx: 395, cy: 415,
+    "id": "CH-OW",
+    "nuts_id": "CH064",
+    "code": "OW",
+    "name": "Obwald",
+    "country": "CH",
+    "flag": "🇨🇭",
+    "path": "M 635.3,469.0 L 632.2,470.5 L 624.1,469.0 L 625.1,463.7 L 630.4,459.6 L 632.5,459.6 L 633.9,462.1 L 633.9,467.1 L 635.3,469.0 Z M 639.4,469.1 L 638.1,470.2 L 636.2,469.9 L 635.7,465.8 L 638.9,465.6 L 639.7,466.2 L 639.4,469.1 Z",
+    "cx": 634.4,
+    "cy": 466.6
   },
   {
-    id: 'FR-GES', code: 'GES', name: 'Grand Est', country: 'FR', flag: '🇫🇷',
-    path: 'M 488,205 L 575,190 L 635,225 L 642,285 L 572,298 L 515,268 Z',
-    cx: 565, cy: 245,
+    "id": "CH-NW",
+    "nuts_id": "CH065",
+    "code": "NW",
+    "name": "Nidwald",
+    "country": "CH",
+    "flag": "🇨🇭",
+    "path": "M 635.3,469.0 L 633.9,467.1 L 633.9,462.1 L 632.5,459.6 L 630.4,459.6 L 635.2,457.6 L 638.7,458.4 L 639.8,459.3 L 642.4,458.7 L 641.3,461.6 L 639.1,463.4 L 638.9,465.6 L 635.7,465.8 L 636.2,469.9 L 635.3,469.0 Z",
+    "cx": 636.6,
+    "cy": 463.1
   },
   {
-    id: 'FR-HDF', code: 'HDF', name: 'Hauts-de-France', country: 'FR', flag: '🇫🇷',
-    path: 'M 428,155 L 490,148 L 515,198 L 472,236 L 430,210 Z',
-    cx: 465, cy: 185,
+    "id": "CH-ZG",
+    "nuts_id": "CH066",
+    "code": "ZG",
+    "name": "Zoug",
+    "country": "CH",
+    "flag": "🇨🇭",
+    "path": "M 636.7,445.4 L 638.1,447.0 L 642.6,447.1 L 646.6,449.8 L 644.3,453.4 L 639.6,453.0 L 639.1,452.0 L 636.8,450.9 L 636.7,445.4 Z",
+    "cx": 640.1,
+    "cy": 449.3
   },
   {
-    id: 'FR-BRE', code: 'BRE', name: 'Bretagne', country: 'FR', flag: '🇫🇷',
-    path: 'M 285,255 L 360,250 L 372,295 L 320,315 L 270,290 Z',
-    cx: 320, cy: 278,
+    "id": "CH-TI",
+    "nuts_id": "CH070",
+    "code": "TI",
+    "name": "Tessin",
+    "country": "CH",
+    "flag": "🇨🇭",
+    "path": "M 639.1,482.3 L 641.3,479.6 L 646.1,479.7 L 651.9,480.3 L 655.1,477.6 L 658.3,478.9 L 658.3,482.9 L 660.8,487.8 L 659.5,494.3 L 660.7,498.3 L 662.9,500.4 L 657.9,507.2 L 657.7,511.3 L 660.0,514.2 L 658.8,517.0 L 654.3,517.5 L 655.0,515.2 L 653.4,511.3 L 650.2,509.1 L 651.7,505.3 L 648.6,503.3 L 647.3,504.1 L 644.0,502.6 L 638.6,496.7 L 637.6,494.2 L 638.5,486.9 L 635.8,486.1 L 639.1,482.3 Z",
+    "cx": 650.8,
+    "cy": 496.7
   },
   {
-    id: 'FR-PDL', code: 'PDL', name: 'Pays de la Loire', country: 'FR', flag: '🇫🇷',
-    path: 'M 355,275 L 415,270 L 428,335 L 368,348 L 345,310 Z',
-    cx: 388, cy: 308,
+    "id": "CH-VD",
+    "nuts_id": "CH011",
+    "code": "VD",
+    "name": "Vaud",
+    "country": "CH",
+    "flag": "🇨🇭",
+    "path": "M 578.9,467.5 L 582.7,471.7 L 584.6,465.7 L 582.7,462.8 L 583.8,462.0 L 586.8,466.6 L 584.7,472.1 L 580.6,476.5 L 580.8,479.0 L 582.9,480.7 L 581.4,483.0 L 585.3,483.6 L 587.4,486.5 L 595.7,481.0 L 594.5,487.2 L 595.2,492.4 L 593.3,495.8 L 588.7,499.2 L 581.2,487.4 L 570.6,486.1 L 563.5,489.1 L 560.1,493.2 L 559.4,494.6 L 558.4,494.1 L 557.4,493.6 L 556.8,493.0 L 557.9,490.2 L 554.7,487.9 L 557.3,480.8 L 557.3,478.9 L 567.7,470.2 L 568.5,465.8 L 577.1,461.8 L 579.7,465.7 L 578.9,467.5 Z M 577.8,472.1 L 579.3,473.1 L 580.5,470.7 L 579.5,470.3 L 577.8,472.1 Z M 590.1,463.0 L 589.1,465.1 L 584.9,460.6 L 587.5,458.9 L 588.8,459.2 L 589.2,459.3 L 590.1,463.0 Z",
+    "cx": 578.1,
+    "cy": 476.6
   },
   {
-    id: 'FR-NOR', code: 'NOR', name: 'Normandie', country: 'FR', flag: '🇫🇷',
-    path: 'M 360,205 L 435,198 L 442,245 L 375,260 L 350,230 Z',
-    cx: 395, cy: 228,
+    "id": "CH-VS",
+    "nuts_id": "CH012",
+    "code": "VS",
+    "name": "Valais",
+    "country": "CH",
+    "flag": "🇨🇭",
+    "path": "M 617.6,513.2 L 607.0,510.1 L 601.3,513.8 L 597.7,513.2 L 593.9,515.7 L 591.3,515.5 L 589.0,512.9 L 585.5,506.5 L 583.8,506.2 L 583.6,503.0 L 580.5,501.1 L 582.3,495.1 L 579.8,491.3 L 581.2,487.4 L 588.7,499.2 L 593.3,495.8 L 595.2,492.4 L 597.4,490.8 L 605.5,490.0 L 609.4,486.9 L 612.7,487.6 L 623.0,480.8 L 631.5,482.1 L 634.5,480.1 L 636.7,475.9 L 637.0,480.2 L 639.1,482.3 L 635.8,486.1 L 633.1,487.9 L 632.8,490.0 L 629.9,493.0 L 626.0,495.1 L 627.8,499.2 L 627.7,501.4 L 623.7,504.3 L 622.2,508.7 L 618.8,509.7 L 618.1,512.6 L 617.6,513.2 Z",
+    "cx": 610.1,
+    "cy": 497.7
   },
   {
-    id: 'FR-BFC', code: 'BFC', name: 'Bourgogne-Franche-Comté', country: 'FR', flag: '🇫🇷',
-    path: 'M 482,278 L 565,270 L 602,305 L 568,345 L 485,348 Z',
-    cx: 535, cy: 310,
+    "id": "CH-GE",
+    "nuts_id": "CH013",
+    "code": "GE",
+    "name": "Genève",
+    "country": "CH",
+    "flag": "🇨🇭",
+    "path": "M 556.8,493.0 L 557.4,493.6 L 558.4,494.1 L 559.4,494.6 L 560.1,493.2 L 562.9,496.5 L 562.6,497.5 L 557.4,501.6 L 550.9,502.3 L 551.8,498.5 L 556.4,496.2 L 556.8,493.0 Z",
+    "cx": 557.6,
+    "cy": 496.2
   },
   {
-    id: 'FR-CVL', code: 'CVL', name: 'Centre-Val de Loire', country: 'FR', flag: '🇫🇷',
-    path: 'M 418,275 L 480,270 L 490,345 L 425,340 Z',
-    cx: 452, cy: 308,
+    "id": "CH-BE",
+    "nuts_id": "CH021",
+    "code": "BE",
+    "name": "Berne",
+    "country": "CH",
+    "flag": "🇨🇭",
+    "path": "M 595.2,492.4 L 594.5,487.2 L 595.7,481.0 L 598.3,478.8 L 600.3,475.0 L 597.8,470.4 L 599.7,464.7 L 594.6,463.0 L 594.9,458.2 L 589.2,459.3 L 588.8,459.2 L 590.1,453.6 L 588.3,451.9 L 583.9,452.9 L 582.6,449.7 L 587.2,448.8 L 593.5,443.3 L 604.7,442.4 L 606.7,440.4 L 605.8,442.8 L 600.2,447.0 L 602.7,449.7 L 601.5,453.0 L 603.2,453.6 L 606.2,450.2 L 610.1,449.6 L 609.3,444.0 L 616.2,444.5 L 616.7,446.1 L 618.3,450.0 L 618.1,456.0 L 620.5,458.5 L 618.2,462.4 L 617.8,465.4 L 621.6,469.3 L 624.1,469.0 L 632.2,470.5 L 635.3,469.0 L 636.2,469.9 L 638.1,470.2 L 636.7,475.9 L 634.5,480.1 L 631.5,482.1 L 623.0,480.8 L 612.7,487.6 L 609.4,486.9 L 605.5,490.0 L 597.4,490.8 L 595.2,492.4 Z",
+    "cx": 607.8,
+    "cy": 463.9
   },
   {
-    id: 'FR-COR', code: 'COR', name: 'Corse', country: 'FR', flag: '🇫🇷',
-    path: 'M 678,505 L 696,502 L 702,550 L 682,560 L 672,525 Z',
-    cx: 688, cy: 530,
-  },
-
-  // --- BELGIQUE & LUXEMBOURG (BE / LU) ---
-  {
-    id: 'BE-BRU', code: 'BRU', name: 'Bruxelles-Capitale', country: 'BE', flag: '🇧🇪',
-    path: 'M 524,180 L 542,178 L 544,196 L 526,198 Z',
-    cx: 534, cy: 188,
-  },
-  {
-    id: 'BE-VLA', code: 'VLA', name: 'Flandre', country: 'BE', flag: '🇧🇪',
-    path: 'M 488,155 L 568,145 L 575,178 L 515,185 L 480,172 Z',
-    cx: 528, cy: 165,
+    "id": "CH-FR",
+    "nuts_id": "CH022",
+    "code": "FR",
+    "name": "Fribourg",
+    "country": "CH",
+    "flag": "🇨🇭",
+    "path": "M 599.7,464.7 L 597.8,470.4 L 600.3,475.0 L 598.3,478.8 L 595.7,481.0 L 587.4,486.5 L 585.3,483.6 L 581.4,483.0 L 582.9,480.7 L 580.8,479.0 L 580.6,476.5 L 584.7,472.1 L 586.8,466.6 L 583.8,462.0 L 584.9,460.6 L 589.1,465.1 L 590.1,463.0 L 589.2,459.3 L 594.9,458.2 L 594.6,463.0 L 599.7,464.7 Z M 580.5,470.7 L 579.3,473.1 L 577.8,472.1 L 579.5,470.3 L 580.5,470.7 Z M 584.6,465.7 L 582.7,471.7 L 578.9,467.5 L 579.7,465.7 L 582.7,462.8 L 584.6,465.7 Z",
+    "cx": 586.8,
+    "cy": 470.3
   },
   {
-    id: 'BE-WAL', code: 'WAL', name: 'Wallonie', country: 'BE', flag: '🇧🇪',
-    path: 'M 495,182 L 565,175 L 595,205 L 555,230 L 500,215 Z',
-    cx: 545, cy: 202,
+    "id": "CH-SO",
+    "nuts_id": "CH023",
+    "code": "SO",
+    "name": "Soleure",
+    "country": "CH",
+    "flag": "🇨🇭",
+    "path": "M 605.3,432.3 L 605.7,434.1 L 603.3,435.7 L 603.8,437.7 L 608.1,436.4 L 609.1,433.2 L 610.4,433.0 L 611.9,434.5 L 609.9,438.6 L 614.4,440.5 L 620.3,436.8 L 620.9,434.7 L 623.0,438.2 L 622.7,440.1 L 618.7,441.3 L 616.2,444.5 L 609.3,444.0 L 610.1,449.6 L 606.2,450.2 L 603.2,453.6 L 601.5,453.0 L 602.7,449.7 L 600.2,447.0 L 605.8,442.8 L 606.7,440.4 L 602.7,438.6 L 602.9,437.9 L 602.7,437.0 L 600.5,436.9 L 600.7,435.9 L 601.4,435.8 L 602.1,435.2 L 602.3,435.3 L 602.7,435.2 L 602.9,435.2 L 603.0,435.0 L 603.0,434.8 L 603.0,434.5 L 605.3,432.3 Z",
+    "cx": 605.7,
+    "cy": 437.5
   },
   {
-    id: 'LU-LU', code: 'LU', name: 'Luxembourg', country: 'LU', flag: '🇱🇺',
-    path: 'M 588,212 L 608,210 L 612,238 L 592,240 Z',
-    cx: 600, cy: 225,
-  },
-
-  // --- ALLEMAGNE (DE) ---
-  {
-    id: 'DE-BY', code: 'BY', name: 'Bavière (Bayern)', country: 'DE', flag: '🇩🇪',
-    path: 'M 740,240 L 835,232 L 872,285 L 835,348 L 760,345 L 735,290 Z',
-    cx: 805, cy: 290,
-  },
-  {
-    id: 'DE-BW', code: 'BW', name: 'Bade-Wurtemberg', country: 'DE', flag: '🇩🇪',
-    path: 'M 670,278 L 745,268 L 760,335 L 685,345 L 665,305 Z',
-    cx: 715, cy: 308,
+    "id": "CH-NE",
+    "nuts_id": "CH024",
+    "code": "NE",
+    "name": "Neuchâtel",
+    "country": "CH",
+    "flag": "🇨🇭",
+    "path": "M 582.5,449.7 L 583.9,452.9 L 588.3,451.9 L 590.1,453.6 L 588.8,459.2 L 587.5,458.9 L 584.9,460.6 L 583.8,462.0 L 582.7,462.8 L 579.7,465.7 L 577.1,461.8 L 568.5,465.8 L 568.5,460.9 L 574.0,458.4 L 582.5,449.7 Z",
+    "cx": 581.6,
+    "cy": 457.7
   },
   {
-    id: 'DE-NW', code: 'NW', name: 'Rhénanie-du-Nord-Westphalie', country: 'DE', flag: '🇩🇪',
-    path: 'M 605,145 L 680,140 L 702,198 L 640,218 L 600,185 Z',
-    cx: 650, cy: 180,
+    "id": "CH-JU",
+    "nuts_id": "CH025",
+    "code": "JU",
+    "name": "Jura",
+    "country": "CH",
+    "flag": "🇨🇭",
+    "path": "M 598.8,435.5 L 600.5,436.9 L 602.7,438.6 L 606.7,440.4 L 604.7,442.4 L 593.5,443.3 L 587.2,448.8 L 582.6,449.7 L 585.5,445.8 L 585.9,443.4 L 588.9,440.7 L 588.1,439.2 L 583.9,439.2 L 585.3,435.8 L 586.9,434.9 L 587.6,432.5 L 592.0,432.3 L 594.0,435.3 L 598.8,435.5 Z",
+    "cx": 591.8,
+    "cy": 440.0
   },
   {
-    id: 'DE-HE', code: 'HE', name: 'Hesse (Frankfurt)', country: 'DE', flag: '🇩🇪',
-    path: 'M 675,195 L 740,190 L 748,252 L 678,258 L 665,225 Z',
-    cx: 708, cy: 226,
+    "id": "CH-BS",
+    "nuts_id": "CH031",
+    "code": "BS",
+    "name": "Bâle-Ville",
+    "country": "CH",
+    "flag": "🇨🇭",
+    "path": "M 608.0,427.8 L 609.6,429.3 L 608.1,430.8 L 606.8,429.1 L 608.0,427.8 Z",
+    "cx": 608.1,
+    "cy": 429.0
   },
   {
-    id: 'DE-BE', code: 'BER', name: 'Berlin & Brandebourg', country: 'DE', flag: '🇩🇪',
-    path: 'M 830,95 L 895,90 L 910,155 L 845,160 Z',
-    cx: 870, cy: 125,
+    "id": "FR-IDF",
+    "nuts_id": "FR1",
+    "code": "IDF",
+    "name": "Île-de-France",
+    "country": "FR",
+    "flag": "🇫🇷",
+    "path": "M 404.0,343.6 L 406.8,344.6 L 415.8,342.9 L 421.2,345.2 L 424.5,344.7 L 433.2,349.4 L 434.8,348.3 L 438.5,350.0 L 440.7,348.8 L 446.6,349.5 L 449.5,348.8 L 450.1,347.4 L 452.9,348.4 L 454.2,353.1 L 456.8,356.3 L 464.5,361.5 L 461.8,366.1 L 463.9,368.3 L 463.5,372.6 L 467.0,373.8 L 464.6,375.5 L 461.4,381.5 L 462.1,385.9 L 449.4,387.9 L 448.4,390.0 L 448.5,393.6 L 445.3,397.9 L 436.6,399.9 L 432.0,399.7 L 429.8,399.3 L 430.2,395.0 L 427.6,392.2 L 426.7,389.6 L 424.4,389.4 L 419.8,388.9 L 417.8,390.8 L 412.4,391.4 L 411.8,386.1 L 409.9,382.4 L 409.0,382.8 L 408.3,383.1 L 407.5,382.6 L 406.8,382.2 L 405.7,381.5 L 404.7,377.1 L 402.7,374.6 L 399.0,371.3 L 397.9,362.5 L 395.2,356.8 L 393.7,350.9 L 398.9,349.5 L 402.3,341.2 L 404.0,343.6 Z",
+    "cx": 429.1,
+    "cy": 370.2
   },
   {
-    id: 'DE-HH', code: 'HH', name: 'Hambourg & Nord', country: 'DE', flag: '🇩🇪',
-    path: 'M 690,65 L 785,55 L 805,120 L 705,128 Z',
-    cx: 745, cy: 90,
+    "id": "FR-CVL",
+    "nuts_id": "FRB",
+    "code": "CVL",
+    "name": "Centre-Val de Loire",
+    "country": "FR",
+    "flag": "🇫🇷",
+    "path": "M 397.9,362.5 L 399.0,371.3 L 402.7,374.6 L 404.7,377.1 L 405.7,381.5 L 406.8,382.2 L 407.5,382.6 L 408.3,383.1 L 409.0,382.8 L 409.9,382.4 L 411.8,386.1 L 412.4,391.4 L 417.8,390.8 L 419.8,388.9 L 424.4,389.4 L 426.7,389.6 L 427.6,392.2 L 430.2,395.0 L 429.8,399.3 L 432.0,399.7 L 436.6,399.9 L 445.3,397.9 L 448.4,399.6 L 451.9,405.7 L 451.5,408.7 L 448.1,411.8 L 448.5,417.2 L 442.5,420.0 L 445.4,424.4 L 445.5,427.1 L 446.7,428.8 L 443.6,429.7 L 443.2,431.4 L 444.9,435.8 L 443.4,440.6 L 446.6,444.8 L 448.7,454.9 L 450.0,457.1 L 449.7,465.8 L 448.7,468.7 L 445.7,468.6 L 440.1,472.1 L 437.7,472.0 L 433.6,476.1 L 432.9,478.0 L 433.1,481.4 L 424.5,483.6 L 422.4,487.7 L 418.5,487.5 L 406.8,486.4 L 404.7,486.2 L 403.0,488.8 L 395.5,488.0 L 392.1,491.4 L 389.9,489.1 L 383.8,489.6 L 384.3,487.8 L 382.2,483.1 L 374.7,478.4 L 374.7,473.2 L 373.0,471.1 L 367.6,463.2 L 366.2,459.3 L 363.3,458.0 L 363.0,460.3 L 354.0,461.1 L 353.1,455.9 L 349.7,455.0 L 349.1,452.9 L 344.5,449.8 L 345.7,443.3 L 348.6,438.5 L 350.7,426.8 L 351.7,426.7 L 356.0,428.7 L 356.6,428.2 L 355.6,426.0 L 356.0,425.2 L 358.2,426.2 L 359.0,425.0 L 363.2,423.5 L 364.1,422.3 L 363.6,420.7 L 368.8,416.0 L 369.5,412.1 L 371.9,409.3 L 370.7,403.7 L 372.1,401.0 L 373.7,398.6 L 370.5,396.2 L 371.2,394.7 L 370.0,389.3 L 374.1,387.1 L 376.1,384.0 L 376.1,379.0 L 372.3,374.6 L 371.1,371.2 L 382.2,365.2 L 389.4,365.9 L 390.7,362.3 L 393.5,360.2 L 393.8,357.6 L 395.2,356.8 L 397.9,362.5 Z",
+    "cx": 399.6,
+    "cy": 424.2
   },
   {
-    id: 'DE-SN', code: 'SN', name: 'Saxe (Leipzig/Dresden)', country: 'DE', flag: '🇩🇪',
-    path: 'M 805,162 L 895,155 L 905,215 L 815,222 Z',
-    cx: 855, cy: 188,
+    "id": "FR-BFC",
+    "nuts_id": "FRC",
+    "code": "BFC",
+    "name": "Bourgogne-Franche-Comté",
+    "country": "FR",
+    "flag": "🇫🇷",
+    "path": "M 468.2,396.5 L 471.1,398.7 L 473.2,398.1 L 475.1,400.3 L 479.7,409.8 L 486.3,409.9 L 489.8,408.4 L 492.8,410.3 L 493.9,408.6 L 501.5,407.8 L 503.0,405.1 L 507.1,405.4 L 510.2,406.5 L 510.5,408.1 L 512.3,409.1 L 512.3,411.3 L 514.6,411.5 L 516.9,415.7 L 516.2,417.2 L 515.1,418.1 L 516.5,422.2 L 523.2,424.0 L 526.6,428.0 L 530.6,427.0 L 532.2,423.5 L 541.2,422.7 L 541.9,419.8 L 541.2,417.2 L 546.2,413.7 L 548.4,410.3 L 550.0,408.3 L 552.3,408.4 L 556.9,405.4 L 559.2,409.2 L 565.7,408.7 L 569.4,412.0 L 573.6,409.8 L 581.2,416.2 L 582.0,415.7 L 582.5,417.2 L 588.4,420.8 L 587.9,426.8 L 590.2,428.0 L 592.0,432.3 L 587.6,432.5 L 586.9,434.9 L 585.3,435.8 L 583.9,439.2 L 588.1,439.2 L 588.9,440.7 L 585.9,443.4 L 585.5,445.8 L 582.5,449.7 L 574.0,458.4 L 568.5,460.9 L 568.5,465.8 L 567.7,470.2 L 557.3,478.9 L 557.3,480.8 L 554.7,487.9 L 547.8,495.4 L 543.2,495.5 L 542.0,493.3 L 539.9,492.4 L 535.2,495.4 L 528.5,488.2 L 528.3,486.4 L 525.7,485.6 L 523.7,483.1 L 519.8,484.3 L 515.5,483.2 L 509.8,500.1 L 508.4,499.7 L 506.1,493.8 L 503.7,495.4 L 497.3,494.0 L 496.1,497.9 L 492.3,500.4 L 486.1,499.3 L 482.7,500.3 L 479.1,498.0 L 479.0,495.0 L 481.9,492.0 L 482.1,485.4 L 473.6,481.3 L 469.6,471.0 L 468.2,470.8 L 466.7,473.9 L 464.0,475.7 L 462.0,472.9 L 453.9,474.2 L 448.7,468.7 L 449.7,465.8 L 450.0,457.1 L 448.7,454.9 L 446.6,444.8 L 443.4,440.6 L 444.9,435.8 L 443.2,431.4 L 443.6,429.7 L 446.7,428.8 L 445.5,427.1 L 445.4,424.4 L 442.5,420.0 L 448.5,417.2 L 448.1,411.8 L 451.5,408.7 L 451.9,405.7 L 448.4,399.6 L 445.3,397.9 L 448.5,393.6 L 448.4,390.0 L 449.4,387.9 L 462.1,385.9 L 465.0,387.4 L 468.5,391.7 L 468.2,396.5 Z",
+    "cx": 510.8,
+    "cy": 440.2
   },
   {
-    id: 'DE-RP', code: 'RP', name: 'Rhénanie-Palatinat / Sarre', country: 'DE', flag: '🇩🇪',
-    path: 'M 625,218 L 685,210 L 688,272 L 632,275 Z',
-    cx: 658, cy: 245,
-  },
-
-  // --- ITALIE (IT) ---
-  {
-    id: 'IT-LOM', code: 'LOM', name: 'Lombardie (Milano)', country: 'IT', flag: '🇮🇹',
-    path: 'M 685,380 L 755,372 L 770,418 L 698,425 Z',
-    cx: 728, cy: 400,
-  },
-  {
-    id: 'IT-PIE', code: 'PIE', name: 'Piémont (Torino)', country: 'IT', flag: '🇮🇹',
-    path: 'M 632,382 L 690,375 L 702,435 L 645,438 Z',
-    cx: 665, cy: 410,
+    "id": "FR-NOR",
+    "nuts_id": "FRD",
+    "code": "NOR",
+    "name": "Normandie",
+    "country": "FR",
+    "flag": "🇫🇷",
+    "path": "M 404.9,327.2 L 402.6,331.7 L 405.4,339.4 L 403.1,339.5 L 402.3,341.2 L 398.9,349.5 L 393.7,350.9 L 395.2,356.8 L 393.8,357.6 L 393.5,360.2 L 390.7,362.3 L 389.4,365.9 L 382.2,365.2 L 371.1,371.2 L 372.3,374.6 L 376.1,379.0 L 376.1,384.0 L 374.1,387.1 L 370.0,389.3 L 371.2,394.7 L 370.5,396.2 L 368.6,396.4 L 365.9,393.0 L 361.6,393.2 L 357.0,389.7 L 355.2,382.9 L 353.1,381.4 L 348.1,382.5 L 344.4,386.1 L 340.8,386.4 L 340.7,383.3 L 337.8,382.2 L 336.9,378.5 L 335.0,376.8 L 330.1,380.2 L 325.0,380.0 L 323.0,381.1 L 320.2,382.6 L 319.3,381.8 L 318.7,381.3 L 316.3,383.1 L 312.6,380.1 L 305.2,379.7 L 299.4,378.3 L 292.9,381.8 L 290.2,379.5 L 287.7,373.5 L 291.8,373.5 L 293.4,372.0 L 290.3,370.2 L 287.9,366.7 L 286.9,362.4 L 288.2,353.3 L 286.6,350.7 L 286.5,343.3 L 282.8,336.4 L 279.5,333.1 L 277.2,325.0 L 278.0,320.5 L 274.9,317.2 L 274.9,315.3 L 286.2,318.8 L 292.5,316.1 L 297.4,316.7 L 299.5,320.3 L 297.3,323.2 L 297.3,325.0 L 303.5,336.4 L 304.8,333.2 L 308.9,332.5 L 319.3,334.7 L 323.0,335.5 L 335.8,338.3 L 342.0,336.5 L 348.1,331.7 L 353.0,330.6 L 356.8,329.8 L 360.2,327.9 L 360.9,328.1 L 363.1,330.6 L 364.0,330.7 L 364.8,330.2 L 360.2,327.8 L 356.0,329.3 L 349.2,329.3 L 346.7,328.1 L 345.4,325.4 L 348.5,317.1 L 350.1,315.3 L 363.3,307.8 L 381.2,303.2 L 390.9,296.3 L 393.2,296.6 L 401.5,304.6 L 405.0,312.9 L 402.5,315.6 L 403.6,317.0 L 402.3,321.8 L 403.5,326.6 L 404.9,327.2 Z",
+    "cx": 343.9,
+    "cy": 350.3
   },
   {
-    id: 'IT-VEN', code: 'VEN', name: 'Vénétie (Venezia/Verona)', country: 'IT', flag: '🇮🇹',
-    path: 'M 750,368 L 830,362 L 838,420 L 762,425 Z',
-    cx: 792, cy: 395,
+    "id": "FR-HDF",
+    "nuts_id": "FRE",
+    "code": "HDF",
+    "name": "Hauts-de-France",
+    "country": "FR",
+    "flag": "🇫🇷",
+    "path": "M 442.8,261.0 L 444.3,261.4 L 448.2,257.4 L 451.0,257.1 L 453.7,258.3 L 456.4,261.7 L 458.2,271.2 L 461.0,272.7 L 464.5,271.0 L 469.1,273.0 L 470.5,274.6 L 470.9,280.3 L 472.2,282.3 L 474.3,280.8 L 479.0,281.6 L 483.5,280.2 L 484.0,281.3 L 487.3,285.1 L 489.8,285.8 L 488.1,288.2 L 487.4,292.1 L 489.1,292.8 L 490.2,295.8 L 487.8,298.0 L 487.4,301.0 L 490.7,302.1 L 490.7,313.6 L 486.3,319.3 L 483.8,320.1 L 484.7,325.4 L 484.2,331.9 L 483.1,333.7 L 479.2,332.5 L 471.0,336.8 L 471.1,341.5 L 472.6,344.7 L 469.7,346.4 L 468.7,351.0 L 470.4,353.2 L 464.5,361.5 L 456.8,356.3 L 454.2,353.1 L 452.9,348.4 L 450.1,347.4 L 449.5,348.8 L 446.6,349.5 L 440.7,348.8 L 438.5,350.0 L 434.8,348.3 L 433.2,349.4 L 424.5,344.7 L 421.2,345.2 L 415.8,342.9 L 406.8,344.6 L 404.0,343.6 L 402.3,341.2 L 403.1,339.5 L 405.4,339.4 L 402.6,331.7 L 404.9,327.2 L 403.5,326.6 L 402.3,321.8 L 403.6,317.0 L 402.5,315.6 L 405.0,312.9 L 401.5,304.6 L 393.2,296.6 L 390.9,296.3 L 396.0,289.3 L 399.7,289.0 L 396.8,283.4 L 397.6,280.8 L 400.2,280.7 L 397.3,277.4 L 398.3,252.3 L 406.8,246.6 L 407.5,246.2 L 415.0,244.5 L 424.4,242.0 L 431.4,240.0 L 431.7,239.9 L 434.0,246.6 L 433.8,249.7 L 434.6,254.6 L 437.7,255.5 L 440.4,259.7 L 442.8,261.0 Z",
+    "cx": 444.1,
+    "cy": 302.2
   },
   {
-    id: 'IT-EMR', code: 'EMR', name: 'Émilie-Romagne (Bologna)', country: 'IT', flag: '🇮🇹',
-    path: 'M 710,422 L 825,415 L 835,465 L 725,470 Z',
-    cx: 770, cy: 442,
+    "id": "FR-GES",
+    "nuts_id": "FRF",
+    "code": "GES",
+    "name": "Grand Est",
+    "country": "FR",
+    "flag": "🇫🇷",
+    "path": "M 510.5,301.5 L 513.2,304.4 L 512.9,310.3 L 516.4,310.6 L 522.9,315.1 L 527.6,317.1 L 528.7,320.3 L 531.2,320.6 L 533.9,327.0 L 543.2,324.4 L 546.1,324.4 L 548.7,327.0 L 550.9,327.2 L 552.8,329.6 L 555.8,329.1 L 557.4,327.0 L 559.5,326.5 L 565.3,328.5 L 568.2,328.6 L 571.9,331.2 L 573.1,336.1 L 577.7,342.0 L 577.7,343.8 L 578.8,344.8 L 581.5,345.2 L 582.2,342.5 L 585.0,342.1 L 588.2,343.6 L 589.4,347.0 L 590.9,345.3 L 594.1,347.3 L 597.7,347.2 L 600.3,345.0 L 604.1,344.9 L 605.8,348.2 L 609.6,350.8 L 619.3,351.2 L 624.8,353.7 L 630.5,355.4 L 628.3,357.5 L 625.6,363.7 L 621.0,368.6 L 615.9,374.7 L 613.2,388.7 L 611.2,392.9 L 607.6,400.2 L 607.6,400.4 L 607.5,404.3 L 608.8,407.9 L 606.2,417.2 L 606.5,419.8 L 605.6,423.0 L 608.0,427.8 L 606.8,429.1 L 605.2,430.5 L 605.3,432.3 L 603.0,434.4 L 602.1,435.2 L 601.4,435.8 L 600.7,435.9 L 599.7,435.8 L 599.2,435.5 L 598.8,435.5 L 594.0,435.3 L 592.0,432.3 L 590.2,428.0 L 587.9,426.8 L 588.4,420.8 L 582.5,417.2 L 582.0,415.7 L 581.2,416.2 L 573.6,409.8 L 569.4,412.0 L 565.7,408.7 L 559.2,409.2 L 556.9,405.4 L 552.3,408.4 L 550.0,408.3 L 548.4,410.3 L 546.2,413.7 L 541.2,417.2 L 541.9,419.8 L 541.2,422.7 L 532.2,423.5 L 530.6,427.0 L 526.6,428.0 L 523.2,424.0 L 516.5,422.2 L 515.1,418.1 L 516.2,417.2 L 516.9,415.7 L 514.6,411.5 L 512.3,411.3 L 512.3,409.1 L 510.5,408.1 L 510.2,406.5 L 507.1,405.4 L 503.0,405.1 L 501.5,407.8 L 493.9,408.6 L 492.8,410.3 L 489.8,408.4 L 486.3,409.9 L 479.7,409.8 L 475.1,400.3 L 473.2,398.1 L 471.1,398.7 L 468.2,396.5 L 468.5,391.7 L 465.0,387.4 L 462.1,385.9 L 461.4,381.5 L 464.6,375.5 L 467.0,373.8 L 463.5,372.6 L 463.9,368.3 L 461.8,366.1 L 464.5,361.5 L 470.4,353.2 L 468.7,351.0 L 469.7,346.4 L 472.6,344.7 L 471.1,341.5 L 471.0,336.8 L 479.2,332.5 L 483.1,333.7 L 484.2,331.9 L 484.7,325.4 L 483.8,320.1 L 486.3,319.3 L 490.7,313.6 L 490.7,302.1 L 497.6,303.0 L 506.3,300.0 L 506.8,295.4 L 510.4,291.7 L 513.0,292.2 L 510.5,301.5 Z",
+    "cx": 543.8,
+    "cy": 374.7
   },
   {
-    id: 'IT-TOS', code: 'TOS', name: 'Toscane (Firenze)', country: 'IT', flag: '🇮🇹',
-    path: 'M 730,465 L 795,458 L 815,515 L 750,520 Z',
-    cx: 772, cy: 490,
+    "id": "FR-PDL",
+    "nuts_id": "FRG",
+    "code": "PDL",
+    "name": "Pays de la Loire",
+    "country": "FR",
+    "flag": "🇫🇷",
+    "path": "M 336.9,378.5 L 337.8,382.2 L 340.7,383.3 L 340.8,386.4 L 344.4,386.1 L 348.1,382.5 L 353.1,381.4 L 355.2,382.9 L 357.0,389.7 L 361.6,393.2 L 365.9,393.0 L 368.6,396.4 L 370.5,396.2 L 373.7,398.6 L 372.1,401.0 L 370.7,403.7 L 371.9,409.3 L 369.5,412.1 L 368.8,416.0 L 363.6,420.7 L 364.1,422.3 L 363.2,423.5 L 359.0,425.0 L 358.2,426.2 L 356.0,425.2 L 355.6,426.0 L 356.6,428.2 L 356.0,428.7 L 351.7,426.7 L 350.7,426.8 L 348.6,438.5 L 345.7,443.3 L 344.5,449.8 L 342.7,449.9 L 339.1,454.8 L 334.0,452.9 L 324.9,454.2 L 323.0,456.4 L 321.3,458.3 L 319.3,458.5 L 311.5,459.4 L 317.3,467.7 L 319.3,473.3 L 321.2,478.8 L 321.2,486.3 L 323.0,489.4 L 320.2,492.4 L 319.3,492.7 L 316.4,493.6 L 313.9,492.2 L 309.9,493.0 L 309.1,491.0 L 305.0,492.8 L 301.4,492.9 L 299.8,495.0 L 296.1,491.9 L 291.4,491.3 L 289.3,488.7 L 279.4,483.5 L 276.8,476.8 L 267.7,466.6 L 267.7,464.1 L 273.4,456.7 L 270.4,453.5 L 265.4,451.2 L 267.4,444.1 L 262.1,445.5 L 256.3,443.1 L 254.8,439.0 L 256.7,435.1 L 261.2,434.2 L 262.6,432.0 L 264.7,432.5 L 269.0,430.5 L 269.3,425.6 L 273.2,422.8 L 284.3,421.3 L 291.4,415.4 L 299.1,418.1 L 299.4,416.3 L 302.6,408.2 L 306.8,406.0 L 304.4,393.3 L 305.8,388.9 L 305.2,379.7 L 312.6,380.1 L 316.3,383.1 L 318.7,381.3 L 319.3,381.8 L 320.2,382.6 L 323.0,381.1 L 325.0,380.0 L 330.1,380.2 L 335.0,376.8 L 336.9,378.5 Z M 262.3,473.5 L 261.0,474.5 L 259.3,473.4 L 261.2,472.1 L 262.3,473.5 Z M 267.4,460.6 L 267.6,462.7 L 266.9,462.7 L 265.4,460.1 L 266.3,459.8 L 267.4,460.6 Z M 264.7,457.4 L 264.8,460.1 L 262.8,459.8 L 261.8,456.7 L 264.7,457.4 Z",
+    "cx": 312.0,
+    "cy": 435.5
   },
   {
-    id: 'IT-LAZ', code: 'LAZ', name: 'Latium (Roma)', country: 'IT', flag: '🇮🇹',
-    path: 'M 780,515 L 850,505 L 880,575 L 810,580 Z',
-    cx: 830, cy: 545,
-  },
-
-  // --- ESPAGNE (ES) ---
-  {
-    id: 'ES-MAD', code: 'MAD', name: 'Communauté de Madrid', country: 'ES', flag: '🇪🇸',
-    path: 'M 292,572 L 340,568 L 345,618 L 298,622 Z',
-    cx: 320, cy: 595,
-  },
-  {
-    id: 'ES-CAT', code: 'CAT', name: 'Catalogne (Barcelona)', country: 'ES', flag: '🇪🇸',
-    path: 'M 415,518 L 485,512 L 478,575 L 405,578 Z',
-    cx: 445, cy: 548,
+    "id": "FR-BRE",
+    "nuts_id": "FRH",
+    "code": "BRE",
+    "name": "Bretagne",
+    "country": "FR",
+    "flag": "🇫🇷",
+    "path": "M 233.3,361.0 L 238.2,366.1 L 242.5,370.6 L 244.3,374.6 L 248.6,379.4 L 261.1,371.4 L 266.0,375.4 L 268.4,374.6 L 267.8,373.4 L 268.8,372.8 L 270.9,373.1 L 271.6,374.6 L 272.4,374.6 L 272.1,372.4 L 273.2,370.8 L 277.6,369.5 L 277.7,372.9 L 280.4,374.6 L 281.7,374.6 L 287.7,373.5 L 290.2,379.5 L 292.9,381.8 L 299.4,378.3 L 305.2,379.7 L 305.8,388.9 L 304.4,393.3 L 306.8,406.0 L 302.6,408.2 L 299.4,416.3 L 299.1,418.1 L 291.4,415.4 L 284.3,421.3 L 273.2,422.8 L 269.3,425.6 L 269.0,430.5 L 264.7,432.5 L 262.6,432.0 L 261.2,434.2 L 256.7,435.1 L 254.3,431.6 L 244.5,432.4 L 239.6,427.8 L 238.2,429.2 L 233.4,428.6 L 225.3,421.1 L 221.3,421.5 L 219.5,418.5 L 219.3,414.6 L 216.7,418.1 L 209.2,416.8 L 203.4,412.9 L 194.9,416.3 L 191.2,415.8 L 187.7,409.4 L 183.2,405.0 L 191.7,399.6 L 190.7,396.5 L 184.5,395.1 L 182.9,393.0 L 183.7,390.9 L 188.4,390.9 L 189.6,389.1 L 186.3,387.1 L 178.5,388.1 L 176.5,385.5 L 178.1,378.4 L 188.4,372.3 L 201.5,369.5 L 206.2,371.1 L 211.1,370.0 L 214.7,371.7 L 217.1,369.8 L 217.9,364.7 L 219.4,363.2 L 223.8,363.9 L 233.3,361.0 Z M 233.4,442.5 L 230.3,443.3 L 226.6,439.5 L 230.5,438.5 L 233.4,442.5 Z M 233.5,431.1 L 233.8,433.9 L 232.5,433.1 L 231.7,430.9 L 233.5,431.1 Z M 222.8,426.3 L 221.4,426.6 L 219.8,424.9 L 221.5,424.2 L 222.8,426.3 Z M 166.1,382.0 L 164.6,383.4 L 163.1,382.2 L 164.9,380.9 L 166.1,382.0 Z M 238.9,361.7 L 237.8,363.1 L 236.2,361.5 L 238.2,360.3 L 238.9,361.7 Z",
+    "cx": 235.9,
+    "cy": 397.6
   },
   {
-    id: 'ES-PVA', code: 'PVA', name: 'Pays basque (Bilbao)', country: 'ES', flag: '🇪🇸',
-    path: 'M 315,488 L 368,485 L 372,525 L 320,528 Z',
-    cx: 345, cy: 508,
+    "id": "FR-NAQ",
+    "nuts_id": "FRI",
+    "code": "NAQ",
+    "name": "Nouvelle-Aquitaine",
+    "country": "FR",
+    "flag": "🇫🇷",
+    "path": "M 349.1,452.9 L 349.7,455.0 L 353.1,455.9 L 354.0,461.1 L 363.0,460.3 L 363.3,458.0 L 366.2,459.3 L 367.6,463.2 L 373.0,471.1 L 374.7,473.2 L 374.7,478.4 L 382.2,483.1 L 384.3,487.8 L 383.8,489.6 L 389.9,489.1 L 392.1,491.4 L 395.5,488.0 L 403.0,488.8 L 404.7,486.2 L 406.8,486.4 L 418.5,487.5 L 422.4,487.7 L 424.4,492.6 L 429.1,494.9 L 431.4,499.7 L 432.0,501.0 L 432.4,501.8 L 432.0,504.1 L 433.5,510.3 L 432.0,512.0 L 431.4,512.6 L 426.6,517.8 L 429.8,522.1 L 430.9,525.6 L 429.0,529.1 L 430.5,532.7 L 430.4,535.1 L 430.4,539.7 L 425.7,538.7 L 424.4,542.7 L 419.7,547.7 L 418.8,554.1 L 416.3,556.1 L 417.2,559.1 L 414.8,560.0 L 409.0,560.4 L 407.5,561.3 L 406.8,561.6 L 405.3,562.5 L 399.9,557.5 L 396.6,556.8 L 393.3,557.9 L 392.1,559.1 L 392.4,565.2 L 388.6,569.0 L 387.9,572.3 L 383.2,575.2 L 380.2,579.7 L 377.4,581.7 L 379.9,589.4 L 374.2,589.9 L 373.5,592.6 L 375.3,595.2 L 373.1,598.9 L 373.5,600.9 L 370.6,601.3 L 368.6,604.7 L 365.9,606.2 L 363.6,604.6 L 359.8,605.0 L 353.4,608.0 L 349.7,607.4 L 345.3,608.7 L 344.3,612.4 L 342.7,611.8 L 341.4,609.1 L 335.4,612.2 L 335.5,620.4 L 333.0,625.7 L 334.2,628.0 L 339.3,628.1 L 339.9,629.4 L 341.2,631.9 L 340.5,635.1 L 342.6,635.8 L 343.3,639.7 L 341.6,641.0 L 341.7,643.8 L 340.9,645.3 L 336.5,650.7 L 335.6,653.5 L 333.1,655.6 L 331.7,663.3 L 328.8,665.3 L 323.0,665.9 L 319.3,661.9 L 317.3,659.9 L 316.1,658.0 L 307.9,657.5 L 298.9,653.7 L 297.0,651.6 L 294.9,654.1 L 293.1,653.9 L 291.9,652.1 L 293.8,647.4 L 293.6,645.3 L 293.5,643.8 L 282.2,641.9 L 280.2,639.3 L 280.4,638.6 L 285.1,636.9 L 289.3,630.7 L 290.0,629.4 L 292.5,624.6 L 293.0,621.5 L 298.8,585.1 L 300.8,578.6 L 303.8,574.6 L 302.8,572.9 L 300.3,572.2 L 299.7,570.3 L 303.7,535.3 L 305.4,533.8 L 307.3,534.6 L 316.9,547.0 L 317.7,542.6 L 314.5,535.1 L 307.0,528.3 L 299.9,524.0 L 299.2,521.1 L 298.7,516.2 L 294.5,511.5 L 293.6,507.2 L 298.9,509.8 L 300.8,514.8 L 300.2,519.1 L 302.6,518.6 L 302.6,516.4 L 304.8,513.6 L 305.5,507.7 L 302.9,502.5 L 300.1,500.9 L 303.4,495.9 L 303.7,493.6 L 305.0,492.8 L 309.1,491.0 L 309.9,493.0 L 313.9,492.2 L 316.4,493.6 L 319.3,492.7 L 320.2,492.4 L 323.0,489.4 L 321.2,486.3 L 321.2,478.8 L 319.3,473.3 L 317.3,467.7 L 311.5,459.4 L 319.3,458.5 L 321.3,458.3 L 323.0,456.4 L 324.9,454.2 L 334.0,452.9 L 339.1,454.8 L 342.7,449.9 L 344.5,449.8 L 349.1,452.9 Z M 336.8,643.6 L 338.1,645.0 L 339.2,644.8 L 339.8,640.9 L 339.1,640.8 L 336.8,643.6 Z M 298.1,500.8 L 296.0,501.8 L 293.6,499.8 L 296.6,498.8 L 298.1,500.8 Z M 292.3,498.5 L 290.0,499.2 L 287.6,497.2 L 290.4,496.2 L 292.3,498.5 Z",
+    "cx": 346.4,
+    "cy": 551.7
   },
   {
-    id: 'ES-VAL', code: 'VAL', name: 'Valence (València)', country: 'ES', flag: '🇪🇸',
-    path: 'M 365,585 L 418,580 L 410,665 L 358,668 Z',
-    cx: 388, cy: 625,
+    "id": "FR-OCC",
+    "nuts_id": "FRJ",
+    "code": "OCC",
+    "name": "Occitanie",
+    "country": "FR",
+    "flag": "🇫🇷",
+    "path": "M 399.9,557.5 L 405.3,562.5 L 406.8,561.6 L 407.5,561.3 L 409.0,560.4 L 414.8,560.0 L 416.0,565.0 L 418.0,568.3 L 417.6,573.3 L 419.8,577.8 L 421.7,576.0 L 429.5,575.4 L 431.4,571.8 L 432.0,570.6 L 434.3,566.0 L 438.3,562.7 L 443.2,566.9 L 446.9,576.4 L 451.6,564.5 L 454.7,565.1 L 456.2,562.5 L 460.2,560.3 L 461.9,562.0 L 464.2,567.8 L 467.3,567.3 L 469.9,565.1 L 477.7,571.5 L 479.1,578.2 L 482.5,585.4 L 484.5,587.7 L 484.7,592.1 L 486.9,591.8 L 491.5,594.6 L 494.3,591.4 L 496.0,591.3 L 497.2,593.6 L 499.9,591.4 L 505.2,594.7 L 507.5,598.4 L 507.6,603.3 L 511.7,607.6 L 508.4,611.6 L 505.2,614.6 L 504.0,622.7 L 499.7,622.7 L 497.9,625.5 L 498.5,627.3 L 491.5,632.0 L 490.6,634.0 L 487.3,632.5 L 486.1,629.4 L 478.9,631.6 L 465.6,642.3 L 460.7,642.9 L 456.0,645.9 L 450.1,654.7 L 449.1,663.8 L 449.3,676.7 L 450.5,677.9 L 452.0,679.3 L 453.6,683.0 L 444.9,681.5 L 437.9,684.0 L 434.7,687.0 L 432.0,687.4 L 421.8,683.4 L 413.5,686.1 L 408.9,682.1 L 407.5,681.6 L 406.8,681.4 L 403.2,680.3 L 403.0,679.7 L 405.1,676.4 L 396.4,672.6 L 393.1,675.0 L 390.3,670.5 L 389.8,669.8 L 383.7,669.6 L 380.0,666.7 L 372.7,664.4 L 366.3,663.6 L 365.8,669.8 L 365.7,670.8 L 361.3,670.5 L 359.4,670.4 L 356.2,669.8 L 355.1,669.8 L 354.0,670.5 L 353.0,671.2 L 351.8,670.5 L 350.5,669.8 L 348.9,668.9 L 345.5,669.8 L 342.8,670.5 L 341.0,670.5 L 340.1,669.8 L 331.7,663.3 L 333.1,655.6 L 335.6,653.5 L 336.5,650.7 L 340.9,645.3 L 341.7,643.8 L 341.6,641.0 L 343.3,639.7 L 342.6,635.8 L 340.5,635.1 L 341.2,631.9 L 339.9,629.4 L 339.3,628.1 L 334.2,628.0 L 333.0,625.7 L 335.5,620.4 L 335.4,612.2 L 341.4,609.1 L 342.7,611.8 L 344.3,612.4 L 345.3,608.7 L 349.7,607.4 L 353.4,608.0 L 359.8,605.0 L 363.6,604.6 L 365.9,606.2 L 368.6,604.7 L 370.6,601.3 L 373.5,600.9 L 373.1,598.9 L 375.3,595.2 L 373.5,592.6 L 374.2,589.9 L 379.9,589.4 L 377.4,581.7 L 380.2,579.7 L 383.2,575.2 L 387.9,572.3 L 388.6,569.0 L 392.4,565.2 L 392.1,559.1 L 393.3,557.9 L 396.6,556.8 L 399.9,557.5 Z M 410.5,682.0 L 411.9,682.9 L 412.8,682.2 L 411.8,680.0 L 410.5,682.0 Z M 339.2,644.8 L 338.1,645.0 L 336.8,643.6 L 339.1,640.8 L 339.8,640.9 L 339.2,644.8 Z",
+    "cx": 407.2,
+    "cy": 623.0
   },
   {
-    id: 'ES-AND', code: 'AND', name: 'Andalousie (Sevilla/Málaga)', country: 'ES', flag: '🇪🇸',
-    path: 'M 225,655 L 365,645 L 375,735 L 235,745 Z',
-    cx: 300, cy: 695,
+    "id": "FR-ARA",
+    "nuts_id": "FRK",
+    "code": "ARA",
+    "name": "Auvergne-Rhône-Alpes",
+    "country": "FR",
+    "flag": "🇫🇷",
+    "path": "M 448.7,468.7 L 453.9,474.2 L 462.0,472.9 L 464.0,475.7 L 466.7,473.9 L 468.2,470.8 L 469.6,471.0 L 473.6,481.3 L 482.1,485.4 L 481.9,492.0 L 479.0,495.0 L 479.1,498.0 L 482.7,500.3 L 486.1,499.3 L 492.3,500.4 L 496.1,497.9 L 497.3,494.0 L 503.7,495.4 L 506.1,493.8 L 508.4,499.7 L 509.8,500.1 L 515.5,483.2 L 519.8,484.3 L 523.7,483.1 L 525.7,485.6 L 528.3,486.4 L 528.5,488.2 L 535.2,495.4 L 539.9,492.4 L 542.0,493.3 L 543.2,495.5 L 547.8,495.4 L 554.7,487.9 L 557.9,490.2 L 556.8,493.0 L 556.4,496.2 L 551.8,498.5 L 550.9,502.3 L 557.4,501.6 L 562.6,497.5 L 562.9,496.5 L 560.1,493.2 L 563.5,489.1 L 570.6,486.1 L 581.2,487.4 L 579.8,491.3 L 582.3,495.1 L 580.5,501.1 L 583.6,503.0 L 583.8,506.2 L 585.5,506.5 L 589.0,512.9 L 586.4,515.9 L 581.2,517.7 L 580.5,520.1 L 581.7,524.0 L 587.0,527.2 L 587.6,533.5 L 591.1,535.6 L 593.6,539.3 L 591.5,542.8 L 591.2,547.1 L 586.6,548.6 L 582.9,552.2 L 579.4,551.3 L 574.5,553.4 L 570.3,553.7 L 568.5,555.9 L 561.6,552.6 L 559.9,557.9 L 563.5,559.4 L 564.8,562.4 L 564.5,565.8 L 557.1,565.9 L 553.1,567.3 L 550.1,570.7 L 546.6,571.1 L 545.5,573.3 L 546.1,574.4 L 545.2,575.6 L 540.3,576.5 L 538.7,580.8 L 539.9,582.8 L 539.1,584.3 L 533.9,583.9 L 533.9,586.8 L 532.9,587.5 L 534.2,590.8 L 539.0,592.3 L 540.9,595.2 L 541.1,598.6 L 538.1,598.9 L 534.9,602.3 L 529.7,597.8 L 524.6,597.1 L 522.2,594.0 L 518.0,593.4 L 518.5,589.5 L 516.7,587.6 L 514.9,588.3 L 513.9,590.4 L 515.0,594.3 L 512.5,595.8 L 509.4,592.6 L 505.3,591.8 L 505.2,594.7 L 499.9,591.4 L 497.2,593.6 L 496.0,591.3 L 494.3,591.4 L 491.5,594.6 L 486.9,591.8 L 484.7,592.1 L 484.5,587.7 L 482.5,585.4 L 479.1,578.2 L 477.7,571.5 L 469.9,565.1 L 467.3,567.3 L 464.2,567.8 L 461.9,562.0 L 460.2,560.3 L 456.2,562.5 L 454.7,565.1 L 451.6,564.5 L 446.9,576.4 L 443.2,566.9 L 438.3,562.7 L 434.3,566.0 L 432.0,570.6 L 431.4,571.8 L 429.5,575.4 L 421.7,576.0 L 419.8,577.8 L 417.6,573.3 L 418.0,568.3 L 416.0,565.0 L 414.8,560.0 L 417.2,559.1 L 416.3,556.1 L 418.8,554.1 L 419.7,547.7 L 424.4,542.7 L 425.7,538.7 L 430.4,539.7 L 430.4,535.1 L 430.5,532.7 L 429.0,529.1 L 430.9,525.6 L 429.8,522.1 L 426.6,517.8 L 431.4,512.6 L 432.0,512.0 L 433.5,510.3 L 432.0,504.1 L 432.4,501.8 L 432.0,501.0 L 431.4,499.7 L 429.1,494.9 L 424.4,492.6 L 422.4,487.7 L 424.5,483.6 L 433.1,481.4 L 432.9,478.0 L 433.6,476.1 L 437.7,472.0 L 440.1,472.1 L 445.7,468.6 L 448.7,468.7 Z",
+    "cx": 502.8,
+    "cy": 535.8
   },
   {
-    id: 'ES-GAL', code: 'GAL', name: 'Galice (Vigo/Coruña)', country: 'ES', flag: '🇪🇸',
-    path: 'M 145,475 L 210,470 L 205,535 L 140,538 Z',
-    cx: 175, cy: 505,
+    "id": "FR-PACA",
+    "nuts_id": "FRL",
+    "code": "PACA",
+    "name": "Provence-Alpes-Côte d’Azur",
+    "country": "FR",
+    "flag": "🇫🇷",
+    "path": "M 561.6,552.6 L 568.5,555.9 L 570.3,553.7 L 574.5,553.4 L 576.1,557.5 L 578.6,559.0 L 579.2,563.7 L 582.9,566.2 L 587.4,566.8 L 588.5,571.7 L 589.7,573.0 L 589.7,574.3 L 585.6,575.9 L 585.1,579.3 L 582.6,582.1 L 584.7,586.6 L 583.5,590.3 L 588.1,596.2 L 600.3,601.9 L 610.8,599.5 L 612.4,604.9 L 605.3,614.1 L 605.9,618.4 L 602.8,620.0 L 602.1,620.6 L 601.9,621.2 L 592.9,625.1 L 591.5,628.4 L 586.5,630.1 L 585.0,633.0 L 582.0,636.0 L 578.6,636.8 L 574.5,641.7 L 576.1,643.8 L 575.4,645.3 L 574.0,647.4 L 567.4,648.9 L 564.4,651.1 L 560.0,651.1 L 557.3,653.2 L 551.5,651.4 L 546.7,652.7 L 541.0,647.5 L 531.2,646.4 L 530.2,645.3 L 529.8,641.0 L 528.8,639.5 L 520.0,640.1 L 515.6,635.6 L 512.5,636.4 L 512.9,639.2 L 511.5,640.0 L 503.5,638.9 L 502.6,637.8 L 502.8,635.7 L 501.0,634.5 L 490.6,634.0 L 491.5,632.0 L 498.5,627.3 L 497.9,625.5 L 499.7,622.7 L 504.0,622.7 L 505.2,614.6 L 508.4,611.6 L 511.7,607.6 L 507.6,603.3 L 507.5,598.4 L 505.2,594.7 L 505.3,591.8 L 509.4,592.6 L 512.5,595.8 L 515.0,594.3 L 513.9,590.4 L 514.9,588.3 L 516.7,587.6 L 518.5,589.5 L 518.0,593.4 L 522.2,594.0 L 524.6,597.1 L 529.7,597.8 L 534.9,602.3 L 538.1,598.9 L 541.1,598.6 L 540.9,595.2 L 539.0,592.3 L 534.2,590.8 L 532.9,587.5 L 533.9,586.8 L 533.9,583.9 L 539.1,584.3 L 539.9,582.8 L 538.7,580.8 L 540.3,576.5 L 545.2,575.6 L 546.1,574.4 L 545.5,573.3 L 546.6,571.1 L 550.1,570.7 L 553.1,567.3 L 557.1,565.9 L 564.5,565.8 L 564.8,562.4 L 563.5,559.4 L 559.9,557.9 L 561.6,552.6 Z M 560.1,656.5 L 559.4,657.2 L 559.0,656.3 L 559.6,655.7 L 560.1,656.5 Z M 561.1,656.2 L 560.2,656.5 L 559.9,656.1 L 560.0,655.6 L 560.6,655.4 L 560.9,655.0 L 561.1,655.3 L 561.1,656.2 Z M 567.8,655.5 L 566.7,657.0 L 565.1,655.8 L 566.5,654.5 L 567.8,655.5 Z",
+    "cx": 550.8,
+    "cy": 611.2
   },
+  {
+    "id": "FR-COR",
+    "nuts_id": "FRM",
+    "code": "COR",
+    "name": "Corse",
+    "country": "FR",
+    "flag": "🇫🇷",
+    "path": "M 674.3,665.2 L 673.4,671.6 L 675.7,677.9 L 676.0,686.0 L 676.1,687.5 L 676.7,697.4 L 672.0,705.5 L 671.4,710.2 L 671.3,711.6 L 671.1,718.1 L 668.2,721.6 L 668.6,722.7 L 669.5,723.4 L 667.2,726.2 L 665.1,732.7 L 661.2,731.7 L 660.4,729.6 L 652.6,725.8 L 650.0,722.7 L 652.7,718.3 L 647.9,715.1 L 648.7,711.6 L 649.4,708.4 L 644.1,706.3 L 647.2,700.8 L 643.0,695.8 L 643.2,692.7 L 645.2,690.4 L 643.6,687.5 L 642.4,685.5 L 645.6,682.9 L 645.9,679.3 L 647.6,677.9 L 651.2,675.1 L 658.4,672.7 L 662.2,669.1 L 668.2,670.4 L 669.1,668.2 L 668.6,663.8 L 669.4,658.0 L 671.5,655.9 L 672.9,656.7 L 673.5,658.7 L 674.3,665.2 Z",
+    "cx": 661.1,
+    "cy": 693.9
+  },
+  {
+    "id": "DE-NI",
+    "nuts_id": "DE9",
+    "code": "NI",
+    "name": "Basse-Saxe",
+    "country": "DE",
+    "flag": "🇩🇪",
+    "path": "M 650.6,82.3 L 658.4,82.8 L 660.7,80.7 L 666.9,81.1 L 676.8,95.8 L 677.8,96.3 L 684.3,99.5 L 684.2,101.7 L 687.2,105.5 L 690.0,106.4 L 694.4,104.7 L 699.7,108.1 L 703.1,105.9 L 704.3,106.4 L 708.7,108.7 L 713.1,110.0 L 716.8,109.9 L 721.1,113.1 L 725.9,111.5 L 729.0,116.4 L 733.5,120.7 L 733.3,122.1 L 736.6,124.1 L 739.1,127.7 L 742.9,127.0 L 748.2,129.1 L 745.2,131.4 L 744.9,134.6 L 737.8,138.3 L 728.5,136.5 L 725.2,139.4 L 721.7,139.8 L 719.4,140.6 L 718.9,143.1 L 724.1,152.8 L 726.0,153.3 L 725.6,156.9 L 727.6,160.3 L 725.0,161.7 L 729.0,167.1 L 728.0,170.0 L 729.3,174.9 L 728.7,179.6 L 726.0,185.4 L 720.3,185.9 L 715.9,186.1 L 711.9,188.4 L 713.6,190.4 L 714.6,194.7 L 712.7,197.8 L 712.7,200.5 L 716.8,208.9 L 716.0,209.1 L 714.9,213.1 L 709.4,212.7 L 706.0,212.0 L 702.8,217.1 L 689.8,223.9 L 688.9,221.9 L 685.4,222.4 L 682.4,224.5 L 684.1,226.8 L 682.9,228.4 L 677.2,225.9 L 676.8,225.2 L 679.5,221.3 L 678.3,216.0 L 680.0,214.0 L 679.3,213.1 L 679.4,212.3 L 679.8,212.3 L 680.9,213.1 L 681.3,212.3 L 678.9,209.6 L 672.7,208.4 L 671.9,208.6 L 670.9,208.1 L 670.9,203.1 L 672.5,200.5 L 672.4,197.7 L 668.6,196.9 L 669.1,194.9 L 668.1,193.0 L 666.5,190.4 L 664.2,190.2 L 662.8,183.1 L 662.0,181.2 L 658.1,180.5 L 657.1,177.8 L 658.6,177.8 L 659.2,176.2 L 656.8,173.5 L 657.2,170.8 L 660.1,167.1 L 661.7,165.2 L 661.3,161.2 L 659.8,160.3 L 655.3,165.4 L 648.0,166.3 L 647.2,165.1 L 647.0,160.1 L 644.7,158.7 L 639.6,159.8 L 636.9,163.0 L 632.8,162.6 L 633.9,165.7 L 635.9,167.1 L 637.8,168.5 L 638.7,173.4 L 639.5,178.6 L 636.7,182.1 L 631.9,181.4 L 625.7,185.4 L 621.2,186.3 L 618.4,183.9 L 622.5,181.6 L 622.2,179.2 L 619.3,177.0 L 620.9,173.1 L 621.1,170.1 L 619.6,167.6 L 617.4,167.1 L 613.5,166.3 L 611.1,162.7 L 608.7,161.6 L 607.0,167.1 L 598.5,172.7 L 590.9,174.8 L 589.7,174.9 L 588.6,172.2 L 589.6,167.1 L 587.0,163.0 L 576.8,160.9 L 576.8,157.6 L 578.0,155.9 L 577.3,152.8 L 580.6,151.4 L 587.6,152.1 L 589.3,151.1 L 590.7,140.6 L 594.4,132.1 L 594.5,124.6 L 594.7,117.1 L 596.2,113.4 L 598.0,112.3 L 588.8,111.5 L 587.4,110.2 L 589.1,100.9 L 591.5,99.9 L 590.9,97.6 L 591.8,96.3 L 593.2,94.3 L 599.3,91.2 L 606.6,91.7 L 608.0,91.4 L 608.6,91.0 L 611.5,90.2 L 615.7,89.8 L 622.2,89.5 L 625.6,93.9 L 627.3,96.3 L 627.5,100.6 L 624.6,101.7 L 625.5,104.6 L 629.2,107.3 L 631.2,107.2 L 632.8,105.1 L 632.8,101.6 L 631.1,99.3 L 633.0,96.0 L 641.7,101.1 L 639.6,103.6 L 644.9,100.8 L 644.3,96.7 L 642.8,96.3 L 640.6,95.8 L 639.5,90.2 L 641.9,82.8 L 644.0,79.6 L 646.0,79.1 L 650.6,82.3 Z M 647.3,128.6 L 654.4,130.6 L 656.2,128.7 L 655.9,125.1 L 656.8,123.9 L 639.3,118.0 L 643.9,121.7 L 645.3,124.9 L 647.3,128.6 Z M 579.5,95.7 L 577.8,98.0 L 575.4,96.9 L 577.7,94.9 L 579.5,95.7 Z M 584.8,93.2 L 583.7,95.3 L 582.0,93.6 L 583.7,92.3 L 584.8,93.2 Z M 596.5,89.4 L 595.0,90.7 L 593.3,89.5 L 595.0,88.1 L 596.5,89.4 Z M 606.2,87.0 L 604.8,88.9 L 603.0,88.0 L 604.6,86.3 L 606.2,87.0 Z M 613.7,86.0 L 612.3,87.4 L 610.5,86.1 L 612.2,84.8 L 613.7,86.0 Z",
+    "cx": 651.6,
+    "cy": 143.3
+  },
+  {
+    "id": "DE-NW",
+    "nuts_id": "DEA",
+    "code": "NW",
+    "name": "Rhénanie-du-Nord-Westphalie",
+    "country": "DE",
+    "flag": "🇩🇪",
+    "path": "M 647.0,160.1 L 647.2,165.1 L 648.0,166.3 L 655.3,165.4 L 659.8,160.3 L 661.3,161.2 L 661.7,165.2 L 660.1,167.1 L 657.2,170.8 L 656.8,173.5 L 659.2,176.2 L 658.6,177.8 L 657.1,177.8 L 658.1,180.5 L 662.0,181.2 L 662.8,183.1 L 664.2,190.2 L 666.5,190.4 L 668.1,193.0 L 669.1,194.9 L 668.6,196.9 L 672.4,197.7 L 672.5,200.5 L 670.9,203.1 L 670.9,208.1 L 671.9,208.6 L 672.7,208.4 L 670.0,210.5 L 668.0,215.7 L 662.8,220.1 L 660.7,219.6 L 659.1,216.6 L 656.3,216.5 L 654.0,218.0 L 654.9,222.7 L 646.6,224.1 L 642.5,228.5 L 643.1,230.5 L 647.4,230.0 L 648.6,234.2 L 646.1,239.0 L 641.6,239.2 L 640.4,240.4 L 640.7,243.8 L 639.1,246.6 L 634.8,252.5 L 631.5,252.0 L 627.5,256.3 L 627.9,259.7 L 626.8,262.2 L 623.8,261.6 L 621.2,254.2 L 616.8,251.2 L 617.2,249.0 L 614.9,248.2 L 613.6,253.0 L 610.5,254.8 L 610.4,257.1 L 602.8,260.8 L 600.7,260.9 L 599.2,264.5 L 594.8,265.7 L 584.9,269.2 L 583.3,274.4 L 579.5,273.8 L 580.4,280.1 L 567.6,280.0 L 567.3,282.2 L 566.6,282.2 L 564.9,279.1 L 565.3,275.4 L 563.5,272.6 L 559.2,271.3 L 559.1,268.8 L 561.4,265.7 L 553.2,258.4 L 553.2,254.1 L 555.3,251.8 L 555.5,249.7 L 553.5,248.4 L 553.0,246.1 L 549.7,245.7 L 548.1,243.1 L 548.9,241.5 L 551.1,242.1 L 558.6,234.6 L 555.5,234.8 L 555.0,231.3 L 560.3,224.5 L 559.7,216.0 L 556.1,211.1 L 556.1,208.2 L 550.8,202.9 L 551.7,201.6 L 551.2,198.4 L 554.6,196.6 L 557.8,197.4 L 557.5,194.8 L 558.3,194.3 L 566.7,198.4 L 567.1,196.7 L 579.4,193.1 L 581.1,189.2 L 576.8,185.8 L 579.0,181.9 L 582.3,181.6 L 587.1,176.0 L 589.7,174.9 L 590.9,174.8 L 598.5,172.7 L 607.0,167.1 L 608.7,161.6 L 611.1,162.7 L 613.5,166.3 L 617.4,167.1 L 619.6,167.6 L 621.1,170.1 L 620.9,173.1 L 619.3,177.0 L 622.2,179.2 L 622.5,181.6 L 618.4,183.9 L 621.2,186.3 L 625.7,185.4 L 631.9,181.4 L 636.7,182.1 L 639.5,178.6 L 638.7,173.4 L 637.8,168.5 L 635.9,167.1 L 633.9,165.7 L 632.8,162.6 L 636.9,163.0 L 639.6,159.8 L 644.7,158.7 L 647.0,160.1 Z",
+    "cx": 613.9,
+    "cy": 212.2
+  },
+  {
+    "id": "DE-RP",
+    "nuts_id": "DEB",
+    "code": "RP",
+    "name": "Rhénanie-Palatinat",
+    "country": "DE",
+    "flag": "🇩🇪",
+    "path": "M 627.7,267.0 L 626.5,270.1 L 623.8,269.7 L 622.3,271.2 L 621.4,277.6 L 624.2,279.4 L 626.6,284.7 L 619.4,288.8 L 618.7,289.9 L 619.6,292.8 L 617.4,293.2 L 614.5,296.2 L 619.0,301.2 L 628.5,297.9 L 629.0,297.9 L 630.9,298.3 L 631.8,299.2 L 632.5,300.1 L 634.4,303.0 L 636.4,310.5 L 638.5,312.5 L 638.1,314.3 L 635.1,316.9 L 636.9,321.7 L 637.1,322.4 L 637.2,322.9 L 636.9,323.8 L 637.2,324.6 L 638.9,329.9 L 639.8,331.6 L 638.8,335.4 L 639.4,338.1 L 638.7,338.5 L 636.8,340.3 L 634.3,349.4 L 632.1,354.2 L 631.5,354.7 L 630.5,355.4 L 624.8,353.7 L 619.3,351.2 L 609.6,350.8 L 605.8,348.2 L 604.1,344.9 L 600.3,345.0 L 598.6,343.5 L 597.9,341.2 L 601.2,336.7 L 601.5,334.0 L 601.3,333.7 L 597.6,331.8 L 596.2,330.6 L 597.7,328.2 L 597.1,324.2 L 596.5,322.8 L 588.4,319.3 L 583.6,320.8 L 573.4,325.5 L 565.7,324.1 L 567.6,318.1 L 570.0,315.1 L 570.3,311.6 L 569.1,309.5 L 563.9,308.2 L 561.0,305.4 L 556.9,298.2 L 557.3,292.7 L 559.3,286.6 L 563.4,282.8 L 566.6,282.2 L 567.3,282.2 L 567.6,280.0 L 580.4,280.1 L 579.5,273.8 L 583.3,274.4 L 584.9,269.2 L 594.8,265.7 L 599.2,264.5 L 600.7,260.9 L 602.8,260.8 L 610.4,257.1 L 610.5,254.8 L 613.6,253.0 L 614.9,248.2 L 617.2,249.0 L 616.8,251.2 L 621.2,254.2 L 623.8,261.6 L 626.8,262.2 L 627.7,267.0 Z",
+    "cx": 609.0,
+    "cy": 304.2
+  },
+  {
+    "id": "DE-SL",
+    "nuts_id": "DEC",
+    "code": "SL",
+    "name": "Sarre",
+    "country": "DE",
+    "flag": "🇩🇪",
+    "path": "M 597.1,324.2 L 597.7,328.2 L 596.2,330.6 L 597.6,331.8 L 601.3,333.7 L 601.5,334.0 L 601.2,336.7 L 597.9,341.2 L 598.6,343.5 L 600.3,345.0 L 597.7,347.2 L 594.1,347.3 L 590.9,345.3 L 589.4,347.0 L 588.2,343.6 L 585.0,342.1 L 582.2,342.5 L 581.5,345.2 L 578.8,344.8 L 577.7,343.8 L 577.7,342.0 L 573.1,336.1 L 571.9,331.2 L 568.2,328.6 L 565.3,328.5 L 565.7,324.1 L 573.4,325.5 L 583.6,320.8 L 588.4,319.3 L 596.5,322.8 L 597.1,324.2 Z",
+    "cx": 587.6,
+    "cy": 335.5
+  },
+  {
+    "id": "DE-SN",
+    "nuts_id": "DED",
+    "code": "SN",
+    "name": "Saxe",
+    "country": "DE",
+    "flag": "🇩🇪",
+    "path": "M 803.9,214.5 L 804.6,222.2 L 811.3,220.0 L 816.4,223.7 L 821.4,224.0 L 826.4,223.8 L 832.2,223.4 L 836.0,216.0 L 837.9,214.6 L 843.6,216.0 L 847.8,214.5 L 851.9,212.8 L 855.2,213.9 L 857.7,212.3 L 858.0,215.1 L 865.4,219.0 L 866.2,224.5 L 868.1,229.2 L 867.0,237.6 L 863.7,247.5 L 861.0,252.0 L 859.1,254.6 L 853.8,252.7 L 854.5,249.2 L 852.3,249.1 L 852.8,245.6 L 849.3,242.4 L 846.7,243.4 L 843.3,241.8 L 841.6,245.2 L 845.6,248.5 L 845.3,250.3 L 831.4,255.4 L 827.1,259.7 L 820.0,259.8 L 816.1,261.1 L 814.7,265.1 L 813.0,266.5 L 810.7,265.0 L 807.9,268.0 L 806.2,267.8 L 803.6,272.1 L 798.8,271.9 L 797.6,275.5 L 795.4,277.7 L 791.0,275.0 L 786.8,277.6 L 782.6,277.6 L 776.5,282.3 L 773.3,290.2 L 768.5,282.7 L 765.8,282.4 L 762.7,281.1 L 759.4,276.6 L 760.5,272.8 L 758.2,270.5 L 760.3,267.4 L 762.4,266.1 L 764.2,269.4 L 773.4,262.7 L 770.7,259.4 L 771.9,256.9 L 771.0,254.9 L 785.1,249.1 L 783.8,245.9 L 780.3,243.5 L 778.6,240.5 L 772.2,239.7 L 769.5,236.8 L 768.2,229.5 L 767.8,227.3 L 769.0,226.3 L 767.7,219.6 L 769.2,215.1 L 782.5,209.8 L 791.0,207.2 L 799.0,208.6 L 803.9,214.5 Z",
+    "cx": 809.4,
+    "cy": 245.9
+  },
+  {
+    "id": "DE-ST",
+    "nuts_id": "DEE",
+    "code": "ST",
+    "name": "Saxe-Anhalt",
+    "country": "DE",
+    "flag": "🇩🇪",
+    "path": "M 766.7,137.6 L 767.1,139.2 L 770.1,139.4 L 771.0,143.3 L 769.8,144.7 L 770.5,151.6 L 768.4,153.6 L 768.2,159.8 L 773.2,160.7 L 773.3,162.7 L 772.5,167.1 L 770.3,179.0 L 771.9,182.7 L 775.4,186.1 L 781.8,189.5 L 786.0,188.3 L 789.2,189.8 L 802.5,196.6 L 802.9,205.2 L 799.0,208.6 L 791.0,207.2 L 782.5,209.8 L 769.2,215.1 L 767.7,219.6 L 769.0,226.3 L 767.8,227.3 L 768.2,229.5 L 769.5,236.8 L 772.2,239.7 L 772.1,243.8 L 770.1,248.0 L 768.0,247.1 L 763.0,246.5 L 758.8,242.3 L 754.3,242.1 L 751.6,240.0 L 744.2,239.0 L 743.5,234.3 L 740.7,232.9 L 740.7,231.1 L 743.8,228.3 L 741.5,225.8 L 740.7,223.6 L 738.2,222.2 L 726.5,221.0 L 725.1,215.1 L 723.5,212.9 L 724.3,210.4 L 716.8,208.9 L 712.7,200.5 L 712.7,197.8 L 714.6,194.7 L 713.6,190.4 L 711.9,188.4 L 715.9,186.1 L 720.3,185.9 L 726.0,185.4 L 728.7,179.6 L 729.3,174.9 L 728.0,170.0 L 729.0,167.1 L 725.0,161.7 L 727.6,160.3 L 725.6,156.9 L 726.0,153.3 L 724.1,152.8 L 718.9,143.1 L 719.4,140.6 L 721.7,139.8 L 725.2,139.4 L 728.5,136.5 L 737.8,138.3 L 744.9,134.6 L 745.2,131.4 L 748.2,129.1 L 756.1,133.9 L 757.6,136.8 L 766.7,137.6 Z",
+    "cx": 750.5,
+    "cy": 187.9
+  },
+  {
+    "id": "DE-SH",
+    "nuts_id": "DEF",
+    "code": "SH",
+    "name": "Schleswig-Holstein",
+    "country": "DE",
+    "flag": "🇩🇪",
+    "path": "M 665.1,21.2 L 667.1,23.9 L 672.0,22.4 L 672.1,23.0 L 674.5,23.0 L 677.5,20.7 L 687.2,27.0 L 690.0,25.2 L 693.4,34.3 L 690.4,43.4 L 696.3,44.0 L 698.2,46.6 L 698.4,51.8 L 700.4,47.9 L 704.3,46.5 L 717.3,54.2 L 724.8,50.1 L 729.7,49.3 L 730.1,47.0 L 728.1,44.5 L 730.0,41.1 L 734.6,42.3 L 737.3,46.8 L 732.4,48.9 L 730.6,51.4 L 729.5,61.0 L 719.9,68.2 L 719.5,70.6 L 721.7,72.9 L 723.9,75.0 L 719.0,80.6 L 719.0,83.6 L 719.2,86.7 L 724.4,90.6 L 725.6,93.3 L 724.4,96.3 L 723.8,97.6 L 721.5,98.1 L 719.6,102.0 L 714.7,105.0 L 713.1,110.0 L 708.7,108.7 L 704.3,106.4 L 703.1,105.9 L 700.6,102.2 L 698.1,99.1 L 698.8,96.3 L 697.7,90.3 L 694.8,90.4 L 690.4,93.0 L 687.1,95.9 L 684.3,96.1 L 683.0,98.2 L 679.4,96.3 L 677.7,95.4 L 675.4,89.4 L 672.2,87.0 L 669.5,81.4 L 664.3,79.0 L 656.6,78.6 L 654.2,76.3 L 651.7,71.0 L 656.4,68.6 L 654.9,65.2 L 652.5,64.8 L 651.2,62.8 L 651.9,56.6 L 645.7,55.2 L 643.7,52.8 L 646.1,51.3 L 646.0,48.8 L 653.1,47.9 L 657.2,44.3 L 656.6,41.7 L 653.5,44.6 L 651.0,44.1 L 653.0,38.1 L 652.9,36.0 L 648.9,31.4 L 644.0,22.3 L 643.6,19.7 L 644.6,17.6 L 661.3,19.9 L 665.1,21.2 Z M 726.5,77.8 L 725.2,79.0 L 723.3,77.5 L 725.0,76.3 L 726.5,77.8 Z M 647.0,39.9 L 645.6,43.5 L 643.8,43.4 L 642.3,41.5 L 646.1,39.4 L 647.0,39.9 Z M 636.2,35.5 L 635.0,35.6 L 632.4,32.4 L 634.3,30.6 L 636.2,35.5 Z M 643.8,29.8 L 641.0,32.4 L 636.3,28.9 L 640.3,26.4 L 643.8,29.8 Z M 633.4,25.3 L 633.0,27.9 L 631.4,26.9 L 632.2,24.3 L 633.4,25.3 Z M 636.8,21.0 L 631.9,21.1 L 634.3,14.0 L 635.6,17.8 L 637.4,20.2 L 636.8,21.0 Z M 638.3,10.1 L 637.1,11.6 L 635.2,10.4 L 636.8,8.9 L 638.3,10.1 Z",
+    "cx": 676.4,
+    "cy": 53.8
+  },
+  {
+    "id": "DE-TH",
+    "nuts_id": "DEG",
+    "code": "TH",
+    "name": "Thuringe",
+    "country": "DE",
+    "flag": "🇩🇪",
+    "path": "M 723.5,212.9 L 725.1,215.1 L 726.5,221.0 L 738.2,222.2 L 740.7,223.6 L 741.5,225.8 L 743.8,228.3 L 740.7,231.1 L 740.7,232.9 L 743.5,234.3 L 744.2,239.0 L 751.6,240.0 L 754.3,242.1 L 758.8,242.3 L 763.0,246.5 L 768.0,247.1 L 770.1,248.0 L 772.1,243.8 L 772.2,239.7 L 778.6,240.5 L 780.3,243.5 L 783.8,245.9 L 785.1,249.1 L 771.0,254.9 L 771.9,256.9 L 770.7,259.4 L 773.4,262.7 L 764.2,269.4 L 762.4,266.1 L 760.3,267.4 L 758.2,270.5 L 760.5,272.8 L 759.4,276.6 L 748.4,278.0 L 745.7,278.8 L 744.1,276.2 L 742.3,275.4 L 741.1,271.4 L 736.6,273.6 L 736.4,283.6 L 733.9,285.0 L 732.5,283.9 L 731.6,280.3 L 726.7,280.3 L 725.4,278.7 L 718.1,280.3 L 718.1,282.4 L 720.7,285.5 L 717.8,287.3 L 713.6,287.4 L 713.0,281.8 L 708.1,277.9 L 706.4,277.8 L 703.6,272.9 L 699.4,269.8 L 695.9,269.4 L 693.8,271.6 L 694.7,263.8 L 692.5,262.8 L 690.5,265.0 L 688.4,264.4 L 689.7,257.7 L 693.2,251.6 L 692.0,249.1 L 693.2,247.3 L 693.1,245.2 L 698.8,244.6 L 697.5,237.3 L 699.7,236.8 L 699.5,234.2 L 691.0,228.3 L 689.8,223.9 L 702.8,217.1 L 706.0,212.0 L 709.4,212.7 L 714.9,213.1 L 716.0,209.1 L 716.8,208.9 L 724.3,210.4 L 723.5,212.9 Z",
+    "cx": 730.9,
+    "cy": 252.1
+  },
+  {
+    "id": "DE-BW",
+    "nuts_id": "DE1",
+    "code": "BW",
+    "name": "Bade-Wurtemberg",
+    "country": "DE",
+    "flag": "🇩🇪",
+    "path": "M 680.0,311.1 L 679.7,316.0 L 685.9,315.7 L 687.4,320.7 L 686.7,323.7 L 689.1,323.4 L 689.9,327.4 L 692.8,327.4 L 695.2,324.5 L 696.4,328.3 L 696.1,329.5 L 697.5,332.3 L 696.2,333.1 L 697.5,338.0 L 697.0,342.0 L 700.8,346.1 L 700.4,348.2 L 701.3,350.5 L 706.6,354.8 L 708.0,358.1 L 707.1,367.2 L 709.3,369.8 L 704.9,371.5 L 701.9,369.9 L 703.2,377.6 L 702.0,379.3 L 700.4,379.6 L 697.0,382.5 L 693.5,382.4 L 691.9,386.5 L 692.2,388.1 L 694.3,391.5 L 695.6,397.8 L 697.1,400.7 L 696.3,407.7 L 696.0,407.7 L 695.5,408.6 L 696.2,409.7 L 695.4,413.6 L 696.9,415.8 L 695.1,417.2 L 696.9,422.1 L 695.0,425.2 L 693.8,423.2 L 690.4,424.4 L 687.2,423.5 L 681.5,426.7 L 676.9,430.2 L 675.1,429.8 L 670.6,426.0 L 663.7,424.3 L 658.4,422.9 L 653.0,424.4 L 652.2,422.1 L 650.8,421.0 L 649.6,421.6 L 650.2,423.3 L 647.8,422.4 L 647.0,419.2 L 643.8,416.8 L 642.6,416.7 L 642.0,417.2 L 640.2,418.1 L 637.0,422.0 L 637.3,423.5 L 640.1,424.7 L 643.6,423.7 L 643.2,427.0 L 642.1,427.3 L 640.3,425.8 L 637.3,428.9 L 629.9,426.4 L 623.5,429.7 L 619.7,429.6 L 618.7,427.9 L 612.4,430.4 L 609.6,429.3 L 608.0,427.8 L 605.6,423.0 L 606.5,419.8 L 606.2,417.2 L 608.8,407.9 L 607.5,404.3 L 607.6,400.4 L 607.6,400.2 L 611.2,392.9 L 613.2,388.7 L 615.9,374.7 L 621.0,368.6 L 625.6,363.7 L 628.3,357.5 L 630.5,355.4 L 631.5,354.7 L 632.1,354.2 L 634.3,349.4 L 636.8,340.3 L 638.7,338.5 L 639.4,338.1 L 638.8,335.4 L 639.8,331.6 L 638.9,329.9 L 637.2,324.6 L 636.9,323.8 L 637.2,322.9 L 637.1,322.4 L 642.7,325.8 L 643.8,324.2 L 643.7,321.1 L 645.4,320.5 L 647.3,325.0 L 651.2,327.2 L 651.0,331.9 L 653.2,331.5 L 655.0,328.4 L 660.3,325.4 L 660.9,322.7 L 665.4,322.5 L 667.7,319.1 L 671.7,318.0 L 671.7,315.4 L 669.5,315.1 L 668.7,312.8 L 673.8,311.8 L 680.0,311.1 Z M 660.6,325.3 L 661.1,326.4 L 661.8,326.1 L 661.5,325.1 L 660.6,325.3 Z M 647.5,422.5 L 645.8,422.8 L 645.6,422.8 L 646.6,421.7 L 647.5,422.5 Z M 653.8,327.7 L 652.8,328.5 L 651.9,327.3 L 652.3,326.8 L 653.8,326.7 L 653.8,327.7 Z",
+    "cx": 660.4,
+    "cy": 373.1
+  },
+  {
+    "id": "DE-BY",
+    "nuts_id": "DE2",
+    "code": "BY",
+    "name": "Bavière",
+    "country": "DE",
+    "flag": "🇩🇪",
+    "path": "M 707.8,428.8 L 708.2,429.5 L 708.4,436.3 L 704.1,442.0 L 698.5,444.3 L 700.1,439.0 L 695.9,439.3 L 695.3,435.2 L 692.3,433.3 L 691.2,430.0 L 687.2,430.5 L 685.0,427.8 L 681.8,431.0 L 676.9,430.2 L 681.5,426.7 L 687.2,423.5 L 690.4,424.4 L 693.8,423.2 L 695.0,425.2 L 696.9,422.1 L 695.1,417.2 L 696.9,415.8 L 695.4,413.6 L 696.2,409.7 L 695.5,408.6 L 696.0,407.7 L 696.3,407.7 L 697.1,400.7 L 695.6,397.8 L 694.3,391.5 L 692.2,388.1 L 691.9,386.5 L 693.5,382.4 L 697.0,382.5 L 700.4,379.6 L 702.0,379.3 L 703.2,377.6 L 701.9,369.9 L 704.9,371.5 L 709.3,369.8 L 707.1,367.2 L 708.0,358.1 L 706.6,354.8 L 701.3,350.5 L 700.4,348.2 L 700.8,346.1 L 697.0,342.0 L 697.5,338.0 L 696.2,333.1 L 697.5,332.3 L 696.1,329.5 L 696.4,328.3 L 695.2,324.5 L 692.8,327.4 L 689.9,327.4 L 689.1,323.4 L 686.7,323.7 L 687.4,320.7 L 685.9,315.7 L 679.7,316.0 L 680.0,311.1 L 673.8,311.8 L 668.7,312.8 L 669.5,315.1 L 671.7,315.4 L 671.7,318.0 L 667.7,319.1 L 665.4,322.5 L 660.9,322.7 L 660.0,320.4 L 662.3,314.0 L 661.5,311.3 L 658.6,308.1 L 659.1,307.1 L 657.9,300.3 L 658.4,298.5 L 657.0,296.2 L 658.5,293.7 L 665.2,291.9 L 670.0,292.7 L 671.5,295.0 L 675.1,294.0 L 675.2,287.1 L 679.1,287.3 L 682.9,283.2 L 683.0,280.4 L 684.3,276.9 L 690.1,276.9 L 692.6,274.6 L 693.8,271.6 L 695.9,269.4 L 699.4,269.8 L 703.6,272.9 L 706.4,277.8 L 708.1,277.9 L 713.0,281.8 L 713.6,287.4 L 717.8,287.3 L 720.7,285.5 L 718.1,282.4 L 718.1,280.3 L 725.4,278.7 L 726.7,280.3 L 731.6,280.3 L 732.5,283.9 L 733.9,285.0 L 736.4,283.6 L 736.6,273.6 L 741.1,271.4 L 742.3,275.4 L 744.1,276.2 L 745.7,278.8 L 748.4,278.0 L 759.4,276.6 L 762.7,281.1 L 765.8,282.4 L 766.7,284.5 L 766.0,286.3 L 767.9,287.8 L 771.4,296.6 L 778.9,301.0 L 779.4,303.3 L 781.5,305.0 L 778.5,311.3 L 776.3,312.9 L 780.3,317.2 L 783.0,324.6 L 784.5,325.9 L 784.4,328.1 L 789.9,334.9 L 795.6,335.5 L 798.8,339.5 L 803.2,344.4 L 804.2,346.7 L 809.5,349.4 L 811.8,354.7 L 814.4,356.3 L 816.5,355.4 L 822.9,360.2 L 826.6,365.8 L 825.0,368.9 L 825.8,374.5 L 822.6,379.5 L 815.2,375.4 L 812.5,377.6 L 812.9,379.8 L 811.2,386.9 L 806.9,390.6 L 803.4,391.0 L 798.8,392.6 L 795.3,395.6 L 792.9,396.1 L 788.5,400.5 L 792.3,406.6 L 792.9,408.4 L 796.5,412.9 L 794.8,420.7 L 798.8,421.6 L 800.1,423.8 L 798.8,431.4 L 797.2,433.7 L 794.0,432.4 L 790.6,429.5 L 789.8,425.8 L 786.6,423.0 L 783.7,423.5 L 782.3,425.6 L 780.0,425.6 L 777.4,422.6 L 774.1,422.2 L 771.5,422.8 L 770.4,420.9 L 768.3,422.2 L 769.0,426.6 L 764.4,426.3 L 756.2,428.0 L 749.4,427.6 L 746.7,431.7 L 741.6,432.7 L 741.1,433.9 L 742.0,435.3 L 738.9,435.3 L 736.4,437.5 L 734.6,436.0 L 727.8,437.8 L 727.0,437.8 L 725.8,435.0 L 723.2,433.2 L 723.3,430.5 L 719.8,431.4 L 714.6,429.1 L 711.6,430.5 L 708.2,429.5 L 708.8,427.9 L 707.8,428.4 L 707.8,428.8 Z",
+    "cx": 729.0,
+    "cy": 360.6
+  },
+  {
+    "id": "DE-BE",
+    "nuts_id": "DE3",
+    "code": "BE",
+    "name": "Berlin",
+    "country": "DE",
+    "flag": "🇩🇪",
+    "path": "M 820.5,161.6 L 822.6,163.8 L 821.6,167.1 L 820.2,168.7 L 817.1,167.1 L 812.9,165.0 L 812.0,167.1 L 808.1,165.9 L 803.0,166.2 L 801.0,164.0 L 802.6,160.0 L 801.7,158.5 L 802.9,154.4 L 807.1,151.6 L 809.3,152.7 L 811.1,151.6 L 814.4,150.8 L 815.1,154.2 L 818.6,157.6 L 820.5,161.6 Z",
+    "cx": 812.1,
+    "cy": 160.5
+  },
+  {
+    "id": "DE-BB",
+    "nuts_id": "DE4",
+    "code": "BB",
+    "name": "Brandebourg",
+    "country": "DE",
+    "flag": "🇩🇪",
+    "path": "M 837.5,115.7 L 841.2,115.8 L 846.6,112.0 L 847.6,116.4 L 845.4,120.6 L 844.2,128.1 L 837.2,133.5 L 837.6,137.3 L 837.2,141.0 L 844.3,145.7 L 847.4,149.8 L 851.9,152.9 L 854.1,155.8 L 853.9,160.8 L 850.9,166.1 L 851.2,167.1 L 853.2,173.2 L 856.7,174.8 L 856.1,181.5 L 858.6,184.7 L 857.2,188.6 L 856.7,193.4 L 853.1,198.3 L 858.3,207.5 L 858.6,210.6 L 857.7,212.3 L 855.2,213.9 L 851.9,212.8 L 847.8,214.5 L 843.6,216.0 L 837.9,214.6 L 836.0,216.0 L 832.2,223.4 L 826.4,223.8 L 821.4,224.0 L 816.4,223.7 L 811.3,220.0 L 804.6,222.2 L 803.9,214.5 L 799.0,208.6 L 802.9,205.2 L 802.5,196.6 L 789.2,189.8 L 786.0,188.3 L 781.8,189.5 L 775.4,186.1 L 771.9,182.7 L 770.3,179.0 L 772.5,167.1 L 773.3,162.7 L 773.2,160.7 L 768.2,159.8 L 768.4,153.6 L 770.5,151.6 L 769.8,144.7 L 771.0,143.3 L 770.1,139.4 L 767.1,139.2 L 766.7,137.6 L 757.6,136.8 L 756.1,133.9 L 748.2,129.1 L 742.9,127.0 L 739.1,127.7 L 736.6,124.1 L 745.5,123.7 L 747.2,119.0 L 748.8,117.6 L 753.9,118.3 L 757.6,116.4 L 762.5,113.5 L 764.7,110.1 L 773.6,112.5 L 773.8,112.7 L 777.8,116.1 L 785.1,116.7 L 787.6,118.7 L 788.9,119.9 L 795.2,120.1 L 796.7,121.6 L 798.8,119.8 L 802.3,117.1 L 805.6,117.7 L 805.8,116.4 L 807.8,115.0 L 809.7,115.2 L 810.4,116.4 L 811.4,116.4 L 814.8,113.2 L 816.8,108.1 L 822.0,103.2 L 824.5,102.7 L 825.4,100.3 L 830.1,106.1 L 839.5,106.7 L 839.9,109.3 L 837.2,114.3 L 837.5,115.7 Z M 814.4,150.8 L 811.1,151.6 L 809.3,152.7 L 807.1,151.6 L 802.9,154.4 L 801.7,158.5 L 802.6,160.0 L 801.0,164.0 L 803.0,166.2 L 808.1,165.9 L 812.0,167.1 L 812.9,165.0 L 817.1,167.1 L 820.2,168.7 L 821.6,167.1 L 822.6,163.8 L 820.5,161.6 L 818.6,157.6 L 815.1,154.2 L 814.4,150.8 Z",
+    "cx": 808.9,
+    "cy": 153.5
+  },
+  {
+    "id": "DE-HB",
+    "nuts_id": "DE5",
+    "code": "HB",
+    "name": "Brême",
+    "country": "DE",
+    "flag": "🇩🇪",
+    "path": "M 656.2,128.7 L 654.4,130.6 L 647.3,128.6 L 645.3,124.9 L 643.9,121.7 L 639.3,118.0 L 656.8,123.9 L 655.9,125.1 L 656.2,128.7 Z M 644.9,100.8 L 639.6,103.6 L 641.7,101.1 L 642.1,99.1 L 640.7,96.6 L 640.6,95.8 L 642.8,96.3 L 644.3,96.7 L 644.9,100.8 Z",
+    "cx": 646.5,
+    "cy": 112.3
+  },
+  {
+    "id": "DE-HH",
+    "nuts_id": "DE6",
+    "code": "HH",
+    "name": "Hambourg",
+    "country": "DE",
+    "flag": "🇩🇪",
+    "path": "M 683.0,98.2 L 684.3,96.1 L 687.1,95.9 L 690.4,93.0 L 694.8,90.4 L 697.7,90.3 L 698.8,96.3 L 698.1,99.1 L 700.6,102.2 L 703.1,105.9 L 699.7,108.1 L 694.4,104.7 L 690.0,106.4 L 687.2,105.5 L 684.2,101.7 L 684.3,99.5 L 683.0,98.2 Z",
+    "cx": 691.8,
+    "cy": 99.5
+  },
+  {
+    "id": "DE-HE",
+    "nuts_id": "DE7",
+    "code": "HE",
+    "name": "Hesse",
+    "country": "DE",
+    "flag": "🇩🇪",
+    "path": "M 681.3,212.3 L 680.9,213.1 L 679.8,212.3 L 679.4,212.3 L 679.3,213.1 L 680.0,214.0 L 678.3,216.0 L 679.5,221.3 L 676.8,225.2 L 677.2,225.9 L 682.9,228.4 L 684.1,226.8 L 682.4,224.5 L 685.4,222.4 L 688.9,221.9 L 689.8,223.9 L 691.0,228.3 L 699.5,234.2 L 699.7,236.8 L 697.5,237.3 L 698.8,244.6 L 693.1,245.2 L 693.2,247.3 L 692.0,249.1 L 693.2,251.6 L 689.7,257.7 L 688.4,264.4 L 690.5,265.0 L 692.5,262.8 L 694.7,263.8 L 693.8,271.6 L 692.6,274.6 L 690.1,276.9 L 684.3,276.9 L 683.0,280.4 L 682.9,283.2 L 679.1,287.3 L 675.2,287.1 L 675.1,294.0 L 671.5,295.0 L 670.0,292.7 L 665.2,291.9 L 658.5,293.7 L 657.0,296.2 L 658.4,298.5 L 657.9,300.3 L 659.1,307.1 L 658.6,308.1 L 661.5,311.3 L 662.3,314.0 L 660.0,320.4 L 660.9,322.7 L 660.3,325.4 L 655.0,328.4 L 653.2,331.5 L 651.0,331.9 L 651.2,327.2 L 647.3,325.0 L 645.4,320.5 L 643.7,321.1 L 643.8,324.2 L 642.7,325.8 L 637.1,322.4 L 636.9,321.7 L 635.1,316.9 L 638.0,314.4 L 638.5,312.5 L 636.4,310.5 L 634.4,303.0 L 632.5,300.1 L 631.8,299.2 L 630.9,298.3 L 629.0,297.9 L 628.5,297.9 L 619.0,301.2 L 614.5,296.2 L 617.4,293.2 L 619.6,292.8 L 618.7,289.9 L 619.4,288.8 L 626.6,284.7 L 624.2,279.4 L 621.4,277.6 L 622.3,271.2 L 623.8,269.7 L 626.5,270.1 L 627.7,267.0 L 626.8,262.2 L 627.9,259.7 L 627.5,256.3 L 631.5,252.0 L 634.8,252.5 L 639.1,246.6 L 640.7,243.8 L 640.4,240.4 L 641.6,239.2 L 646.1,239.0 L 648.6,234.2 L 647.4,230.0 L 643.1,230.5 L 642.5,228.5 L 646.6,224.1 L 654.9,222.7 L 654.0,218.0 L 656.3,216.5 L 659.1,216.6 L 660.7,219.6 L 662.8,220.1 L 668.0,215.7 L 670.0,210.5 L 672.7,208.4 L 678.9,209.6 L 681.3,212.3 Z M 651.9,327.3 L 652.8,328.5 L 653.8,327.7 L 653.8,326.7 L 652.3,326.8 L 651.9,327.3 Z M 661.8,326.1 L 661.1,326.4 L 660.6,325.3 L 661.5,325.1 L 661.8,326.1 Z",
+    "cx": 658.6,
+    "cy": 272.3
+  },
+  {
+    "id": "DE-MV",
+    "nuts_id": "DE8",
+    "code": "MV",
+    "name": "Mecklembourg-V.-P.",
+    "country": "DE",
+    "flag": "🇩🇪",
+    "path": "M 810.4,39.3 L 813.9,44.1 L 815.0,43.3 L 815.0,39.1 L 819.4,39.5 L 818.5,45.4 L 821.9,50.8 L 822.0,53.3 L 814.4,53.2 L 808.7,58.8 L 808.4,60.9 L 813.7,66.3 L 820.7,62.9 L 825.6,62.8 L 829.1,68.5 L 828.5,70.8 L 825.4,71.8 L 828.8,78.4 L 829.5,74.0 L 833.0,74.2 L 833.4,70.8 L 840.1,76.7 L 839.6,80.4 L 833.8,80.5 L 831.1,83.2 L 841.5,90.3 L 842.9,96.3 L 846.6,112.0 L 841.2,115.8 L 837.5,115.7 L 837.2,114.3 L 839.9,109.3 L 839.5,106.7 L 830.1,106.1 L 825.4,100.3 L 824.5,102.7 L 822.0,103.2 L 816.8,108.1 L 814.8,113.2 L 811.4,116.4 L 810.4,116.4 L 809.7,115.2 L 807.8,115.0 L 805.8,116.4 L 805.6,117.7 L 802.3,117.1 L 798.8,119.8 L 796.7,121.6 L 795.2,120.1 L 788.9,119.9 L 787.6,118.7 L 785.1,116.7 L 777.8,116.1 L 773.8,112.7 L 773.6,112.5 L 764.7,110.1 L 762.5,113.5 L 757.6,116.4 L 753.9,118.3 L 748.8,117.6 L 747.2,119.0 L 745.5,123.7 L 736.6,124.1 L 733.3,122.1 L 733.5,120.7 L 729.0,116.4 L 725.9,111.5 L 721.1,113.1 L 716.8,109.9 L 713.1,110.0 L 714.7,105.0 L 719.6,102.0 L 721.5,98.1 L 723.8,97.6 L 724.4,96.3 L 725.6,93.3 L 724.4,90.6 L 719.2,86.7 L 719.0,83.6 L 719.0,80.6 L 723.9,75.0 L 728.9,72.1 L 733.2,71.7 L 736.6,76.1 L 738.9,75.4 L 742.7,77.5 L 743.9,75.1 L 741.2,74.2 L 740.8,72.6 L 746.9,70.8 L 751.0,63.6 L 762.2,62.0 L 766.4,62.6 L 769.3,57.8 L 772.2,56.0 L 776.8,55.8 L 778.9,53.6 L 779.7,51.2 L 778.7,48.0 L 781.2,44.5 L 796.4,47.0 L 801.6,52.3 L 803.6,48.9 L 802.9,42.9 L 805.5,44.4 L 805.4,40.7 L 808.3,32.8 L 810.3,33.1 L 810.4,39.3 Z M 726.5,77.8 L 725.0,76.3 L 723.3,77.5 L 725.2,79.0 L 726.5,77.8 Z M 747.9,66.4 L 746.4,69.4 L 745.2,68.0 L 746.6,66.3 L 747.9,66.4 Z M 776.9,52.2 L 775.5,54.1 L 774.7,53.6 L 776.2,50.4 L 776.9,50.4 L 776.9,52.2 Z M 802.0,39.3 L 801.0,41.3 L 799.6,40.7 L 800.8,37.8 L 802.0,39.3 Z",
+    "cx": 782.2,
+    "cy": 80.9
+  },
+  {
+    "id": "BE-BRU",
+    "nuts_id": "BE10",
+    "code": "BRU",
+    "name": "Bruxelles-Capitale",
+    "country": "BE",
+    "flag": "🇧🇪",
+    "path": "M 499.2,254.8 L 499.3,256.2 L 495.3,257.6 L 491.6,254.6 L 493.2,251.2 L 496.7,250.1 L 499.2,254.8 Z",
+    "cx": 496.4,
+    "cy": 254.2
+  },
+  {
+    "id": "BE-VAN",
+    "nuts_id": "BE21",
+    "code": "VAN",
+    "name": "Anvers",
+    "country": "BE",
+    "flag": "🇧🇪",
+    "path": "M 511.4,217.9 L 512.0,221.1 L 513.8,222.1 L 519.0,218.1 L 521.1,220.9 L 520.5,223.4 L 522.5,226.9 L 525.5,227.7 L 525.8,230.3 L 525.2,232.5 L 526.6,236.7 L 518.2,240.8 L 516.8,242.9 L 511.5,244.0 L 510.1,242.7 L 501.0,245.3 L 490.9,242.8 L 489.5,242.4 L 488.7,239.2 L 490.0,238.2 L 493.3,237.9 L 493.2,228.8 L 491.0,225.1 L 491.0,223.9 L 492.3,223.9 L 496.8,224.5 L 496.5,219.9 L 499.7,218.1 L 500.9,218.3 L 501.7,220.9 L 505.9,221.0 L 509.1,216.8 L 511.4,217.9 Z M 508.5,220.6 L 509.8,222.6 L 511.3,221.8 L 510.4,220.1 L 508.5,220.6 Z",
+    "cx": 507.1,
+    "cy": 227.9
+  },
+  {
+    "id": "BE-VLI",
+    "nuts_id": "BE22",
+    "code": "VLI",
+    "name": "Limbourg (BE)",
+    "country": "BE",
+    "flag": "🇧🇪",
+    "path": "M 545.4,241.5 L 544.3,244.4 L 543.0,249.1 L 540.3,252.3 L 541.5,255.3 L 532.6,260.4 L 530.7,258.9 L 525.8,259.9 L 521.1,260.9 L 523.7,250.5 L 519.3,248.2 L 522.6,243.4 L 521.3,242.3 L 519.2,243.6 L 516.8,242.9 L 518.2,240.8 L 526.6,236.7 L 525.2,232.5 L 525.8,230.3 L 534.9,228.3 L 536.6,229.9 L 537.3,232.5 L 546.8,236.2 L 545.4,241.5 Z M 548.6,260.4 L 546.1,260.6 L 544.5,258.9 L 541.3,258.3 L 544.4,257.3 L 548.7,258.4 L 548.6,260.4 Z",
+    "cx": 534.4,
+    "cy": 247.6
+  },
+  {
+    "id": "BE-VOV",
+    "nuts_id": "BE23",
+    "code": "VOV",
+    "name": "Flandre-Orientale (Gand)",
+    "country": "BE",
+    "flag": "🇧🇪",
+    "path": "M 493.2,228.8 L 493.3,237.9 L 490.0,238.2 L 488.7,239.2 L 489.5,242.4 L 490.9,242.8 L 487.7,246.5 L 487.8,248.6 L 486.1,249.2 L 484.9,252.2 L 484.6,256.1 L 478.9,259.6 L 476.1,258.6 L 472.9,257.3 L 469.6,260.0 L 466.5,259.6 L 463.6,257.8 L 465.6,255.3 L 463.7,252.2 L 463.9,250.3 L 462.2,249.8 L 462.9,243.4 L 459.1,239.3 L 461.9,235.9 L 460.9,229.6 L 465.0,231.1 L 466.2,228.8 L 468.6,228.1 L 474.6,230.4 L 475.6,232.7 L 477.5,233.1 L 481.7,232.3 L 487.5,229.0 L 490.7,225.4 L 491.0,225.1 L 493.2,228.8 Z",
+    "cx": 477.1,
+    "cy": 242.1
+  },
+  {
+    "id": "BE-VBR",
+    "nuts_id": "BE24",
+    "code": "VBR",
+    "name": "Brabant flamand (Leuven)",
+    "country": "BE",
+    "flag": "🇧🇪",
+    "path": "M 522.6,243.4 L 519.3,248.2 L 523.7,250.5 L 521.1,260.9 L 518.2,258.6 L 514.5,258.7 L 509.0,255.8 L 505.5,256.2 L 504.4,258.6 L 503.4,257.9 L 491.8,261.8 L 487.8,260.2 L 486.0,261.1 L 480.6,262.0 L 478.9,259.6 L 484.6,256.1 L 484.9,252.2 L 486.1,249.2 L 487.8,248.6 L 487.7,246.5 L 490.9,242.8 L 501.0,245.3 L 510.1,242.7 L 511.5,244.0 L 516.8,242.9 L 519.2,243.6 L 521.3,242.3 L 522.6,243.4 Z M 491.6,254.6 L 495.3,257.6 L 499.3,256.2 L 499.2,254.8 L 496.7,250.1 L 493.2,251.2 L 491.6,254.6 Z",
+    "cx": 501.7,
+    "cy": 252.3
+  },
+  {
+    "id": "BE-VWV",
+    "nuts_id": "BE25",
+    "code": "VWV",
+    "name": "Flandre-Occidentale (Bruges)",
+    "country": "BE",
+    "flag": "🇧🇪",
+    "path": "M 465.6,255.3 L 463.6,257.8 L 460.0,260.5 L 457.8,258.6 L 453.7,258.3 L 451.0,257.1 L 448.2,257.4 L 446.7,255.8 L 442.5,258.8 L 442.8,261.0 L 440.4,259.7 L 437.7,255.5 L 434.6,254.6 L 433.8,249.7 L 434.0,246.6 L 431.7,239.9 L 438.8,235.8 L 451.4,227.4 L 454.3,225.1 L 460.3,224.2 L 460.9,229.6 L 461.9,235.9 L 459.1,239.3 L 462.9,243.4 L 462.2,249.8 L 463.9,250.3 L 463.7,252.2 L 465.6,255.3 Z",
+    "cx": 451.8,
+    "cy": 248.4
+  },
+  {
+    "id": "BE-WBR",
+    "nuts_id": "BE31",
+    "code": "WBR",
+    "name": "Brabant wallon (LLN)",
+    "country": "BE",
+    "flag": "🇧🇪",
+    "path": "M 486.0,261.1 L 487.8,260.2 L 491.8,261.8 L 503.4,257.9 L 504.4,258.6 L 505.5,256.2 L 509.0,255.8 L 514.5,258.7 L 518.2,258.6 L 516.9,264.6 L 509.6,267.4 L 506.0,267.1 L 502.7,270.1 L 493.9,269.8 L 488.8,264.1 L 486.7,264.9 L 485.7,263.2 L 486.0,261.1 Z",
+    "cx": 499.8,
+    "cy": 262.3
+  },
+  {
+    "id": "BE-WHT",
+    "nuts_id": "BE32",
+    "code": "WHT",
+    "name": "Hainaut (Mons/Charleroi)",
+    "country": "BE",
+    "flag": "🇧🇪",
+    "path": "M 478.9,259.6 L 480.6,262.0 L 486.0,261.1 L 485.7,263.2 L 486.7,264.9 L 488.8,264.1 L 493.9,269.8 L 502.7,270.1 L 503.7,276.9 L 503.1,282.3 L 499.1,281.9 L 494.1,285.9 L 496.0,288.3 L 495.8,291.8 L 497.6,303.0 L 490.7,302.1 L 487.4,301.0 L 487.8,298.0 L 490.2,295.8 L 489.1,292.8 L 487.4,292.1 L 488.1,288.2 L 489.8,285.8 L 487.3,285.1 L 484.0,281.3 L 483.5,280.2 L 479.0,281.6 L 474.3,280.8 L 472.2,282.3 L 470.9,280.3 L 470.5,274.6 L 469.1,273.0 L 464.5,271.0 L 461.0,272.7 L 458.2,271.2 L 456.4,261.7 L 453.7,258.3 L 457.8,258.6 L 460.0,260.5 L 463.6,257.8 L 466.5,259.6 L 469.6,260.0 L 472.9,257.3 L 476.1,258.6 L 478.9,259.6 Z M 448.2,257.4 L 444.3,261.4 L 442.8,261.0 L 442.5,258.8 L 446.7,255.8 L 448.2,257.4 Z",
+    "cx": 476.6,
+    "cy": 273.7
+  },
+  {
+    "id": "BE-WLG",
+    "nuts_id": "BE33",
+    "code": "WLG",
+    "name": "Liège",
+    "country": "BE",
+    "flag": "🇧🇪",
+    "path": "M 544.5,258.9 L 546.1,260.6 L 548.6,260.4 L 548.7,258.4 L 553.2,258.4 L 561.4,265.7 L 559.1,268.8 L 559.2,271.3 L 563.5,272.6 L 565.3,275.4 L 564.9,279.1 L 566.6,282.2 L 563.4,282.8 L 559.3,286.6 L 557.3,292.7 L 553.3,289.8 L 552.8,283.9 L 551.8,281.8 L 548.1,281.1 L 547.0,285.2 L 542.7,285.5 L 542.4,280.6 L 541.1,279.7 L 532.7,276.8 L 531.2,279.1 L 528.1,279.4 L 525.2,277.0 L 524.6,274.4 L 519.5,270.2 L 518.5,267.6 L 516.9,264.6 L 518.2,258.6 L 521.1,260.9 L 525.8,259.9 L 530.7,258.9 L 532.6,260.4 L 541.5,255.3 L 541.3,258.3 L 544.5,258.9 Z",
+    "cx": 543.4,
+    "cy": 271.8
+  },
+  {
+    "id": "BE-WLX",
+    "nuts_id": "BE34",
+    "code": "WLX",
+    "name": "Luxembourg (BE - Arlon)",
+    "country": "BE",
+    "flag": "🇧🇪",
+    "path": "M 542.4,280.6 L 542.7,285.5 L 547.0,285.2 L 548.1,281.1 L 551.8,281.8 L 552.8,283.9 L 553.3,289.8 L 548.8,294.2 L 546.3,300.9 L 544.5,302.8 L 543.6,307.8 L 544.0,310.5 L 548.0,315.2 L 548.9,318.4 L 547.6,322.9 L 546.1,324.4 L 543.2,324.4 L 533.9,327.0 L 531.2,320.6 L 528.7,320.3 L 527.6,317.1 L 522.9,315.1 L 516.4,310.6 L 521.2,303.4 L 517.1,298.2 L 520.3,294.8 L 526.7,293.9 L 526.1,287.6 L 530.9,284.1 L 531.2,279.1 L 532.7,276.8 L 541.1,279.7 L 542.4,280.6 Z",
+    "cx": 537.9,
+    "cy": 299.9
+  },
+  {
+    "id": "BE-WNA",
+    "nuts_id": "BE35",
+    "code": "WNA",
+    "name": "Namur",
+    "country": "BE",
+    "flag": "🇧🇪",
+    "path": "M 516.9,264.6 L 518.5,267.6 L 519.5,270.2 L 524.6,274.4 L 525.2,277.0 L 528.1,279.4 L 531.2,279.1 L 530.9,284.1 L 526.1,287.6 L 526.7,293.9 L 520.3,294.8 L 517.1,298.2 L 521.2,303.4 L 516.4,310.6 L 512.9,310.3 L 513.2,304.4 L 510.5,301.5 L 513.0,292.2 L 510.4,291.7 L 506.8,295.4 L 506.3,300.0 L 497.6,303.0 L 495.8,291.8 L 496.0,288.3 L 494.1,285.9 L 499.1,281.9 L 503.1,282.3 L 503.7,276.9 L 502.7,270.1 L 506.0,267.1 L 509.6,267.4 L 516.9,264.6 Z",
+    "cx": 513.1,
+    "cy": 286.2
+  },
+  {
+    "id": "LU-LU",
+    "nuts_id": "LU00",
+    "code": "LU",
+    "name": "Luxembourg",
+    "country": "LU",
+    "flag": "🇱🇺",
+    "path": "M 553.3,289.8 L 557.3,292.7 L 556.9,298.2 L 561.0,305.4 L 563.9,308.2 L 569.1,309.5 L 570.3,311.6 L 570.0,315.1 L 567.6,318.1 L 565.7,324.1 L 565.3,328.5 L 559.5,326.5 L 557.4,327.0 L 555.8,329.1 L 552.8,329.6 L 550.9,327.2 L 548.7,327.0 L 546.1,324.4 L 547.6,322.9 L 548.9,318.4 L 548.0,315.2 L 544.0,310.5 L 543.6,307.8 L 544.5,302.8 L 546.3,300.9 L 548.8,294.2 L 553.3,289.8 Z",
+    "cx": 555.4,
+    "cy": 313.1
+  },
+  {
+    "id": "IT-VEN",
+    "nuts_id": "ITH3",
+    "code": "VEN",
+    "name": "Vénétie (Venezia)",
+    "country": "IT",
+    "flag": "🇮🇹",
+    "path": "M 787.8,476.9 L 784.3,481.3 L 784.5,484.8 L 781.2,485.7 L 779.7,488.1 L 773.8,495.4 L 779.2,501.4 L 779.0,503.5 L 776.2,506.9 L 777.4,511.1 L 780.0,513.2 L 781.9,517.2 L 785.4,519.4 L 789.3,516.7 L 796.5,517.3 L 800.7,526.8 L 798.8,527.5 L 794.3,528.4 L 783.3,534.7 L 782.6,534.2 L 783.9,532.3 L 781.3,530.9 L 776.2,532.3 L 768.2,539.3 L 766.9,544.0 L 767.1,545.6 L 769.2,546.1 L 770.3,549.1 L 772.7,549.0 L 773.8,550.9 L 771.7,554.0 L 773.5,556.8 L 773.2,558.7 L 774.5,559.4 L 776.8,557.9 L 779.3,560.9 L 778.2,566.1 L 777.1,564.3 L 776.2,565.0 L 776.2,569.1 L 772.6,565.2 L 771.8,562.2 L 767.0,561.9 L 764.6,560.2 L 755.5,560.1 L 749.1,564.0 L 742.2,561.3 L 733.9,555.8 L 734.5,553.4 L 729.3,553.4 L 724.7,547.3 L 719.9,543.7 L 718.2,544.0 L 716.9,541.5 L 717.0,538.4 L 715.2,538.2 L 714.5,528.6 L 721.7,517.4 L 723.0,518.7 L 722.5,523.3 L 725.2,524.8 L 728.6,523.4 L 732.1,524.2 L 736.6,513.4 L 739.3,513.0 L 740.7,510.1 L 745.3,508.6 L 748.9,510.8 L 751.2,509.8 L 751.7,504.3 L 758.0,502.9 L 760.6,499.5 L 754.8,491.1 L 758.0,486.3 L 756.1,484.5 L 756.2,483.2 L 762.4,481.4 L 765.0,475.3 L 769.7,478.0 L 775.6,477.1 L 778.9,474.5 L 786.4,475.7 L 787.8,476.9 Z M 774.6,537.2 L 774.2,539.2 L 772.2,539.1 L 773.4,537.0 L 774.6,537.2 Z M 782.0,534.7 L 780.5,536.3 L 777.7,535.3 L 780.1,533.7 L 782.0,534.7 Z",
+    "cx": 763.8,
+    "cy": 526.2
+  },
+  {
+    "id": "IT-FVG",
+    "nuts_id": "ITH4",
+    "code": "FVG",
+    "name": "Frioul-Vénétie Julienne",
+    "country": "IT",
+    "flag": "🇮🇹",
+    "path": "M 798.8,478.8 L 806.4,481.0 L 814.8,480.3 L 822.2,482.5 L 821.1,486.9 L 818.1,487.1 L 813.0,491.0 L 811.3,493.8 L 812.0,497.9 L 819.4,499.3 L 820.4,500.4 L 815.7,505.6 L 814.6,506.4 L 814.3,508.8 L 815.2,510.0 L 818.9,509.7 L 819.5,512.1 L 818.6,513.8 L 817.6,515.9 L 818.1,518.0 L 818.1,518.6 L 822.0,520.3 L 825.0,522.0 L 828.6,526.9 L 827.6,528.6 L 826.1,529.8 L 822.9,529.2 L 822.5,529.3 L 824.2,528.1 L 823.5,525.3 L 817.5,519.7 L 816.0,520.4 L 814.8,523.3 L 811.4,522.8 L 801.6,521.0 L 800.2,523.5 L 800.7,526.8 L 796.5,517.3 L 789.3,516.7 L 785.4,519.4 L 781.9,517.2 L 780.0,513.2 L 777.4,511.1 L 776.2,506.9 L 779.0,503.5 L 779.2,501.4 L 773.8,495.4 L 779.7,488.1 L 781.2,485.7 L 784.5,484.8 L 784.3,481.3 L 787.8,476.9 L 798.8,478.8 Z",
+    "cx": 806.6,
+    "cy": 507.4
+  },
+  {
+    "id": "IT-EMR",
+    "nuts_id": "ITH5",
+    "code": "EMR",
+    "name": "Émilie-Romagne (Bologna)",
+    "country": "IT",
+    "flag": "🇮🇹",
+    "path": "M 676.5,552.3 L 682.3,555.6 L 683.8,553.8 L 686.1,555.2 L 687.9,554.7 L 688.5,552.4 L 691.9,552.8 L 695.2,556.7 L 706.5,560.1 L 708.5,562.0 L 709.9,562.7 L 712.8,563.1 L 717.7,560.0 L 723.4,563.1 L 727.4,561.3 L 735.9,561.3 L 742.2,561.3 L 749.1,564.0 L 755.5,560.1 L 764.6,560.2 L 767.0,561.9 L 771.8,562.2 L 772.6,565.2 L 776.2,569.1 L 772.1,567.4 L 770.8,572.6 L 771.7,577.1 L 772.4,585.4 L 775.7,596.9 L 778.0,600.0 L 785.6,607.8 L 788.5,609.3 L 787.3,614.2 L 785.3,616.3 L 779.3,612.9 L 780.2,610.6 L 779.9,608.6 L 776.6,610.3 L 776.8,612.3 L 778.4,613.0 L 772.2,619.3 L 770.5,619.3 L 770.5,617.7 L 769.3,617.2 L 768.3,619.4 L 766.0,619.8 L 761.7,619.2 L 752.1,613.8 L 750.2,608.3 L 753.2,603.0 L 752.3,601.9 L 749.8,602.6 L 748.2,600.2 L 745.6,600.2 L 741.9,596.7 L 735.1,600.8 L 735.7,602.7 L 734.4,603.0 L 729.0,603.5 L 726.9,602.1 L 724.4,604.4 L 720.8,602.2 L 717.8,600.4 L 715.0,600.5 L 714.1,602.0 L 711.2,600.6 L 708.7,596.9 L 703.8,594.3 L 701.2,594.8 L 697.3,590.6 L 694.3,589.9 L 692.4,588.4 L 691.6,585.8 L 689.5,584.9 L 686.0,585.4 L 681.4,590.0 L 678.6,586.9 L 674.1,587.9 L 673.1,587.0 L 674.7,583.5 L 674.6,580.7 L 664.4,577.9 L 664.3,574.3 L 667.2,574.3 L 668.5,572.5 L 667.8,570.3 L 669.7,566.8 L 667.3,563.2 L 670.7,556.3 L 673.1,554.2 L 676.2,554.4 L 676.5,552.3 Z",
+    "cx": 726.3,
+    "cy": 585.5
+  },
+  {
+    "id": "IT-TOS",
+    "nuts_id": "ITI1",
+    "code": "TOS",
+    "name": "Toscane (Firenze)",
+    "country": "IT",
+    "flag": "🇮🇹",
+    "path": "M 697.3,590.6 L 701.2,594.8 L 703.8,594.3 L 708.7,596.9 L 711.2,600.6 L 714.1,602.0 L 715.0,600.5 L 717.8,600.4 L 720.8,602.2 L 724.4,604.4 L 726.9,602.1 L 729.0,603.5 L 734.4,603.0 L 735.7,602.7 L 735.1,600.8 L 741.9,596.7 L 745.6,600.2 L 748.2,600.2 L 749.8,602.6 L 752.3,601.9 L 753.2,603.0 L 750.2,608.3 L 752.1,613.8 L 761.7,619.2 L 766.0,619.8 L 768.3,619.4 L 769.3,617.2 L 770.5,617.7 L 770.5,619.3 L 772.2,619.3 L 774.4,621.7 L 769.3,625.1 L 769.7,626.7 L 766.0,631.1 L 766.3,633.8 L 763.6,636.1 L 766.6,639.4 L 767.7,643.2 L 764.0,644.5 L 763.3,645.3 L 760.9,648.1 L 759.4,650.1 L 760.0,652.8 L 761.4,653.9 L 760.1,659.6 L 760.6,660.8 L 758.6,664.0 L 753.4,666.3 L 755.6,668.4 L 755.0,672.8 L 747.9,677.0 L 747.6,677.9 L 747.2,678.9 L 748.7,682.5 L 744.6,683.0 L 743.0,685.7 L 736.7,684.1 L 732.3,685.7 L 731.0,683.7 L 733.3,681.5 L 732.9,677.9 L 726.1,669.6 L 720.0,666.2 L 719.1,661.3 L 717.0,658.9 L 710.0,658.3 L 710.7,645.3 L 707.0,637.0 L 703.8,632.5 L 702.8,628.1 L 701.3,616.9 L 697.3,609.1 L 693.0,605.7 L 694.1,602.7 L 681.4,590.0 L 686.0,585.4 L 689.5,584.9 L 691.6,585.8 L 692.4,588.4 L 694.3,589.9 L 697.3,590.6 Z M 704.4,687.9 L 702.8,689.0 L 701.7,687.7 L 702.0,687.5 L 703.1,686.6 L 703.9,687.5 L 704.4,687.9 Z M 724.5,687.5 L 724.6,688.1 L 723.2,687.5 L 722.6,685.5 L 724.2,685.5 L 724.5,687.5 Z M 696.3,675.7 L 695.6,677.1 L 693.7,676.2 L 695.1,674.6 L 696.3,675.7 Z M 707.7,663.3 L 706.9,669.8 L 704.3,667.8 L 698.9,669.1 L 695.6,667.3 L 697.1,665.3 L 704.5,665.3 L 706.9,662.5 L 707.7,663.3 Z M 686.8,652.9 L 686.2,655.6 L 684.7,655.3 L 685.7,652.9 L 686.8,652.9 Z M 770.5,641.9 L 769.4,643.1 L 768.0,642.8 L 768.9,640.6 L 770.5,641.9 Z",
+    "cx": 728.2,
+    "cy": 642.7
+  },
+  {
+    "id": "IT-UMB",
+    "nuts_id": "ITI2",
+    "code": "UMB",
+    "name": "Ombrie (Perugia)",
+    "country": "IT",
+    "flag": "🇮🇹",
+    "path": "M 779.5,631.2 L 783.8,635.5 L 789.1,634.0 L 789.2,638.5 L 792.4,646.0 L 791.7,649.5 L 793.4,651.3 L 793.7,657.4 L 796.0,659.6 L 796.6,661.7 L 798.8,660.2 L 802.9,663.8 L 805.4,662.4 L 806.1,666.0 L 803.8,668.8 L 802.8,672.3 L 798.8,673.9 L 793.6,674.4 L 792.5,677.2 L 791.6,677.9 L 786.6,681.8 L 784.3,682.0 L 781.8,685.3 L 777.8,684.7 L 776.4,680.4 L 772.3,679.7 L 771.7,677.9 L 770.4,673.8 L 769.0,672.3 L 763.3,672.8 L 760.2,670.9 L 761.2,667.6 L 758.6,664.0 L 760.6,660.8 L 760.1,659.6 L 761.4,653.9 L 760.0,652.8 L 759.4,650.1 L 760.9,648.1 L 763.3,645.3 L 764.0,644.5 L 767.7,643.2 L 766.6,639.4 L 763.6,636.1 L 766.3,633.8 L 766.0,631.1 L 769.7,626.7 L 774.6,627.2 L 773.8,630.5 L 779.5,631.2 Z M 768.0,642.8 L 769.4,643.1 L 770.5,641.9 L 768.9,640.6 L 768.0,642.8 Z",
+    "cx": 778.1,
+    "cy": 656.0
+  },
+  {
+    "id": "IT-MAR",
+    "nuts_id": "ITI3",
+    "code": "MAR",
+    "name": "Marches (Ancona)",
+    "country": "IT",
+    "flag": "🇮🇹",
+    "path": "M 798.8,615.9 L 799.6,616.6 L 801.9,618.9 L 803.2,620.0 L 804.7,621.2 L 811.8,626.1 L 815.7,626.4 L 818.8,629.9 L 819.7,633.3 L 823.2,642.0 L 824.3,645.3 L 826.9,652.9 L 829.2,661.1 L 820.2,665.1 L 816.1,665.3 L 812.1,670.4 L 809.7,670.7 L 807.3,668.9 L 803.8,668.8 L 806.1,666.0 L 805.4,662.4 L 802.9,663.8 L 798.8,660.2 L 796.6,661.7 L 796.0,659.6 L 793.7,657.4 L 793.4,651.3 L 791.7,649.5 L 792.4,646.0 L 789.2,638.5 L 789.1,634.0 L 783.8,635.5 L 779.5,631.2 L 773.8,630.5 L 774.6,627.2 L 769.7,626.7 L 769.3,625.1 L 774.4,621.7 L 772.2,619.3 L 778.4,613.0 L 779.3,612.9 L 785.3,616.3 L 787.3,614.2 L 788.5,609.3 L 793.7,611.5 L 798.8,615.9 Z",
+    "cx": 798.1,
+    "cy": 638.7
+  },
+  {
+    "id": "IT-LAZ",
+    "nuts_id": "ITI4",
+    "code": "LAZ",
+    "name": "Latium (Roma)",
+    "country": "IT",
+    "flag": "🇮🇹",
+    "path": "M 760.2,670.9 L 763.3,672.8 L 769.0,672.3 L 770.4,673.8 L 771.7,677.9 L 772.3,679.7 L 776.4,680.4 L 777.8,684.7 L 781.8,685.3 L 784.3,682.0 L 786.6,681.8 L 791.6,677.9 L 792.5,677.2 L 793.6,674.4 L 798.8,673.9 L 802.8,672.3 L 803.8,668.8 L 807.3,668.9 L 809.7,670.7 L 811.2,673.3 L 811.0,675.6 L 803.9,676.3 L 803.7,677.9 L 803.2,680.7 L 801.7,682.6 L 803.4,684.5 L 803.2,686.0 L 804.0,687.5 L 806.0,691.1 L 808.9,693.5 L 809.2,695.6 L 806.0,697.3 L 800.8,695.3 L 798.3,698.1 L 799.4,702.6 L 807.6,705.9 L 809.9,708.1 L 810.6,711.6 L 816.8,714.7 L 820.1,712.8 L 822.5,713.3 L 828.6,717.2 L 830.1,718.2 L 832.0,720.6 L 832.5,722.7 L 832.9,724.8 L 831.4,728.7 L 827.7,731.0 L 827.8,734.5 L 827.7,736.5 L 823.8,739.9 L 818.9,738.3 L 816.1,740.3 L 807.0,736.5 L 799.5,739.6 L 795.2,733.2 L 789.3,730.9 L 783.7,728.8 L 779.2,722.7 L 777.6,720.5 L 772.9,717.2 L 770.5,715.5 L 768.7,711.6 L 768.1,710.4 L 766.7,707.2 L 759.4,702.0 L 756.5,701.7 L 752.9,696.1 L 749.5,689.8 L 745.9,687.5 L 743.7,686.0 L 743.0,685.7 L 744.6,683.0 L 748.7,682.5 L 747.2,678.9 L 747.6,677.9 L 747.9,677.0 L 755.0,672.8 L 755.6,668.4 L 753.4,666.3 L 758.6,664.0 L 761.2,667.6 L 760.2,670.9 Z M 777.1,708.0 L 778.9,709.0 L 780.1,708.0 L 778.7,706.9 L 777.1,708.0 Z",
+    "cx": 788.7,
+    "cy": 697.0
+  },
+  {
+    "id": "IT-PIE",
+    "nuts_id": "ITC1",
+    "code": "PIE",
+    "name": "Piémont (Torino)",
+    "country": "IT",
+    "flag": "🇮🇹",
+    "path": "M 647.1,531.1 L 651.9,539.3 L 648.8,540.1 L 646.6,544.0 L 643.7,541.4 L 640.3,543.3 L 641.5,550.5 L 643.5,552.5 L 645.4,557.5 L 649.8,558.3 L 653.2,556.4 L 659.0,564.6 L 659.8,567.4 L 662.6,568.5 L 664.4,570.9 L 664.3,574.3 L 664.4,577.9 L 661.9,579.5 L 657.6,575.6 L 655.1,575.1 L 653.6,576.6 L 654.0,580.2 L 651.3,580.8 L 649.9,583.3 L 647.6,579.9 L 645.2,579.3 L 642.5,583.0 L 636.9,583.4 L 635.2,584.8 L 631.5,582.5 L 631.2,582.1 L 629.6,584.7 L 629.6,587.7 L 625.0,593.3 L 625.4,599.5 L 622.2,600.9 L 622.9,602.5 L 613.9,601.3 L 612.4,604.9 L 610.8,599.5 L 600.3,601.9 L 588.1,596.2 L 583.5,590.3 L 584.7,586.6 L 582.6,582.1 L 585.1,579.3 L 585.6,575.9 L 589.7,574.3 L 589.7,573.0 L 588.5,571.7 L 587.4,566.8 L 582.9,566.2 L 579.2,563.7 L 578.6,559.0 L 576.1,557.5 L 574.5,553.4 L 579.4,551.3 L 582.9,552.2 L 586.6,548.6 L 591.2,547.1 L 591.5,542.8 L 593.6,539.3 L 591.1,535.6 L 592.1,533.8 L 595.0,535.2 L 604.1,530.3 L 607.3,529.8 L 612.3,531.4 L 618.7,529.5 L 620.2,522.8 L 617.8,519.2 L 617.6,513.2 L 618.1,512.6 L 618.8,509.7 L 622.2,508.7 L 623.7,504.3 L 627.7,501.4 L 627.8,499.2 L 626.0,495.1 L 629.9,493.0 L 632.8,490.0 L 633.1,487.9 L 635.8,486.1 L 638.5,486.9 L 637.6,494.2 L 638.6,496.7 L 644.0,502.6 L 647.3,504.1 L 647.5,508.2 L 642.7,514.0 L 643.1,517.6 L 642.1,520.6 L 644.8,523.5 L 647.1,531.1 Z",
+    "cx": 624.0,
+    "cy": 550.9
+  },
+  {
+    "id": "IT-VDA",
+    "nuts_id": "ITC2",
+    "code": "VDA",
+    "name": "Vallée d’Aoste",
+    "country": "IT",
+    "flag": "🇮🇹",
+    "path": "M 591.1,535.6 L 587.6,533.5 L 587.0,527.2 L 581.7,524.0 L 580.5,520.1 L 581.2,517.7 L 586.4,515.9 L 589.0,512.9 L 591.3,515.5 L 593.9,515.7 L 597.7,513.2 L 601.3,513.8 L 607.0,510.1 L 617.6,513.2 L 617.8,519.2 L 620.2,522.8 L 618.7,529.5 L 612.3,531.4 L 607.3,529.8 L 604.1,530.3 L 595.0,535.2 L 592.1,533.8 L 591.1,535.6 Z",
+    "cx": 597.9,
+    "cy": 523.3
+  },
+  {
+    "id": "IT-LIG",
+    "nuts_id": "ITC3",
+    "code": "LIG",
+    "name": "Ligurie (Genova)",
+    "country": "IT",
+    "flag": "🇮🇹",
+    "path": "M 657.6,575.6 L 661.9,579.5 L 664.4,577.9 L 674.6,580.7 L 674.7,583.5 L 673.1,587.0 L 674.1,587.9 L 678.6,586.9 L 681.4,590.0 L 694.1,602.7 L 693.0,605.7 L 690.7,605.7 L 687.0,603.0 L 685.5,604.6 L 675.2,597.3 L 666.6,591.6 L 663.9,592.8 L 659.6,589.4 L 649.4,587.2 L 644.5,589.4 L 638.7,593.5 L 636.2,599.0 L 631.8,601.3 L 627.1,610.8 L 620.9,615.1 L 610.8,618.5 L 605.9,618.4 L 605.3,614.1 L 612.4,604.9 L 613.9,601.3 L 622.9,602.5 L 622.2,600.9 L 625.4,599.5 L 625.0,593.3 L 629.6,587.7 L 629.6,584.7 L 631.2,582.1 L 631.5,582.5 L 635.2,584.8 L 636.9,583.4 L 642.5,583.0 L 645.2,579.3 L 647.6,579.9 L 649.9,583.3 L 651.3,580.8 L 654.0,580.2 L 653.6,576.6 L 655.1,575.1 L 657.6,575.6 Z",
+    "cx": 649.0,
+    "cy": 592.1
+  },
+  {
+    "id": "IT-LOM",
+    "nuts_id": "ITC4",
+    "code": "LOM",
+    "name": "Lombardie (Milano)",
+    "country": "IT",
+    "flag": "🇮🇹",
+    "path": "M 712.5,496.5 L 711.4,503.0 L 708.4,509.2 L 709.8,512.1 L 710.1,517.3 L 711.8,519.6 L 716.4,517.2 L 721.7,517.4 L 714.5,528.6 L 715.2,538.2 L 717.0,538.4 L 716.9,541.5 L 718.2,544.0 L 719.9,543.7 L 724.7,547.3 L 729.3,553.4 L 734.5,553.4 L 733.9,555.8 L 742.2,561.3 L 735.9,561.3 L 727.4,561.3 L 723.4,563.1 L 717.7,560.0 L 712.8,563.1 L 709.9,562.7 L 708.5,562.0 L 706.5,560.1 L 695.2,556.7 L 691.9,552.8 L 688.5,552.4 L 687.9,554.7 L 686.1,555.2 L 683.8,553.8 L 682.3,555.6 L 676.5,552.3 L 676.2,554.4 L 673.1,554.2 L 670.7,556.3 L 667.3,563.2 L 669.7,566.8 L 667.8,570.3 L 668.5,572.5 L 667.2,574.3 L 664.3,574.3 L 664.4,570.9 L 662.6,568.5 L 659.8,567.4 L 659.0,564.6 L 653.2,556.4 L 649.8,558.3 L 645.4,557.5 L 643.5,552.5 L 641.5,550.5 L 640.3,543.3 L 643.7,541.4 L 646.6,544.0 L 648.8,540.1 L 651.9,539.3 L 647.1,531.1 L 644.8,523.5 L 642.1,520.6 L 643.1,517.6 L 642.7,514.0 L 647.5,508.2 L 647.3,504.1 L 648.6,503.3 L 651.7,505.3 L 650.2,509.1 L 653.4,511.3 L 655.0,515.2 L 654.3,517.5 L 658.8,517.0 L 660.0,514.2 L 657.7,511.3 L 657.9,507.2 L 662.9,500.4 L 666.0,497.2 L 667.5,492.5 L 666.4,486.6 L 667.9,483.8 L 671.8,484.9 L 673.3,484.0 L 673.6,489.4 L 676.8,493.5 L 681.9,493.9 L 683.0,492.0 L 690.1,489.9 L 694.3,497.1 L 696.4,497.3 L 698.1,496.1 L 696.3,491.9 L 697.8,488.4 L 694.5,487.1 L 693.8,485.3 L 694.1,481.8 L 696.1,478.5 L 700.4,477.2 L 702.9,481.0 L 708.1,482.1 L 714.1,486.3 L 713.8,489.2 L 710.3,491.6 L 712.1,493.1 L 712.5,496.5 Z",
+    "cx": 683.8,
+    "cy": 526.8
+  },
+  {
+    "id": "IT-ABR",
+    "nuts_id": "ITF1",
+    "code": "ABR",
+    "name": "Abruzzes (L’Aquila)",
+    "country": "IT",
+    "flag": "🇮🇹",
+    "path": "M 856.8,695.4 L 857.6,698.5 L 859.4,700.2 L 859.0,702.2 L 852.6,710.4 L 851.7,711.6 L 849.1,714.8 L 847.3,711.6 L 846.7,710.4 L 842.7,708.3 L 840.2,709.3 L 837.9,711.6 L 837.9,714.5 L 836.0,716.6 L 833.7,717.2 L 830.1,718.2 L 828.6,717.2 L 822.5,713.3 L 820.1,712.8 L 816.8,714.7 L 810.6,711.6 L 809.9,708.1 L 807.6,705.9 L 799.4,702.6 L 798.3,698.1 L 800.8,695.3 L 806.0,697.3 L 809.2,695.6 L 808.9,693.5 L 806.0,691.1 L 804.0,687.5 L 803.2,686.0 L 803.4,684.5 L 801.7,682.6 L 803.2,680.7 L 803.7,677.9 L 803.9,676.3 L 811.0,675.6 L 811.2,673.3 L 809.7,670.7 L 812.1,670.4 L 816.1,665.3 L 820.2,665.1 L 829.2,661.1 L 832.4,670.6 L 837.3,678.4 L 841.0,682.5 L 845.9,686.0 L 847.0,687.5 L 850.5,691.9 L 856.8,695.4 Z",
+    "cx": 826.0,
+    "cy": 695.2
+  },
+  {
+    "id": "IT-MOL",
+    "nuts_id": "ITF2",
+    "code": "MOL",
+    "name": "Molise (Campobasso)",
+    "country": "IT",
+    "flag": "🇮🇹",
+    "path": "M 871.0,711.6 L 871.4,717.1 L 865.3,722.7 L 865.4,725.2 L 867.4,727.6 L 853.4,732.9 L 849.8,732.4 L 845.5,729.6 L 840.9,727.3 L 836.6,727.1 L 835.3,729.0 L 835.5,731.4 L 834.3,731.9 L 831.4,728.7 L 832.9,724.8 L 832.5,722.7 L 832.0,720.6 L 830.1,718.2 L 833.7,717.2 L 836.0,716.6 L 837.9,714.5 L 837.9,711.6 L 840.2,709.3 L 842.7,708.3 L 846.7,710.4 L 847.3,711.6 L 849.1,714.8 L 851.7,711.6 L 852.6,710.4 L 859.0,702.2 L 859.4,700.2 L 872.0,706.9 L 871.0,711.6 Z",
+    "cx": 847.5,
+    "cy": 718.7
+  },
+  {
+    "id": "IT-CAM",
+    "nuts_id": "ITF3",
+    "code": "CAM",
+    "name": "Campanie (Napoli)",
+    "country": "IT",
+    "flag": "🇮🇹",
+    "path": "M 845.5,729.6 L 849.8,732.4 L 853.4,732.9 L 867.4,727.6 L 870.2,730.4 L 869.5,733.9 L 872.3,737.2 L 876.4,738.5 L 874.9,743.0 L 875.9,744.2 L 876.7,745.2 L 886.1,747.6 L 886.9,750.9 L 885.7,754.0 L 878.8,757.8 L 880.5,759.9 L 881.1,763.3 L 884.3,765.7 L 883.3,768.2 L 885.2,770.1 L 886.4,773.9 L 895.1,784.0 L 894.7,785.8 L 892.1,788.2 L 889.7,794.2 L 886.4,792.8 L 881.8,796.2 L 879.9,796.2 L 871.6,788.6 L 868.7,788.3 L 864.5,785.3 L 865.4,781.1 L 866.8,779.4 L 866.6,777.1 L 863.0,769.7 L 859.6,765.7 L 851.4,768.1 L 848.6,767.7 L 843.9,769.7 L 844.3,767.7 L 848.5,764.3 L 848.0,762.2 L 841.6,757.7 L 838.7,759.3 L 835.6,758.2 L 834.2,759.6 L 833.3,754.9 L 826.6,744.2 L 823.8,739.9 L 827.7,736.5 L 827.8,734.5 L 827.7,731.0 L 831.4,728.7 L 834.3,731.9 L 835.5,731.4 L 835.3,729.0 L 836.6,727.1 L 840.9,727.3 L 845.5,729.6 Z M 841.0,770.8 L 839.4,772.2 L 838.2,771.1 L 839.4,769.9 L 841.0,770.8 Z M 831.1,763.0 L 829.6,764.3 L 826.5,763.7 L 827.7,761.2 L 831.1,763.0 Z",
+    "cx": 856.8,
+    "cy": 758.4
+  },
+  {
+    "id": "IT-PUG",
+    "nuts_id": "ITF4",
+    "code": "PUG",
+    "name": "Pouilles (Bari)",
+    "country": "IT",
+    "flag": "🇮🇹",
+    "path": "M 902.5,706.1 L 907.5,708.5 L 907.8,711.6 L 908.1,714.2 L 898.6,722.7 L 899.7,727.5 L 903.0,730.4 L 921.1,739.6 L 932.6,744.2 L 939.9,747.1 L 950.7,755.2 L 955.0,758.7 L 970.0,765.2 L 972.8,767.4 L 975.4,772.6 L 980.4,776.0 L 987.2,783.8 L 988.1,785.6 L 988.3,787.2 L 989.9,789.9 L 990.1,791.2 L 989.0,792.7 L 988.5,794.1 L 987.2,795.5 L 985.0,804.9 L 978.4,803.1 L 972.5,797.3 L 972.1,791.3 L 968.6,784.6 L 963.8,782.7 L 955.4,782.6 L 950.8,780.8 L 945.5,777.8 L 945.0,774.6 L 940.5,772.5 L 936.2,774.1 L 932.4,778.0 L 928.0,774.2 L 927.0,770.9 L 927.4,763.4 L 922.6,761.3 L 919.4,761.6 L 916.8,763.6 L 910.6,757.7 L 909.2,754.0 L 906.2,754.5 L 902.5,752.6 L 903.1,748.6 L 898.1,744.2 L 897.6,743.7 L 896.9,744.2 L 894.5,745.8 L 887.6,745.9 L 886.1,747.6 L 876.7,745.2 L 875.9,744.2 L 874.9,743.0 L 876.4,738.5 L 872.3,737.2 L 869.5,733.9 L 870.2,730.4 L 867.4,727.6 L 865.4,725.2 L 865.3,722.7 L 871.4,717.1 L 871.0,711.6 L 872.0,706.9 L 882.7,708.0 L 902.5,706.1 Z",
+    "cx": 925.0,
+    "cy": 755.1
+  },
+  {
+    "id": "IT-BAS",
+    "nuts_id": "ITF5",
+    "code": "BAS",
+    "name": "Basilicate (Potenza)",
+    "country": "IT",
+    "flag": "🇮🇹",
+    "path": "M 902.5,752.6 L 906.2,754.5 L 909.2,754.0 L 910.6,757.7 L 916.8,763.6 L 919.4,761.6 L 922.6,761.3 L 927.4,763.4 L 927.0,770.9 L 928.0,774.2 L 932.4,778.0 L 930.9,780.5 L 929.6,782.3 L 929.2,783.2 L 928.3,784.9 L 927.9,786.6 L 927.2,787.6 L 926.1,789.5 L 925.3,790.2 L 924.6,790.7 L 917.2,790.6 L 916.0,793.7 L 914.2,800.2 L 911.8,799.3 L 904.2,800.8 L 902.8,799.3 L 902.5,796.7 L 896.5,796.1 L 893.6,799.7 L 889.7,794.2 L 892.1,788.2 L 894.7,785.8 L 895.1,784.0 L 886.4,773.9 L 885.2,770.1 L 883.3,768.2 L 884.3,765.7 L 881.1,763.3 L 880.5,759.9 L 878.8,757.8 L 885.7,754.0 L 886.9,750.9 L 886.1,747.6 L 887.6,745.9 L 894.5,745.8 L 896.9,744.2 L 897.6,743.7 L 898.1,744.2 L 903.1,748.6 L 902.5,752.6 Z",
+    "cx": 906.0,
+    "cy": 772.6
+  },
+  {
+    "id": "IT-CAL",
+    "nuts_id": "ITF6",
+    "code": "CAL",
+    "name": "Calabre (Catanzaro)",
+    "country": "IT",
+    "flag": "🇮🇹",
+    "path": "M 923.8,798.3 L 919.3,805.6 L 921.7,812.3 L 929.1,813.7 L 932.8,817.4 L 937.9,819.7 L 942.2,823.8 L 940.9,828.3 L 942.0,832.2 L 941.1,836.4 L 943.2,840.8 L 942.5,843.7 L 940.6,845.8 L 933.2,844.8 L 924.7,849.0 L 922.0,851.9 L 921.1,854.5 L 922.5,865.3 L 919.5,870.1 L 913.5,873.2 L 908.6,879.4 L 904.6,889.1 L 893.5,889.6 L 889.7,886.0 L 889.4,876.6 L 895.1,873.3 L 899.3,863.6 L 899.2,861.5 L 896.5,858.5 L 897.1,857.0 L 902.0,854.0 L 906.9,854.0 L 909.6,850.0 L 909.6,845.3 L 905.4,839.3 L 903.1,825.0 L 896.5,812.3 L 893.6,799.7 L 896.5,796.1 L 902.5,796.7 L 902.8,799.3 L 904.2,800.8 L 911.8,799.3 L 914.2,800.2 L 916.0,793.7 L 917.2,790.6 L 924.6,790.7 L 923.2,793.5 L 923.8,798.3 Z",
+    "cx": 915.3,
+    "cy": 834.7
+  },
+  {
+    "id": "IT-SIC",
+    "nuts_id": "ITG1",
+    "code": "SIC",
+    "name": "Sicile (Palermo)",
+    "country": "IT",
+    "flag": "🇮🇹",
+    "path": "M 888.1,873.8 L 884.4,882.7 L 876.2,894.7 L 874.6,897.5 L 873.1,904.7 L 870.4,908.8 L 870.3,914.6 L 871.1,916.5 L 875.0,918.7 L 873.9,921.9 L 875.1,924.6 L 877.3,925.9 L 876.9,928.1 L 878.2,929.3 L 873.1,933.4 L 870.9,937.8 L 871.5,944.3 L 869.9,945.2 L 867.1,943.2 L 856.6,942.3 L 849.7,939.4 L 848.2,937.8 L 844.0,930.2 L 839.1,926.7 L 833.4,925.6 L 828.7,925.9 L 822.9,923.3 L 816.6,918.0 L 813.0,917.2 L 807.3,913.4 L 803.3,909.0 L 798.1,908.2 L 795.2,905.2 L 793.6,904.9 L 785.8,905.3 L 783.1,902.0 L 779.4,900.0 L 777.5,895.1 L 780.3,885.6 L 787.2,881.0 L 788.0,878.6 L 792.8,884.4 L 795.2,884.8 L 796.4,884.4 L 799.4,882.3 L 799.4,879.8 L 800.8,878.1 L 804.5,878.3 L 808.1,876.6 L 811.0,881.3 L 815.7,881.6 L 817.0,884.2 L 823.1,887.3 L 832.1,884.5 L 838.6,885.3 L 849.2,884.5 L 854.5,882.8 L 858.2,879.2 L 864.1,878.0 L 870.8,880.5 L 875.4,876.8 L 879.8,876.4 L 885.6,873.0 L 888.1,873.8 Z M 785.5,994.9 L 784.1,996.0 L 782.3,995.2 L 784.2,994.0 L 785.5,994.9 Z M 793.8,979.9 L 792.2,980.5 L 790.9,979.2 L 792.9,978.5 L 793.8,979.9 Z M 764.5,940.4 L 762.2,942.0 L 759.2,938.8 L 761.8,937.2 L 764.5,940.4 Z M 774.6,889.5 L 773.3,890.4 L 771.6,889.4 L 773.5,888.3 L 774.6,889.5 Z M 765.7,887.9 L 764.3,888.6 L 762.7,887.4 L 764.7,886.6 L 765.7,887.9 Z M 775.0,886.9 L 773.7,887.3 L 772.8,886.1 L 773.9,884.5 L 775.0,886.9 Z M 867.4,869.6 L 866.1,869.8 L 864.6,868.1 L 866.3,867.6 L 867.4,869.6 Z M 865.9,863.1 L 865.6,866.5 L 863.3,865.0 L 864.1,863.1 L 865.9,863.1 Z M 845.6,861.6 L 844.6,863.3 L 843.1,862.0 L 844.4,860.9 L 845.6,861.6 Z M 863.5,861.2 L 862.3,862.3 L 860.5,861.2 L 862.2,860.2 L 863.5,861.2 Z M 853.7,860.8 L 852.2,861.9 L 850.5,860.9 L 852.4,859.8 L 853.7,860.8 Z M 805.3,854.5 L 804.1,855.5 L 802.2,854.5 L 803.9,853.5 L 805.3,854.5 Z M 875.9,850.3 L 874.8,852.0 L 873.1,850.9 L 874.7,849.7 L 875.9,850.3 Z",
+    "cx": 827.3,
+    "cy": 897.5
+  },
+  {
+    "id": "IT-SAR",
+    "nuts_id": "ITG2",
+    "code": "SAR",
+    "name": "Sardaigne (Cagliari)",
+    "country": "IT",
+    "flag": "🇮🇹",
+    "path": "M 678.0,753.4 L 681.1,758.1 L 683.5,766.0 L 686.0,772.9 L 684.0,777.9 L 679.4,784.5 L 679.9,788.6 L 682.7,792.9 L 680.2,813.5 L 680.1,816.7 L 677.1,834.5 L 675.7,835.8 L 672.8,835.8 L 665.9,831.5 L 660.2,832.5 L 658.1,835.2 L 658.7,839.2 L 658.0,841.6 L 654.2,845.3 L 652.1,846.5 L 648.1,844.9 L 644.4,845.7 L 641.9,839.9 L 639.1,838.4 L 637.5,842.9 L 635.7,841.6 L 634.7,837.7 L 638.2,836.9 L 635.9,831.6 L 637.1,828.0 L 636.1,821.0 L 638.2,815.8 L 638.4,808.7 L 639.9,809.3 L 641.5,804.6 L 641.3,801.8 L 640.0,800.6 L 637.5,801.5 L 636.5,800.0 L 636.7,795.0 L 639.3,791.9 L 638.5,788.4 L 639.0,782.9 L 636.1,780.3 L 636.4,777.5 L 632.8,770.5 L 628.4,767.5 L 628.2,761.5 L 629.8,754.3 L 634.7,757.1 L 643.0,757.1 L 650.5,752.8 L 659.5,744.2 L 664.0,739.8 L 667.8,739.5 L 669.3,737.7 L 670.6,740.0 L 673.5,740.2 L 673.5,743.3 L 674.5,744.2 L 676.1,745.5 L 678.0,753.4 Z M 633.2,836.6 L 631.5,836.9 L 629.6,834.9 L 633.1,833.1 L 633.2,836.6 Z M 631.7,750.4 L 630.5,751.2 L 629.5,750.1 L 630.2,748.2 L 631.7,750.4 Z M 634.6,746.8 L 633.2,747.9 L 631.6,745.6 L 633.6,744.8 L 634.6,746.8 Z",
+    "cx": 650.0,
+    "cy": 791.9
+  },
+  {
+    "id": "IT-BZ",
+    "nuts_id": "ITH1",
+    "code": "BZ",
+    "name": "Bolzano / Haut-Adige",
+    "country": "IT",
+    "flag": "🇮🇹",
+    "path": "M 756.2,483.2 L 750.3,483.9 L 746.6,490.9 L 743.9,491.0 L 741.2,493.1 L 740.6,495.4 L 738.4,494.8 L 734.9,497.6 L 732.9,494.8 L 734.8,487.3 L 733.7,483.7 L 731.6,484.2 L 729.8,482.7 L 729.2,486.3 L 726.5,484.9 L 721.7,486.8 L 718.8,484.8 L 714.1,486.3 L 708.1,482.1 L 709.2,477.9 L 706.5,476.3 L 706.0,474.5 L 708.7,465.6 L 715.6,464.8 L 718.9,468.5 L 727.6,470.0 L 733.0,459.9 L 738.8,458.7 L 741.7,459.7 L 744.0,458.1 L 749.2,457.5 L 753.2,459.2 L 767.0,454.0 L 770.7,454.6 L 766.8,457.8 L 767.7,462.4 L 771.9,464.7 L 772.5,469.0 L 778.9,474.5 L 775.6,477.1 L 769.7,478.0 L 765.0,475.3 L 762.4,481.4 L 756.2,483.2 Z",
+    "cx": 741.1,
+    "cy": 476.3
+  },
+  {
+    "id": "IT-TN",
+    "nuts_id": "ITH2",
+    "code": "TN",
+    "name": "Trente / Trentin",
+    "country": "IT",
+    "flag": "🇮🇹",
+    "path": "M 721.7,517.4 L 716.4,517.2 L 711.8,519.6 L 710.1,517.3 L 709.8,512.1 L 708.4,509.2 L 711.4,503.0 L 712.5,496.5 L 712.1,493.1 L 710.3,491.6 L 713.8,489.2 L 714.1,486.3 L 718.8,484.8 L 721.7,486.8 L 726.5,484.9 L 729.2,486.3 L 729.8,482.7 L 731.6,484.2 L 733.7,483.7 L 734.8,487.3 L 732.9,494.8 L 734.9,497.6 L 738.4,494.8 L 740.6,495.4 L 741.2,493.1 L 743.9,491.0 L 746.6,490.9 L 750.3,483.9 L 756.2,483.2 L 756.1,484.5 L 758.0,486.3 L 754.8,491.1 L 760.6,499.5 L 758.0,502.9 L 751.7,504.3 L 751.2,509.8 L 748.9,510.8 L 745.3,508.6 L 740.7,510.1 L 739.3,513.0 L 736.6,513.4 L 732.1,524.2 L 728.6,523.4 L 725.2,524.8 L 722.5,523.3 L 723.0,518.7 L 721.7,517.4 Z",
+    "cx": 732.3,
+    "cy": 500.5
+  },
+  {
+    "id": "ES-GAL",
+    "nuts_id": "ES11",
+    "code": "GAL",
+    "name": "Galice (A Coruña/Vigo)",
+    "country": "ES",
+    "flag": "🇪🇸",
+    "path": "M 72.8,619.7 L 73.4,620.7 L 75.4,620.7 L 77.0,622.6 L 81.1,621.5 L 89.2,628.4 L 94.1,629.4 L 96.8,629.9 L 95.9,633.3 L 91.9,636.8 L 99.4,648.9 L 102.4,647.6 L 103.5,648.6 L 103.6,650.3 L 100.0,652.5 L 98.5,655.2 L 103.5,658.0 L 104.1,660.1 L 102.2,666.1 L 97.7,669.8 L 96.8,670.5 L 96.0,676.7 L 95.2,679.5 L 103.0,681.0 L 104.5,685.0 L 106.7,687.3 L 105.4,691.6 L 100.5,695.2 L 98.0,698.9 L 98.4,704.9 L 96.0,705.9 L 92.1,704.5 L 90.9,709.2 L 83.3,712.1 L 81.5,710.0 L 77.0,711.3 L 76.4,709.5 L 73.2,708.1 L 67.2,710.1 L 66.5,707.3 L 61.1,711.9 L 57.2,712.0 L 56.0,707.2 L 57.8,704.0 L 59.4,701.4 L 56.8,699.7 L 56.0,696.2 L 51.1,699.3 L 49.1,699.7 L 41.1,701.4 L 38.4,704.0 L 32.8,709.5 L 32.2,704.0 L 32.2,699.5 L 37.0,691.9 L 34.0,689.9 L 36.7,685.0 L 33.5,684.0 L 32.2,682.0 L 37.5,671.0 L 31.0,674.2 L 26.8,677.9 L 26.0,674.0 L 27.5,670.5 L 27.9,669.8 L 29.2,666.8 L 24.4,667.2 L 22.6,660.7 L 18.3,659.2 L 18.6,654.5 L 21.6,650.6 L 21.7,648.0 L 28.7,645.0 L 29.6,642.3 L 33.1,640.6 L 38.3,641.9 L 43.7,640.9 L 48.0,638.1 L 50.0,639.0 L 52.1,637.4 L 54.7,638.8 L 55.1,636.6 L 52.1,633.6 L 53.1,629.8 L 53.7,629.4 L 63.6,621.5 L 65.6,619.9 L 68.5,621.3 L 72.8,619.7 Z",
+    "cx": 64.3,
+    "cy": 668.3
+  },
+  {
+    "id": "ES-AST",
+    "nuts_id": "ES12",
+    "code": "AST",
+    "name": "Asturies (Oviedo/Gijón)",
+    "country": "ES",
+    "flag": "🇪🇸",
+    "path": "M 184.9,637.2 L 184.3,642.2 L 178.0,643.5 L 176.9,646.8 L 173.4,647.4 L 170.8,645.0 L 165.4,647.8 L 163.8,650.9 L 154.9,652.1 L 149.7,655.1 L 143.5,653.7 L 139.8,657.6 L 135.2,655.6 L 133.4,653.2 L 130.4,652.8 L 128.7,654.7 L 126.0,653.9 L 124.6,655.2 L 120.2,653.6 L 116.7,657.2 L 117.6,658.0 L 114.2,660.0 L 108.6,660.0 L 106.3,661.3 L 104.1,660.1 L 103.5,658.0 L 98.5,655.2 L 100.0,652.5 L 103.6,650.3 L 103.5,648.6 L 102.4,647.6 L 99.4,648.9 L 91.9,636.8 L 95.9,633.3 L 96.8,629.9 L 98.1,629.4 L 99.8,628.7 L 105.9,628.8 L 116.0,629.4 L 119.8,629.6 L 120.4,629.4 L 124.5,627.9 L 129.0,629.3 L 134.6,627.9 L 138.4,625.0 L 143.7,629.4 L 153.7,629.7 L 161.3,633.3 L 184.9,637.2 Z",
+    "cx": 130.1,
+    "cy": 644.7
+  },
+  {
+    "id": "ES-CAN",
+    "nuts_id": "ES13",
+    "code": "CAN",
+    "name": "Cantabrie (Santander)",
+    "country": "ES",
+    "flag": "🇪🇸",
+    "path": "M 222.2,634.0 L 223.2,636.0 L 228.9,636.9 L 232.4,639.2 L 231.3,642.0 L 226.5,641.9 L 222.5,644.8 L 223.2,649.7 L 217.9,648.6 L 215.7,648.2 L 213.8,649.0 L 204.1,657.7 L 204.5,659.9 L 207.8,659.4 L 207.3,661.3 L 208.6,664.3 L 205.5,666.9 L 202.8,667.1 L 202.8,665.7 L 202.4,665.1 L 201.3,666.5 L 201.2,667.2 L 199.9,667.5 L 196.9,665.3 L 197.8,662.7 L 195.1,662.7 L 194.0,658.0 L 191.0,657.3 L 187.1,653.5 L 177.0,655.1 L 176.4,653.1 L 173.5,650.6 L 173.4,647.4 L 176.9,646.8 L 178.0,643.5 L 184.3,642.2 L 184.9,637.2 L 196.6,636.7 L 208.7,632.9 L 209.7,633.4 L 210.0,635.4 L 217.9,631.7 L 222.2,634.0 Z M 198.6,665.1 L 200.5,666.3 L 201.6,665.0 L 200.3,664.1 L 198.6,665.1 Z M 228.9,643.6 L 228.1,646.6 L 227.5,646.2 L 227.0,643.6 L 228.9,643.6 Z",
+    "cx": 205.6,
+    "cy": 651.5
+  },
+  {
+    "id": "ES-PVA",
+    "nuts_id": "ES21",
+    "code": "PVA",
+    "name": "Pays basque (Bilbao/Donostia)",
+    "country": "ES",
+    "flag": "🇪🇸",
+    "path": "M 246.2,634.6 L 258.3,640.7 L 264.7,641.2 L 267.5,642.0 L 279.0,637.9 L 280.2,639.3 L 282.2,641.9 L 277.5,645.3 L 276.2,646.2 L 275.6,649.8 L 269.2,658.0 L 265.3,659.0 L 264.0,661.1 L 264.0,664.4 L 261.8,669.8 L 261.7,672.3 L 257.9,672.9 L 256.4,674.8 L 258.5,676.2 L 258.0,680.4 L 250.0,680.2 L 248.7,678.6 L 248.3,675.1 L 246.3,674.3 L 244.0,676.8 L 242.7,673.3 L 240.2,670.6 L 238.2,669.5 L 233.8,667.2 L 232.5,662.6 L 229.1,662.1 L 230.5,659.6 L 236.5,659.9 L 236.5,656.9 L 234.6,656.0 L 232.4,654.9 L 232.8,651.7 L 231.8,650.1 L 232.8,648.4 L 228.3,646.8 L 223.2,649.7 L 222.5,644.8 L 226.5,641.9 L 231.3,642.0 L 232.4,639.2 L 236.8,640.2 L 236.9,638.1 L 238.2,637.0 L 240.0,635.4 L 246.2,634.6 Z M 227.5,646.2 L 228.1,646.6 L 228.9,643.6 L 227.0,643.6 L 227.5,646.2 Z M 241.8,668.3 L 246.5,672.2 L 253.0,671.6 L 252.9,668.5 L 251.0,666.8 L 244.4,665.7 L 241.8,668.3 Z",
+    "cx": 246.4,
+    "cy": 656.3
+  },
+  {
+    "id": "ES-NAV",
+    "nuts_id": "ES22",
+    "code": "NAV",
+    "name": "Navarre (Pamplona)",
+    "country": "ES",
+    "flag": "🇪🇸",
+    "path": "M 293.1,653.9 L 294.9,654.1 L 297.0,651.6 L 298.9,653.7 L 307.9,657.5 L 316.1,658.0 L 317.3,659.9 L 314.5,660.6 L 311.2,668.4 L 308.6,669.8 L 307.3,670.5 L 305.7,672.7 L 302.6,673.6 L 297.7,679.4 L 295.9,685.0 L 293.6,692.4 L 294.1,697.3 L 296.5,701.2 L 293.7,706.4 L 288.3,707.3 L 278.1,703.1 L 276.4,701.7 L 276.6,699.7 L 279.0,696.9 L 282.9,696.4 L 282.8,694.5 L 273.1,686.9 L 268.6,685.0 L 258.0,680.4 L 258.5,676.2 L 256.4,674.8 L 257.9,672.9 L 261.7,672.3 L 261.8,669.8 L 264.0,664.4 L 264.0,661.1 L 265.3,659.0 L 269.2,658.0 L 275.6,649.8 L 276.2,646.2 L 277.5,645.3 L 282.2,641.9 L 293.5,643.8 L 293.6,645.3 L 293.8,647.4 L 291.9,652.1 L 293.1,653.9 Z M 302.9,683.0 L 302.2,684.7 L 300.1,684.5 L 301.5,682.7 L 302.9,683.0 Z M 305.8,682.7 L 305.2,683.0 L 302.8,682.5 L 304.4,680.6 L 305.8,682.7 Z",
+    "cx": 289.1,
+    "cy": 673.4
+  },
+  {
+    "id": "ES-RIO",
+    "nuts_id": "ES23",
+    "code": "RIO",
+    "name": "La Rioja (Logroño)",
+    "country": "ES",
+    "flag": "🇪🇸",
+    "path": "M 278.1,703.1 L 277.7,705.1 L 274.0,706.9 L 270.2,705.7 L 267.4,699.4 L 260.4,697.0 L 255.5,698.4 L 251.7,703.2 L 247.2,702.5 L 246.7,698.3 L 244.0,701.5 L 240.8,702.4 L 239.6,699.7 L 238.2,699.3 L 236.6,698.8 L 233.9,694.6 L 234.2,688.5 L 235.2,686.1 L 234.5,685.0 L 233.7,683.6 L 235.4,682.2 L 234.1,677.8 L 236.0,673.7 L 238.2,673.6 L 242.7,673.3 L 244.0,676.8 L 246.3,674.3 L 248.3,675.1 L 248.7,678.6 L 250.0,680.2 L 258.0,680.4 L 268.6,685.0 L 273.1,686.9 L 282.8,694.5 L 282.9,696.4 L 279.0,696.9 L 276.6,699.7 L 276.4,701.7 L 278.1,703.1 Z",
+    "cx": 253.8,
+    "cy": 691.5
+  },
+  {
+    "id": "ES-ARA",
+    "nuts_id": "ES24",
+    "code": "ARA",
+    "name": "Aragon (Zaragoza)",
+    "country": "ES",
+    "flag": "🇪🇸",
+    "path": "M 319.3,661.9 L 323.0,665.9 L 328.8,665.3 L 331.7,663.3 L 340.1,669.8 L 341.0,670.5 L 342.8,670.5 L 345.5,669.8 L 348.9,668.9 L 350.5,669.8 L 351.8,670.5 L 353.0,671.2 L 354.0,670.5 L 355.1,669.8 L 356.2,669.8 L 359.4,670.4 L 361.3,670.5 L 365.7,670.8 L 369.0,675.3 L 367.3,680.9 L 367.8,685.0 L 368.4,690.4 L 366.6,699.7 L 362.8,706.3 L 363.0,709.8 L 362.4,710.4 L 354.3,718.6 L 355.2,722.0 L 357.4,722.5 L 358.0,724.5 L 355.1,727.8 L 354.4,731.3 L 356.1,737.3 L 353.1,742.4 L 350.7,744.2 L 350.4,746.9 L 352.6,751.4 L 351.3,755.4 L 352.1,758.4 L 348.6,762.5 L 344.3,764.1 L 336.4,760.2 L 333.8,764.7 L 329.8,765.8 L 330.0,767.8 L 332.3,768.9 L 332.7,774.2 L 330.9,776.0 L 332.5,779.2 L 328.2,784.7 L 323.7,785.2 L 323.0,786.9 L 320.4,793.0 L 319.3,793.4 L 316.3,794.4 L 313.6,797.4 L 313.4,799.5 L 314.8,801.6 L 311.6,802.5 L 310.6,798.8 L 308.1,797.2 L 302.7,797.5 L 301.9,795.7 L 304.4,794.5 L 304.5,792.9 L 299.1,790.5 L 297.4,787.3 L 295.6,789.9 L 292.0,789.5 L 292.0,787.6 L 288.3,786.9 L 282.7,782.3 L 282.2,780.3 L 279.5,778.0 L 283.2,773.8 L 283.6,770.0 L 287.0,770.0 L 288.3,768.8 L 288.6,759.5 L 286.2,755.7 L 286.1,752.8 L 279.7,746.3 L 274.2,742.6 L 270.9,743.4 L 267.8,740.9 L 267.2,734.5 L 269.3,730.3 L 272.1,731.8 L 273.8,730.8 L 273.5,723.0 L 275.8,720.9 L 279.8,717.2 L 278.5,713.5 L 278.9,710.4 L 277.7,705.1 L 278.1,703.1 L 288.3,707.3 L 293.7,706.4 L 296.5,701.2 L 294.1,697.3 L 293.6,692.4 L 295.9,685.0 L 297.7,679.4 L 302.6,673.6 L 305.7,672.7 L 307.3,670.5 L 308.6,669.8 L 311.2,668.4 L 314.5,660.6 L 317.3,659.9 L 319.3,661.9 Z M 302.8,682.5 L 305.2,683.0 L 305.8,682.7 L 304.4,680.6 L 302.8,682.5 Z M 302.9,683.0 L 301.5,682.7 L 300.1,684.5 L 302.2,684.7 L 302.9,683.0 Z",
+    "cx": 317.6,
+    "cy": 726.7
+  },
+  {
+    "id": "ES-MAD",
+    "nuts_id": "ES30",
+    "code": "MAD",
+    "name": "Communauté de Madrid",
+    "country": "ES",
+    "flag": "🇪🇸",
+    "path": "M 232.9,777.7 L 231.2,784.6 L 234.0,783.7 L 235.4,789.0 L 235.3,792.2 L 232.1,793.2 L 231.3,792.4 L 228.1,793.9 L 225.5,792.7 L 223.9,794.3 L 220.1,794.3 L 217.9,795.7 L 209.0,801.1 L 207.4,799.6 L 211.9,797.8 L 212.9,795.8 L 215.7,793.8 L 216.2,791.2 L 203.1,786.4 L 200.8,784.3 L 198.1,784.8 L 196.3,783.0 L 191.8,785.8 L 190.7,785.1 L 189.8,781.9 L 187.1,785.4 L 184.1,786.8 L 182.5,786.3 L 184.0,781.1 L 186.6,781.4 L 187.9,777.9 L 191.1,776.8 L 191.7,771.2 L 193.4,768.7 L 196.7,767.7 L 197.2,764.5 L 200.2,760.2 L 203.5,759.7 L 206.3,752.1 L 210.3,750.0 L 216.3,743.5 L 217.9,742.9 L 218.9,742.5 L 222.5,746.9 L 223.6,750.1 L 221.0,758.4 L 221.8,764.4 L 224.7,765.6 L 228.1,771.1 L 230.5,772.7 L 231.0,775.5 L 232.9,777.7 Z M 193.4,766.1 L 191.6,766.5 L 191.5,766.0 L 191.8,765.6 L 192.7,765.0 L 193.2,765.1 L 193.4,766.1 Z",
+    "cx": 209.0,
+    "cy": 776.2
+  },
+  {
+    "id": "ES-CYL",
+    "nuts_id": "ES41",
+    "code": "CYL",
+    "name": "Castille-et-Léon (Valladolid)",
+    "country": "ES",
+    "flag": "🇪🇸",
+    "path": "M 176.4,653.1 L 177.0,655.1 L 187.1,653.5 L 191.0,657.3 L 194.0,658.0 L 195.1,662.7 L 197.8,662.7 L 196.9,665.3 L 199.9,667.5 L 201.2,667.2 L 201.3,666.5 L 202.4,665.1 L 202.8,665.7 L 202.8,667.1 L 205.5,666.9 L 208.6,664.3 L 207.3,661.3 L 207.8,659.4 L 204.5,659.9 L 204.1,657.7 L 213.8,649.0 L 215.7,648.2 L 217.9,648.6 L 223.2,649.7 L 228.3,646.8 L 232.8,648.4 L 231.8,650.1 L 232.8,651.7 L 232.4,654.9 L 234.6,656.0 L 236.5,656.9 L 236.5,659.9 L 230.5,659.6 L 229.1,662.1 L 232.5,662.6 L 233.8,667.2 L 238.2,669.5 L 240.2,670.6 L 242.7,673.3 L 238.2,673.6 L 236.0,673.7 L 234.1,677.8 L 235.4,682.2 L 233.7,683.6 L 234.5,685.0 L 235.2,686.1 L 234.2,688.5 L 233.9,694.6 L 236.6,698.8 L 238.2,699.3 L 239.6,699.7 L 240.8,702.4 L 244.0,701.5 L 246.7,698.3 L 247.2,702.5 L 251.7,703.2 L 255.5,698.4 L 260.4,697.0 L 267.4,699.4 L 270.2,705.7 L 274.0,706.9 L 277.7,705.1 L 278.9,710.4 L 278.5,713.5 L 279.8,717.2 L 275.8,720.9 L 273.5,723.0 L 273.8,730.8 L 272.1,731.8 L 269.3,730.3 L 267.2,734.5 L 267.8,740.9 L 270.9,743.4 L 270.3,746.3 L 268.1,745.1 L 262.4,747.3 L 257.9,747.3 L 254.8,743.8 L 252.2,743.2 L 251.8,740.1 L 247.3,737.6 L 243.3,737.7 L 241.4,735.2 L 238.2,736.4 L 235.6,737.3 L 230.5,736.1 L 228.6,738.0 L 224.4,738.4 L 218.9,742.5 L 217.9,742.9 L 216.3,743.5 L 210.3,750.0 L 206.3,752.1 L 203.5,759.7 L 200.2,760.2 L 197.2,764.5 L 196.7,767.7 L 193.4,768.7 L 191.7,771.2 L 191.1,776.8 L 187.9,777.9 L 186.6,781.4 L 184.0,781.1 L 182.5,786.3 L 179.7,786.7 L 178.1,783.6 L 175.1,783.9 L 168.8,790.6 L 166.5,789.2 L 161.8,792.2 L 156.1,790.9 L 155.1,784.8 L 149.1,787.1 L 142.0,782.7 L 140.4,782.8 L 139.5,780.4 L 135.5,783.0 L 133.6,782.5 L 130.3,779.9 L 127.2,775.2 L 124.9,774.1 L 114.2,780.6 L 112.1,783.7 L 105.9,785.1 L 102.6,783.8 L 105.3,779.9 L 103.4,775.9 L 104.8,772.4 L 103.6,769.6 L 104.9,765.8 L 104.0,761.5 L 104.6,756.7 L 100.4,748.8 L 104.6,747.9 L 108.7,740.7 L 116.1,736.5 L 121.4,732.0 L 125.7,722.9 L 123.5,720.9 L 121.5,719.1 L 114.0,718.4 L 113.5,715.4 L 114.5,709.9 L 113.3,708.8 L 112.7,705.6 L 107.8,706.4 L 105.0,704.1 L 103.7,705.9 L 101.5,706.2 L 98.4,704.9 L 98.0,698.9 L 100.5,695.2 L 105.4,691.6 L 106.7,687.3 L 104.5,685.0 L 103.0,681.0 L 95.2,679.5 L 96.0,676.7 L 96.8,670.5 L 97.7,669.8 L 102.2,666.1 L 104.1,660.1 L 106.3,661.3 L 108.6,660.0 L 114.2,660.0 L 117.6,658.0 L 116.7,657.2 L 120.2,653.6 L 124.6,655.2 L 126.0,653.9 L 128.7,654.7 L 130.4,652.8 L 133.4,653.2 L 135.2,655.6 L 139.8,657.6 L 143.5,653.7 L 149.7,655.1 L 154.9,652.1 L 163.8,650.9 L 165.4,647.8 L 170.8,645.0 L 173.4,647.4 L 173.5,650.6 L 176.4,653.1 Z M 191.5,766.0 L 191.6,766.5 L 193.4,766.1 L 193.2,765.1 L 192.7,765.0 L 191.8,765.6 L 191.5,766.0 Z M 253.0,671.6 L 246.5,672.2 L 241.8,668.3 L 244.4,665.7 L 251.0,666.8 L 252.9,668.5 L 253.0,671.6 Z M 201.6,665.0 L 200.5,666.3 L 198.6,665.1 L 200.3,664.1 L 201.6,665.0 Z",
+    "cx": 187.3,
+    "cy": 708.1
+  },
+  {
+    "id": "ES-CLM",
+    "nuts_id": "ES42",
+    "code": "CLM",
+    "name": "Castille-La Manche (Toledo)",
+    "country": "ES",
+    "flag": "🇪🇸",
+    "path": "M 241.4,735.2 L 243.3,737.7 L 247.3,737.6 L 251.8,740.1 L 252.2,743.2 L 254.8,743.8 L 257.9,747.3 L 262.4,747.3 L 268.1,745.1 L 270.3,746.3 L 270.9,743.4 L 274.2,742.6 L 279.7,746.3 L 286.1,752.8 L 286.2,755.7 L 288.6,759.5 L 288.3,768.8 L 287.0,770.0 L 283.6,770.0 L 283.2,773.8 L 279.5,778.0 L 282.2,780.3 L 282.7,782.3 L 288.3,786.9 L 292.0,787.6 L 292.0,789.5 L 294.8,795.3 L 301.9,795.7 L 302.7,797.5 L 300.8,798.9 L 300.4,803.9 L 298.1,810.1 L 294.1,811.0 L 290.2,816.4 L 290.0,822.7 L 292.5,824.8 L 301.7,827.9 L 298.7,839.2 L 302.8,844.5 L 309.2,844.5 L 310.2,851.2 L 309.4,852.0 L 310.2,855.5 L 306.8,857.0 L 301.5,852.7 L 296.3,855.5 L 293.9,855.3 L 290.5,861.9 L 290.9,868.4 L 290.2,870.0 L 285.5,872.3 L 281.1,869.6 L 275.5,873.0 L 270.8,873.0 L 265.4,877.3 L 260.8,885.0 L 253.5,882.4 L 257.0,877.4 L 255.7,869.1 L 253.0,867.7 L 252.1,863.8 L 246.1,862.4 L 242.5,865.2 L 238.2,866.5 L 237.5,866.7 L 235.4,865.6 L 232.3,866.3 L 226.3,865.1 L 221.6,868.0 L 217.9,866.5 L 216.4,868.4 L 210.5,867.3 L 206.7,869.6 L 194.0,868.5 L 193.4,870.7 L 187.3,868.3 L 178.7,861.2 L 173.2,858.8 L 171.8,855.8 L 168.5,855.4 L 166.2,853.7 L 168.5,852.4 L 170.5,847.2 L 173.4,845.4 L 170.2,842.3 L 169.5,839.2 L 173.3,839.2 L 172.6,836.1 L 174.5,832.9 L 179.2,833.4 L 176.5,827.7 L 178.9,823.5 L 178.8,821.2 L 176.4,822.7 L 172.5,824.6 L 169.9,823.7 L 169.5,823.7 L 161.1,814.8 L 162.8,809.7 L 161.9,805.8 L 157.6,807.1 L 157.3,802.0 L 153.9,801.3 L 154.9,792.4 L 156.1,790.9 L 161.8,792.2 L 166.5,789.2 L 168.8,790.6 L 175.1,783.9 L 178.1,783.6 L 179.7,786.7 L 182.5,786.3 L 184.1,786.8 L 187.1,785.4 L 189.8,781.9 L 190.7,785.1 L 191.8,785.8 L 196.3,783.0 L 198.1,784.8 L 200.8,784.3 L 203.1,786.4 L 216.2,791.2 L 215.7,793.8 L 212.9,795.8 L 211.9,797.8 L 207.4,799.6 L 209.0,801.1 L 217.9,795.7 L 220.1,794.3 L 223.9,794.3 L 225.5,792.7 L 228.1,793.9 L 231.3,792.4 L 232.1,793.2 L 235.3,792.2 L 235.4,789.0 L 234.0,783.7 L 231.2,784.6 L 232.9,777.7 L 231.0,775.5 L 230.5,772.7 L 228.1,771.1 L 224.7,765.6 L 221.8,764.4 L 221.0,758.4 L 223.6,750.1 L 222.5,746.9 L 218.9,742.5 L 224.4,738.4 L 228.6,738.0 L 230.5,736.1 L 235.6,737.3 L 238.2,736.4 L 241.4,735.2 Z",
+    "cx": 232.4,
+    "cy": 808.4
+  },
+  {
+    "id": "ES-EXT",
+    "nuts_id": "ES43",
+    "code": "EXT",
+    "name": "Estrémadure (Mérida/Badajoz)",
+    "country": "ES",
+    "flag": "🇪🇸",
+    "path": "M 133.6,782.5 L 135.5,783.0 L 139.5,780.4 L 140.4,782.8 L 142.0,782.7 L 149.1,787.1 L 155.1,784.8 L 156.1,790.9 L 154.9,792.4 L 153.9,801.3 L 157.3,802.0 L 157.6,807.1 L 161.9,805.8 L 162.8,809.7 L 161.1,814.8 L 169.5,823.7 L 169.9,823.7 L 172.5,824.6 L 176.4,822.7 L 178.8,821.2 L 178.9,823.5 L 176.5,827.7 L 179.2,833.4 L 174.5,832.9 L 172.6,836.1 L 173.3,839.2 L 169.5,839.2 L 170.2,842.3 L 173.4,845.4 L 170.5,847.2 L 168.5,852.4 L 166.2,853.7 L 162.2,854.7 L 148.0,867.1 L 147.9,871.1 L 149.5,876.8 L 147.4,880.3 L 142.8,882.3 L 142.1,881.1 L 143.0,877.9 L 138.5,878.6 L 135.9,881.1 L 134.5,886.0 L 129.5,886.8 L 126.6,888.8 L 122.0,886.8 L 119.1,883.9 L 115.5,885.5 L 113.0,885.0 L 111.1,882.1 L 106.4,881.8 L 104.7,880.6 L 104.6,878.4 L 100.3,876.9 L 96.0,878.2 L 94.1,877.8 L 87.1,866.2 L 87.2,862.8 L 89.0,858.8 L 88.8,854.7 L 90.8,852.7 L 96.0,847.8 L 99.3,840.3 L 98.4,837.6 L 96.0,836.2 L 93.3,836.5 L 92.7,833.8 L 89.6,831.8 L 89.8,828.9 L 87.0,825.5 L 87.1,820.8 L 80.7,814.8 L 78.9,811.5 L 85.8,812.4 L 96.0,811.6 L 97.5,810.5 L 98.8,804.8 L 101.0,802.1 L 102.3,795.9 L 100.0,791.5 L 97.2,789.1 L 97.4,786.4 L 99.6,784.4 L 102.6,783.8 L 105.9,785.1 L 112.1,783.7 L 114.2,780.6 L 124.9,774.1 L 127.2,775.2 L 130.3,779.9 L 133.6,782.5 Z",
+    "cx": 128.5,
+    "cy": 831.9
+  },
+  {
+    "id": "ES-CAT",
+    "nuts_id": "ES51",
+    "code": "CAT",
+    "name": "Catalogne (Barcelona)",
+    "country": "ES",
+    "flag": "🇪🇸",
+    "path": "M 393.8,682.7 L 396.4,682.9 L 403.0,679.7 L 403.2,680.3 L 406.8,681.4 L 407.5,681.6 L 408.9,682.1 L 413.5,686.1 L 421.8,683.4 L 432.0,687.4 L 434.7,687.0 L 437.9,684.0 L 444.9,681.5 L 453.6,683.0 L 453.3,686.0 L 456.0,687.5 L 457.9,688.5 L 457.0,691.4 L 452.9,691.5 L 451.6,694.0 L 451.9,697.0 L 454.6,700.5 L 455.4,705.4 L 454.8,707.9 L 452.3,710.4 L 451.2,711.6 L 449.2,713.5 L 443.8,717.2 L 439.8,720.0 L 434.4,722.7 L 432.0,723.9 L 431.4,724.2 L 424.4,727.8 L 421.4,729.6 L 416.3,736.7 L 409.0,738.7 L 407.5,739.1 L 406.8,739.3 L 400.2,741.1 L 391.0,744.2 L 376.5,749.0 L 367.5,759.4 L 373.1,763.0 L 373.0,764.1 L 368.9,767.0 L 363.7,767.9 L 360.7,772.2 L 352.8,767.1 L 352.3,764.6 L 348.6,762.5 L 352.1,758.4 L 351.3,755.4 L 352.6,751.4 L 350.4,746.9 L 350.7,744.2 L 353.1,742.4 L 356.1,737.3 L 354.4,731.3 L 355.1,727.8 L 358.0,724.5 L 357.4,722.5 L 355.2,722.0 L 354.3,718.6 L 362.4,710.4 L 363.0,709.8 L 362.8,706.3 L 366.6,699.7 L 368.4,690.4 L 367.8,685.0 L 367.3,680.9 L 369.0,675.3 L 365.7,670.8 L 365.8,669.8 L 366.3,663.6 L 372.7,664.4 L 380.0,666.7 L 383.7,669.6 L 389.8,669.8 L 390.3,670.5 L 393.1,675.0 L 393.0,681.2 L 393.8,682.7 Z M 366.9,769.2 L 365.4,771.0 L 363.9,770.1 L 365.6,768.8 L 366.9,769.2 Z M 412.8,682.2 L 411.9,682.9 L 410.5,682.0 L 411.8,680.0 L 412.8,682.2 Z",
+    "cx": 396.9,
+    "cy": 712.4
+  },
+  {
+    "id": "ES-VAL",
+    "nuts_id": "ES52",
+    "code": "VAL",
+    "name": "Communauté valencienne",
+    "country": "ES",
+    "flag": "🇪🇸",
+    "path": "M 336.4,760.2 L 344.3,764.1 L 348.6,762.5 L 352.3,764.6 L 352.8,767.1 L 360.7,772.2 L 356.3,780.6 L 349.3,788.7 L 347.0,792.9 L 344.4,794.9 L 342.1,800.3 L 336.1,808.8 L 331.6,818.4 L 331.1,822.3 L 334.7,832.5 L 335.6,838.5 L 341.3,846.6 L 348.6,849.8 L 350.3,853.2 L 341.6,858.8 L 339.5,862.4 L 330.5,865.9 L 328.3,870.0 L 325.4,871.3 L 324.6,876.8 L 323.0,878.0 L 320.7,879.7 L 319.8,886.0 L 319.3,886.9 L 316.0,893.0 L 311.1,889.3 L 306.8,882.2 L 306.7,879.9 L 308.6,874.1 L 307.9,872.0 L 304.8,869.5 L 307.4,861.0 L 306.8,857.0 L 310.2,855.5 L 309.4,852.0 L 310.2,851.2 L 309.2,844.5 L 302.8,844.5 L 298.7,839.2 L 301.7,827.9 L 292.5,824.8 L 290.0,822.7 L 290.2,816.4 L 294.1,811.0 L 298.1,810.1 L 300.4,803.9 L 300.8,798.9 L 302.7,797.5 L 308.1,797.2 L 310.6,798.8 L 311.6,802.5 L 314.8,801.6 L 313.4,799.5 L 313.6,797.4 L 316.3,794.4 L 319.3,793.4 L 320.4,793.0 L 323.0,786.9 L 323.7,785.2 L 328.2,784.7 L 332.5,779.2 L 330.9,776.0 L 332.7,774.2 L 332.3,768.9 L 330.0,767.8 L 329.8,765.8 L 333.8,764.7 L 336.4,760.2 Z M 297.4,787.3 L 299.1,790.5 L 304.5,792.9 L 304.4,794.5 L 301.9,795.7 L 294.8,795.3 L 292.0,789.5 L 295.6,789.9 L 297.4,787.3 Z",
+    "cx": 320.1,
+    "cy": 817.6
+  },
+  {
+    "id": "ES-BAL",
+    "nuts_id": "ES53",
+    "code": "BAL",
+    "name": "Îles Baléares (Palma)",
+    "country": "ES",
+    "flag": "🇪🇸",
+    "path": "M 453.5,806.8 L 456.4,808.0 L 460.2,806.6 L 463.2,809.1 L 463.0,811.8 L 456.1,824.1 L 449.9,828.9 L 445.9,825.6 L 439.9,824.3 L 438.4,818.6 L 436.4,816.8 L 432.0,818.7 L 431.4,819.0 L 429.8,819.7 L 425.3,816.3 L 425.7,814.4 L 428.0,812.3 L 431.4,809.7 L 432.0,809.3 L 439.0,803.8 L 446.2,800.2 L 450.9,799.7 L 451.3,801.9 L 452.9,802.7 L 452.3,804.6 L 453.5,806.8 Z M 398.8,856.1 L 397.7,857.3 L 395.8,856.2 L 397.5,855.2 L 398.8,856.1 Z M 394.6,855.1 L 391.4,857.4 L 390.8,854.0 L 393.0,852.8 L 394.6,855.1 Z M 392.3,846.3 L 391.5,848.6 L 386.0,847.4 L 385.0,843.3 L 387.4,842.5 L 388.2,839.9 L 390.3,838.2 L 395.9,836.4 L 398.3,837.9 L 398.2,841.3 L 392.3,846.3 Z M 446.7,835.3 L 445.9,836.3 L 444.3,835.5 L 445.3,833.8 L 446.7,835.3 Z M 454.4,798.2 L 452.8,800.0 L 451.5,799.4 L 453.3,797.7 L 454.4,798.2 Z M 493.0,803.5 L 491.3,804.6 L 482.9,799.7 L 477.0,799.6 L 475.2,795.4 L 477.4,793.7 L 487.9,793.4 L 491.9,797.2 L 493.0,803.5 Z",
+    "cx": 434.4,
+    "cy": 822.8
+  },
+  {
+    "id": "ES-AND",
+    "nuts_id": "ES61",
+    "code": "AND",
+    "name": "Andalousie (Sevilla/Málaga)",
+    "country": "ES",
+    "flag": "🇪🇸",
+    "path": "M 187.3,868.3 L 193.4,870.7 L 194.0,868.5 L 206.7,869.6 L 210.5,867.3 L 216.4,868.4 L 217.9,866.5 L 221.6,868.0 L 226.3,865.1 L 232.3,866.3 L 235.4,865.6 L 237.5,866.7 L 238.2,866.5 L 242.5,865.2 L 246.1,862.4 L 252.1,863.8 L 253.0,867.7 L 255.7,869.1 L 257.0,877.4 L 253.5,882.4 L 260.8,885.0 L 265.5,889.9 L 273.2,892.1 L 272.9,901.6 L 278.0,909.9 L 282.5,911.3 L 285.7,913.8 L 279.7,920.8 L 275.9,932.6 L 268.2,941.8 L 265.9,942.0 L 260.4,937.3 L 253.4,938.3 L 250.5,942.8 L 247.8,944.1 L 242.9,943.2 L 240.3,941.4 L 238.2,941.3 L 233.3,941.1 L 227.7,941.3 L 222.5,943.5 L 217.9,942.0 L 216.2,941.5 L 210.6,941.7 L 188.9,942.6 L 180.0,951.9 L 170.9,952.0 L 164.5,954.5 L 161.1,956.5 L 159.0,960.3 L 156.0,967.1 L 155.6,967.1 L 153.0,966.4 L 152.3,970.7 L 147.0,973.2 L 139.8,969.9 L 136.1,966.1 L 131.7,965.6 L 124.4,954.7 L 126.3,951.4 L 124.6,951.2 L 124.6,948.9 L 119.5,946.3 L 117.9,943.3 L 117.8,941.6 L 120.8,939.0 L 119.0,938.3 L 116.1,933.0 L 112.3,929.5 L 103.6,924.2 L 96.0,921.2 L 83.8,922.6 L 81.9,911.3 L 80.0,907.1 L 80.3,904.1 L 83.3,897.5 L 87.7,892.3 L 89.2,887.1 L 94.2,884.6 L 96.0,885.4 L 97.7,884.6 L 100.3,876.9 L 104.6,878.4 L 104.7,880.6 L 106.4,881.8 L 111.1,882.1 L 113.0,885.0 L 115.5,885.5 L 119.1,883.9 L 122.0,886.8 L 126.6,888.8 L 129.5,886.8 L 134.5,886.0 L 135.9,881.1 L 138.5,878.6 L 143.0,877.9 L 142.1,881.1 L 142.8,882.3 L 147.4,880.3 L 149.5,876.8 L 147.9,871.1 L 148.0,867.1 L 162.2,854.7 L 166.2,853.7 L 168.5,855.4 L 171.8,855.8 L 173.2,858.8 L 178.7,861.2 L 187.3,868.3 Z",
+    "cx": 175.2,
+    "cy": 907.7
+  },
+  {
+    "id": "ES-MUR",
+    "nuts_id": "ES62",
+    "code": "MUR",
+    "name": "Région de Murcie",
+    "country": "ES",
+    "flag": "🇪🇸",
+    "path": "M 285.7,913.8 L 282.5,911.3 L 278.0,909.9 L 272.9,901.6 L 273.2,892.1 L 265.5,889.9 L 260.8,885.0 L 265.4,877.3 L 270.8,873.0 L 275.5,873.0 L 281.1,869.6 L 285.5,872.3 L 290.2,870.0 L 290.9,868.4 L 290.5,861.9 L 293.9,855.3 L 296.3,855.5 L 301.5,852.7 L 306.8,857.0 L 307.4,861.0 L 304.8,869.5 L 307.9,872.0 L 308.6,874.1 L 306.7,879.9 L 306.8,882.2 L 311.1,889.3 L 316.0,893.0 L 313.2,898.8 L 317.3,902.5 L 317.0,903.4 L 310.6,905.5 L 296.7,905.7 L 292.7,908.4 L 290.9,911.1 L 285.7,913.8 Z",
+    "cx": 293.2,
+    "cy": 884.6
+  }
 ];
 
-// Major Cities Dictionary (GPS Coordinates for Automatic Pin Positioning)
 export const EUROPE_CITIES = {
-  // Suisse (CH)
-  'lausanne': { lat: 46.5196, lng: 6.6322, country: 'CH', region: 'VD' },
-  'geneve': { lat: 46.2044, lng: 6.1432, country: 'CH', region: 'GE' },
-  'genève': { lat: 46.2044, lng: 6.1432, country: 'CH', region: 'GE' },
-  'geneva': { lat: 46.2044, lng: 6.1432, country: 'CH', region: 'GE' },
-  'zurich': { lat: 47.3769, lng: 8.5417, country: 'CH', region: 'ZH' },
-  'zürich': { lat: 47.3769, lng: 8.5417, country: 'CH', region: 'ZH' },
-  'berne': { lat: 46.9480, lng: 7.4474, country: 'CH', region: 'BE' },
-  'bern': { lat: 46.9480, lng: 7.4474, country: 'CH', region: 'BE' },
-  'bale': { lat: 47.5596, lng: 7.5886, country: 'CH', region: 'BS' },
-  'bâle': { lat: 47.5596, lng: 7.5886, country: 'CH', region: 'BS' },
-  'basel': { lat: 47.5596, lng: 7.5886, country: 'CH', region: 'BS' },
-  'fribourg': { lat: 46.8065, lng: 7.1619, country: 'CH', region: 'FR' },
-  'sion': { lat: 46.2331, lng: 7.3606, country: 'CH', region: 'VS' },
-  'neuchatel': { lat: 46.9899, lng: 6.9293, country: 'CH', region: 'NE' },
-  'neuchâtel': { lat: 46.9899, lng: 6.9293, country: 'CH', region: 'NE' },
-  'yverdon': { lat: 46.7785, lng: 6.6412, country: 'CH', region: 'VD' },
-  'nyon': { lat: 46.3833, lng: 6.2396, country: 'CH', region: 'VD' },
-  'morges': { lat: 46.5113, lng: 6.4990, country: 'CH', region: 'VD' },
-  'vevey': { lat: 46.4628, lng: 6.8419, country: 'CH', region: 'VD' },
-  'montreux': { lat: 46.4312, lng: 6.9107, country: 'CH', region: 'VD' },
-  'lugano': { lat: 46.0037, lng: 8.9511, country: 'CH', region: 'TI' },
-  'lucerne': { lat: 47.0502, lng: 8.3093, country: 'CH', region: 'LU' },
-  'luzern': { lat: 47.0502, lng: 8.3093, country: 'CH', region: 'LU' },
-  'zoug': { lat: 47.1662, lng: 8.5155, country: 'CH', region: 'ZG' },
-  'zug': { lat: 47.1662, lng: 8.5155, country: 'CH', region: 'ZG' },
-  'winterthur': { lat: 47.4999, lng: 8.7241, country: 'CH', region: 'ZH' },
-  'st. gallen': { lat: 47.4245, lng: 9.3767, country: 'CH', region: 'SG' },
-  'biel': { lat: 47.1368, lng: 7.2468, country: 'CH', region: 'BE' },
-  'bienne': { lat: 47.1368, lng: 7.2468, country: 'CH', region: 'BE' },
-
-  // France (FR)
-  'paris': { lat: 48.8566, lng: 2.3522, country: 'FR', region: 'IDF' },
-  'lyon': { lat: 45.7640, lng: 4.8357, country: 'FR', region: 'ARA' },
-  'marseille': { lat: 43.2965, lng: 5.3698, country: 'FR', region: 'PACA' },
-  'toulouse': { lat: 43.6047, lng: 1.4442, country: 'FR', region: 'OCC' },
-  'nice': { lat: 43.7102, lng: 7.2620, country: 'FR', region: 'PACA' },
-  'nantes': { lat: 47.2184, lng: -1.5536, country: 'FR', region: 'PDL' },
-  'strasbourg': { lat: 48.5734, lng: 7.7521, country: 'FR', region: 'GES' },
-  'montpellier': { lat: 43.6108, lng: 3.8767, country: 'FR', region: 'OCC' },
-  'bordeaux': { lat: 44.8378, lng: -0.5792, country: 'FR', region: 'NAQ' },
-  'lille': { lat: 50.6292, lng: 3.0573, country: 'FR', region: 'HDF' },
-  'rennes': { lat: 48.1173, lng: -1.6778, country: 'FR', region: 'BRE' },
-  'reims': { lat: 49.2583, lng: 4.0317, country: 'FR', region: 'GES' },
-  'toulon': { lat: 43.1242, lng: 5.9280, country: 'FR', region: 'PACA' },
-  'saint-etienne': { lat: 45.4397, lng: 4.3872, country: 'FR', region: 'ARA' },
-  'grenoble': { lat: 45.1885, lng: 5.7245, country: 'FR', region: 'ARA' },
-  'dijon': { lat: 47.3220, lng: 5.0415, country: 'FR', region: 'BFC' },
-  'angers': { lat: 47.4784, lng: -0.5632, country: 'FR', region: 'PDL' },
-  'nimes': { lat: 43.8367, lng: 4.3601, country: 'FR', region: 'OCC' },
-  'villeurbanne': { lat: 45.7667, lng: 4.8800, country: 'FR', region: 'ARA' },
-  'clermont-ferrand': { lat: 45.7772, lng: 3.0870, country: 'FR', region: 'ARA' },
-  'aix-en-provence': { lat: 43.5297, lng: 5.4474, country: 'FR', region: 'PACA' },
-  'brest': { lat: 48.3904, lng: -4.4861, country: 'FR', region: 'BRE' },
-  'tours': { lat: 47.3941, lng: 0.6848, country: 'FR', region: 'CVL' },
-  'amiens': { lat: 49.8941, lng: 2.2958, country: 'FR', region: 'HDF' },
-  'annecy': { lat: 45.8992, lng: 6.1294, country: 'FR', region: 'ARA' },
-  'sophia antipolis': { lat: 43.6164, lng: 7.0549, country: 'FR', region: 'PACA' },
-  'sophia-antipolis': { lat: 43.6164, lng: 7.0549, country: 'FR', region: 'PACA' },
-  'versailles': { lat: 48.8049, lng: 2.1204, country: 'FR', region: 'IDF' },
-  'saclay': { lat: 48.7303, lng: 2.1706, country: 'FR', region: 'IDF' },
-
-  // Allemagne (DE)
-  'berlin': { lat: 52.5200, lng: 13.4050, country: 'DE', region: 'BE' },
-  'munich': { lat: 48.1351, lng: 11.5820, country: 'DE', region: 'BY' },
-  'münchen': { lat: 48.1351, lng: 11.5820, country: 'DE', region: 'BY' },
-  'frankfurt': { lat: 50.1109, lng: 8.6821, country: 'DE', region: 'HE' },
-  'francfort': { lat: 50.1109, lng: 8.6821, country: 'DE', region: 'HE' },
-  'stuttgart': { lat: 48.7758, lng: 9.1829, country: 'DE', region: 'BW' },
-  'koln': { lat: 50.9375, lng: 6.9603, country: 'DE', region: 'NW' },
-  'cologne': { lat: 50.9375, lng: 6.9603, country: 'DE', region: 'NW' },
-  'köln': { lat: 50.9375, lng: 6.9603, country: 'DE', region: 'NW' },
-  'dusseldorf': { lat: 51.2277, lng: 6.7735, country: 'DE', region: 'NW' },
-  'düsseldorf': { lat: 51.2277, lng: 6.7735, country: 'DE', region: 'NW' },
-  'hamburg': { lat: 53.5511, lng: 9.9937, country: 'DE', region: 'HH' },
-  'hambourg': { lat: 53.5511, lng: 9.9937, country: 'DE', region: 'HH' },
-  'karlsruhe': { lat: 49.0069, lng: 8.4037, country: 'DE', region: 'BW' },
-  'nurnberg': { lat: 49.4521, lng: 11.0767, country: 'DE', region: 'BY' },
-  'nuremberg': { lat: 49.4521, lng: 11.0767, country: 'DE', region: 'BY' },
-  'nürnberg': { lat: 49.4521, lng: 11.0767, country: 'DE', region: 'BY' },
-  'leipzig': { lat: 51.3397, lng: 12.3731, country: 'DE', region: 'SN' },
-  'dresden': { lat: 51.0504, lng: 13.7373, country: 'DE', region: 'SN' },
-  'dresde': { lat: 51.0504, lng: 13.7373, country: 'DE', region: 'SN' },
-  'hannover': { lat: 52.3759, lng: 9.7320, country: 'DE', region: 'NI' },
-  'hanovre': { lat: 52.3759, lng: 9.7320, country: 'DE', region: 'NI' },
-  'bonn': { lat: 50.7374, lng: 7.0982, country: 'DE', region: 'NW' },
-  'heidelberg': { lat: 49.3988, lng: 8.6724, country: 'DE', region: 'BW' },
-  'freiburg': { lat: 47.9990, lng: 7.8421, country: 'DE', region: 'BW' },
-
-  // Belgique & Luxembourg (BE / LU)
-  'bruxelles': { lat: 50.8503, lng: 4.3517, country: 'BE', region: 'BRU' },
-  'brussels': { lat: 50.8503, lng: 4.3517, country: 'BE', region: 'BRU' },
-  'anvers': { lat: 51.2194, lng: 4.4025, country: 'BE', region: 'VLA' },
-  'antwerpen': { lat: 51.2194, lng: 4.4025, country: 'BE', region: 'VLA' },
-  'gand': { lat: 51.0543, lng: 3.7174, country: 'BE', region: 'VLA' },
-  'gent': { lat: 51.0543, lng: 3.7174, country: 'BE', region: 'VLA' },
-  'liege': { lat: 50.6326, lng: 5.5684, country: 'BE', region: 'WAL' },
-  'liège': { lat: 50.6326, lng: 5.5684, country: 'BE', region: 'WAL' },
-  'namur': { lat: 50.4674, lng: 4.8719, country: 'BE', region: 'WAL' },
-  'charleroi': { lat: 50.4108, lng: 4.4446, country: 'BE', region: 'WAL' },
-  'louvain-la-neuve': { lat: 50.6683, lng: 4.6144, country: 'BE', region: 'WAL' },
-  'louvain': { lat: 50.8798, lng: 4.7005, country: 'BE', region: 'VLA' },
-  'leuven': { lat: 50.8798, lng: 4.7005, country: 'BE', region: 'VLA' },
-  'luxembourg': { lat: 49.6116, lng: 6.1319, country: 'LU', region: 'LU' },
-  'esch-sur-alzette': { lat: 49.4958, lng: 5.9806, country: 'LU', region: 'LU' },
-
-  // Italie (IT)
-  'milan': { lat: 45.4642, lng: 9.1900, country: 'IT', region: 'LOM' },
-  'milano': { lat: 45.4642, lng: 9.1900, country: 'IT', region: 'LOM' },
-  'rome': { lat: 41.9028, lng: 12.4964, country: 'IT', region: 'LAZ' },
-  'roma': { lat: 41.9028, lng: 12.4964, country: 'IT', region: 'LAZ' },
-  'turin': { lat: 45.0703, lng: 7.6869, country: 'IT', region: 'PIE' },
-  'torino': { lat: 45.0703, lng: 7.6869, country: 'IT', region: 'PIE' },
-  'bologne': { lat: 44.4949, lng: 11.3426, country: 'IT', region: 'EMR' },
-  'bologna': { lat: 44.4949, lng: 11.3426, country: 'IT', region: 'EMR' },
-  'florence': { lat: 43.7696, lng: 11.2558, country: 'IT', region: 'TOS' },
-  'firenze': { lat: 43.7696, lng: 11.2558, country: 'IT', region: 'TOS' },
-  'venise': { lat: 45.4408, lng: 12.3155, country: 'IT', region: 'VEN' },
-  'venezia': { lat: 45.4408, lng: 12.3155, country: 'IT', region: 'VEN' },
-  'verone': { lat: 45.4384, lng: 10.9916, country: 'IT', region: 'VEN' },
-  'verona': { lat: 45.4384, lng: 10.9916, country: 'IT', region: 'VEN' },
-  'genoa': { lat: 44.4056, lng: 8.9463, country: 'IT', region: 'LIG' },
-  'gênes': { lat: 44.4056, lng: 8.9463, country: 'IT', region: 'LIG' },
-
-  // Espagne (ES)
-  'madrid': { lat: 40.4168, lng: -3.7038, country: 'ES', region: 'MAD' },
-  'barcelone': { lat: 41.3851, lng: 2.1734, country: 'ES', region: 'CAT' },
-  'barcelona': { lat: 41.3851, lng: 2.1734, country: 'ES', region: 'CAT' },
-  'valence': { lat: 39.4699, lng: -0.3763, country: 'ES', region: 'VAL' },
-  'valencia': { lat: 39.4699, lng: -0.3763, country: 'ES', region: 'VAL' },
-  'seville': { lat: 37.3891, lng: -5.9845, country: 'ES', region: 'AND' },
-  'sevilla': { lat: 37.3891, lng: -5.9845, country: 'ES', region: 'AND' },
-  'bilbao': { lat: 43.2630, lng: -2.9350, country: 'ES', region: 'PVA' },
-  'san sebastian': { lat: 43.3183, lng: -1.9812, country: 'ES', region: 'PVA' },
-  'malaga': { lat: 36.7213, lng: -4.4214, country: 'ES', region: 'AND' },
-  'málaga': { lat: 36.7213, lng: -4.4214, country: 'ES', region: 'AND' },
-  'saragosse': { lat: 41.6488, lng: -0.8891, country: 'ES', region: 'ARA' },
-  'zaragoza': { lat: 41.6488, lng: -0.8891, country: 'ES', region: 'ARA' },
+  "lausanne": {
+    "lat": 46.5196,
+    "lng": 6.6322,
+    "country": "CH",
+    "region": "VD"
+  },
+  "geneve": {
+    "lat": 46.2044,
+    "lng": 6.1432,
+    "country": "CH",
+    "region": "GE"
+  },
+  "genève": {
+    "lat": 46.2044,
+    "lng": 6.1432,
+    "country": "CH",
+    "region": "GE"
+  },
+  "geneva": {
+    "lat": 46.2044,
+    "lng": 6.1432,
+    "country": "CH",
+    "region": "GE"
+  },
+  "zurich": {
+    "lat": 47.3769,
+    "lng": 8.5417,
+    "country": "CH",
+    "region": "ZH"
+  },
+  "zürich": {
+    "lat": 47.3769,
+    "lng": 8.5417,
+    "country": "CH",
+    "region": "ZH"
+  },
+  "berne": {
+    "lat": 46.948,
+    "lng": 7.4474,
+    "country": "CH",
+    "region": "BE"
+  },
+  "bern": {
+    "lat": 46.948,
+    "lng": 7.4474,
+    "country": "CH",
+    "region": "BE"
+  },
+  "bale": {
+    "lat": 47.5596,
+    "lng": 7.5886,
+    "country": "CH",
+    "region": "BS"
+  },
+  "bâle": {
+    "lat": 47.5596,
+    "lng": 7.5886,
+    "country": "CH",
+    "region": "BS"
+  },
+  "basel": {
+    "lat": 47.5596,
+    "lng": 7.5886,
+    "country": "CH",
+    "region": "BS"
+  },
+  "fribourg": {
+    "lat": 46.8065,
+    "lng": 7.1619,
+    "country": "CH",
+    "region": "FR"
+  },
+  "freiburg": {
+    "lat": 46.8065,
+    "lng": 7.1619,
+    "country": "CH",
+    "region": "FR"
+  },
+  "sion": {
+    "lat": 46.2331,
+    "lng": 7.3606,
+    "country": "CH",
+    "region": "VS"
+  },
+  "sitten": {
+    "lat": 46.2331,
+    "lng": 7.3606,
+    "country": "CH",
+    "region": "VS"
+  },
+  "neuchatel": {
+    "lat": 46.9899,
+    "lng": 6.9293,
+    "country": "CH",
+    "region": "NE"
+  },
+  "neuchâtel": {
+    "lat": 46.9899,
+    "lng": 6.9293,
+    "country": "CH",
+    "region": "NE"
+  },
+  "yverdon": {
+    "lat": 46.7785,
+    "lng": 6.6412,
+    "country": "CH",
+    "region": "VD"
+  },
+  "yverdon-les-bains": {
+    "lat": 46.7785,
+    "lng": 6.6412,
+    "country": "CH",
+    "region": "VD"
+  },
+  "nyon": {
+    "lat": 46.3833,
+    "lng": 6.2396,
+    "country": "CH",
+    "region": "VD"
+  },
+  "morges": {
+    "lat": 46.5113,
+    "lng": 6.499,
+    "country": "CH",
+    "region": "VD"
+  },
+  "vevey": {
+    "lat": 46.4628,
+    "lng": 6.8419,
+    "country": "CH",
+    "region": "VD"
+  },
+  "montreux": {
+    "lat": 46.4312,
+    "lng": 6.9107,
+    "country": "CH",
+    "region": "VD"
+  },
+  "lugano": {
+    "lat": 46.0037,
+    "lng": 8.9511,
+    "country": "CH",
+    "region": "TI"
+  },
+  "bellinzone": {
+    "lat": 46.1928,
+    "lng": 9.017,
+    "country": "CH",
+    "region": "TI"
+  },
+  "locarno": {
+    "lat": 46.167,
+    "lng": 8.7984,
+    "country": "CH",
+    "region": "TI"
+  },
+  "lucerne": {
+    "lat": 47.0502,
+    "lng": 8.3093,
+    "country": "CH",
+    "region": "LU"
+  },
+  "luzern": {
+    "lat": 47.0502,
+    "lng": 8.3093,
+    "country": "CH",
+    "region": "LU"
+  },
+  "zoug": {
+    "lat": 47.1662,
+    "lng": 8.5155,
+    "country": "CH",
+    "region": "ZG"
+  },
+  "zug": {
+    "lat": 47.1662,
+    "lng": 8.5155,
+    "country": "CH",
+    "region": "ZG"
+  },
+  "winterthur": {
+    "lat": 47.4999,
+    "lng": 8.7241,
+    "country": "CH",
+    "region": "ZH"
+  },
+  "st. gallen": {
+    "lat": 47.4245,
+    "lng": 9.3767,
+    "country": "CH",
+    "region": "SG"
+  },
+  "saint-gall": {
+    "lat": 47.4245,
+    "lng": 9.3767,
+    "country": "CH",
+    "region": "SG"
+  },
+  "st gallen": {
+    "lat": 47.4245,
+    "lng": 9.3767,
+    "country": "CH",
+    "region": "SG"
+  },
+  "aarau": {
+    "lat": 47.3925,
+    "lng": 8.0442,
+    "country": "CH",
+    "region": "AG"
+  },
+  "baden": {
+    "lat": 47.4737,
+    "lng": 8.3087,
+    "country": "CH",
+    "region": "AG"
+  },
+  "delemont": {
+    "lat": 47.3653,
+    "lng": 7.3456,
+    "country": "CH",
+    "region": "JU"
+  },
+  "delémont": {
+    "lat": 47.3653,
+    "lng": 7.3456,
+    "country": "CH",
+    "region": "JU"
+  },
+  "bienne": {
+    "lat": 47.1368,
+    "lng": 7.2468,
+    "country": "CH",
+    "region": "BE"
+  },
+  "biel": {
+    "lat": 47.1368,
+    "lng": 7.2468,
+    "country": "CH",
+    "region": "BE"
+  },
+  "coire": {
+    "lat": 46.8508,
+    "lng": 9.532,
+    "country": "CH",
+    "region": "GR"
+  },
+  "chur": {
+    "lat": 46.8508,
+    "lng": 9.532,
+    "country": "CH",
+    "region": "GR"
+  },
+  "davos": {
+    "lat": 46.8027,
+    "lng": 9.836,
+    "country": "CH",
+    "region": "GR"
+  },
+  "schaffhouse": {
+    "lat": 47.6973,
+    "lng": 8.6349,
+    "country": "CH",
+    "region": "SH"
+  },
+  "schaffhausen": {
+    "lat": 47.6973,
+    "lng": 8.6349,
+    "country": "CH",
+    "region": "SH"
+  },
+  "soleure": {
+    "lat": 47.2088,
+    "lng": 7.537,
+    "country": "CH",
+    "region": "SO"
+  },
+  "solothurn": {
+    "lat": 47.2088,
+    "lng": 7.537,
+    "country": "CH",
+    "region": "SO"
+  },
+  "martigny": {
+    "lat": 46.1037,
+    "lng": 7.0734,
+    "country": "CH",
+    "region": "VS"
+  },
+  "monthey": {
+    "lat": 46.255,
+    "lng": 6.9489,
+    "country": "CH",
+    "region": "VS"
+  },
+  "brig": {
+    "lat": 46.315,
+    "lng": 7.988,
+    "country": "CH",
+    "region": "VS"
+  },
+  "brigue": {
+    "lat": 46.315,
+    "lng": 7.988,
+    "country": "CH",
+    "region": "VS"
+  },
+  "la chaux-de-fonds": {
+    "lat": 47.1035,
+    "lng": 6.8328,
+    "country": "CH",
+    "region": "NE"
+  },
+  "le locle": {
+    "lat": 47.0592,
+    "lng": 6.7497,
+    "country": "CH",
+    "region": "NE"
+  },
+  "renens": {
+    "lat": 46.5339,
+    "lng": 6.5898,
+    "country": "CH",
+    "region": "VD"
+  },
+  "ecublens": {
+    "lat": 46.5278,
+    "lng": 6.5658,
+    "country": "CH",
+    "region": "VD"
+  },
+  "gland": {
+    "lat": 46.4214,
+    "lng": 6.2694,
+    "country": "CH",
+    "region": "VD"
+  },
+  "rolle": {
+    "lat": 46.459,
+    "lng": 6.3385,
+    "country": "CH",
+    "region": "VD"
+  },
+  "pully": {
+    "lat": 46.5097,
+    "lng": 6.6628,
+    "country": "CH",
+    "region": "VD"
+  },
+  "lutry": {
+    "lat": 46.5028,
+    "lng": 6.6869,
+    "country": "CH",
+    "region": "VD"
+  },
+  "meyrin": {
+    "lat": 46.2333,
+    "lng": 6.08,
+    "country": "CH",
+    "region": "GE"
+  },
+  "carouge": {
+    "lat": 46.1833,
+    "lng": 6.14,
+    "country": "CH",
+    "region": "GE"
+  },
+  "vernier": {
+    "lat": 46.2167,
+    "lng": 6.0833,
+    "country": "CH",
+    "region": "GE"
+  },
+  "lancy": {
+    "lat": 46.189,
+    "lng": 6.119,
+    "country": "CH",
+    "region": "GE"
+  },
+  "paris": {
+    "lat": 48.8566,
+    "lng": 2.3522,
+    "country": "FR",
+    "region": "IDF"
+  },
+  "lyon": {
+    "lat": 45.764,
+    "lng": 4.8357,
+    "country": "FR",
+    "region": "ARA"
+  },
+  "marseille": {
+    "lat": 43.2965,
+    "lng": 5.3698,
+    "country": "FR",
+    "region": "PACA"
+  },
+  "toulouse": {
+    "lat": 43.6047,
+    "lng": 1.4442,
+    "country": "FR",
+    "region": "OCC"
+  },
+  "bordeaux": {
+    "lat": 44.8378,
+    "lng": -0.5792,
+    "country": "FR",
+    "region": "NAQ"
+  },
+  "strasbourg": {
+    "lat": 48.5734,
+    "lng": 7.7521,
+    "country": "FR",
+    "region": "GES"
+  },
+  "lille": {
+    "lat": 50.6292,
+    "lng": 3.0573,
+    "country": "FR",
+    "region": "HDF"
+  },
+  "nantes": {
+    "lat": 47.2184,
+    "lng": -1.5536,
+    "country": "FR",
+    "region": "PDL"
+  },
+  "rennes": {
+    "lat": 48.1173,
+    "lng": -1.6778,
+    "country": "FR",
+    "region": "BRE"
+  },
+  "grenoble": {
+    "lat": 45.1885,
+    "lng": 5.7245,
+    "country": "FR",
+    "region": "ARA"
+  },
+  "nice": {
+    "lat": 43.7102,
+    "lng": 7.262,
+    "country": "FR",
+    "region": "PACA"
+  },
+  "montpellier": {
+    "lat": 43.6108,
+    "lng": 3.8767,
+    "country": "FR",
+    "region": "OCC"
+  },
+  "annecy": {
+    "lat": 45.8992,
+    "lng": 6.1294,
+    "country": "FR",
+    "region": "ARA"
+  },
+  "chambery": {
+    "lat": 45.5646,
+    "lng": 5.9178,
+    "country": "FR",
+    "region": "ARA"
+  },
+  "chambéry": {
+    "lat": 45.5646,
+    "lng": 5.9178,
+    "country": "FR",
+    "region": "ARA"
+  },
+  "dijon": {
+    "lat": 47.322,
+    "lng": 5.0415,
+    "country": "FR",
+    "region": "BFC"
+  },
+  "besancon": {
+    "lat": 47.2378,
+    "lng": 6.0241,
+    "country": "FR",
+    "region": "BFC"
+  },
+  "besançon": {
+    "lat": 47.2378,
+    "lng": 6.0241,
+    "country": "FR",
+    "region": "BFC"
+  },
+  "nancy": {
+    "lat": 48.6921,
+    "lng": 6.1844,
+    "country": "FR",
+    "region": "GES"
+  },
+  "metz": {
+    "lat": 49.1193,
+    "lng": 6.1757,
+    "country": "FR",
+    "region": "GES"
+  },
+  "clermont-ferrand": {
+    "lat": 45.7772,
+    "lng": 3.087,
+    "country": "FR",
+    "region": "ARA"
+  },
+  "saint-etienne": {
+    "lat": 45.4397,
+    "lng": 4.3872,
+    "country": "FR",
+    "region": "ARA"
+  },
+  "saint-étienne": {
+    "lat": 45.4397,
+    "lng": 4.3872,
+    "country": "FR",
+    "region": "ARA"
+  },
+  "sophia antipolis": {
+    "lat": 43.6163,
+    "lng": 7.0552,
+    "country": "FR",
+    "region": "PACA"
+  },
+  "antibes": {
+    "lat": 43.5804,
+    "lng": 7.1251,
+    "country": "FR",
+    "region": "PACA"
+  },
+  "cannes": {
+    "lat": 43.5528,
+    "lng": 7.0174,
+    "country": "FR",
+    "region": "PACA"
+  },
+  "aix-en-provence": {
+    "lat": 43.5297,
+    "lng": 5.4474,
+    "country": "FR",
+    "region": "PACA"
+  },
+  "toulon": {
+    "lat": 43.1242,
+    "lng": 5.928,
+    "country": "FR",
+    "region": "PACA"
+  },
+  "rouen": {
+    "lat": 49.4432,
+    "lng": 1.0999,
+    "country": "FR",
+    "region": "NOR"
+  },
+  "caen": {
+    "lat": 49.1829,
+    "lng": -0.3707,
+    "country": "FR",
+    "region": "NOR"
+  },
+  "orleans": {
+    "lat": 47.9029,
+    "lng": 1.9093,
+    "country": "FR",
+    "region": "CVL"
+  },
+  "orléans": {
+    "lat": 47.9029,
+    "lng": 1.9093,
+    "country": "FR",
+    "region": "CVL"
+  },
+  "tours": {
+    "lat": 47.3941,
+    "lng": 0.6848,
+    "country": "FR",
+    "region": "CVL"
+  },
+  "angers": {
+    "lat": 47.4784,
+    "lng": -0.5632,
+    "country": "FR",
+    "region": "PDL"
+  },
+  "brest": {
+    "lat": 48.3904,
+    "lng": -4.4861,
+    "country": "FR",
+    "region": "BRE"
+  },
+  "berlin": {
+    "lat": 52.52,
+    "lng": 13.405,
+    "country": "DE",
+    "region": "BE"
+  },
+  "munich": {
+    "lat": 48.1351,
+    "lng": 11.582,
+    "country": "DE",
+    "region": "BY"
+  },
+  "münchen": {
+    "lat": 48.1351,
+    "lng": 11.582,
+    "country": "DE",
+    "region": "BY"
+  },
+  "francfort": {
+    "lat": 50.1109,
+    "lng": 8.6821,
+    "country": "DE",
+    "region": "HE"
+  },
+  "frankfurt": {
+    "lat": 50.1109,
+    "lng": 8.6821,
+    "country": "DE",
+    "region": "HE"
+  },
+  "hambourg": {
+    "lat": 53.5511,
+    "lng": 9.9937,
+    "country": "DE",
+    "region": "HH"
+  },
+  "hamburg": {
+    "lat": 53.5511,
+    "lng": 9.9937,
+    "country": "DE",
+    "region": "HH"
+  },
+  "stuttgart": {
+    "lat": 48.7758,
+    "lng": 9.1829,
+    "country": "DE",
+    "region": "BW"
+  },
+  "cologne": {
+    "lat": 50.9375,
+    "lng": 6.9603,
+    "country": "DE",
+    "region": "NW"
+  },
+  "köln": {
+    "lat": 50.9375,
+    "lng": 6.9603,
+    "country": "DE",
+    "region": "NW"
+  },
+  "dusseldorf": {
+    "lat": 51.2277,
+    "lng": 6.7735,
+    "country": "DE",
+    "region": "NW"
+  },
+  "düsseldorf": {
+    "lat": 51.2277,
+    "lng": 6.7735,
+    "country": "DE",
+    "region": "NW"
+  },
+  "karlsruhe": {
+    "lat": 49.0069,
+    "lng": 8.4037,
+    "country": "DE",
+    "region": "BW"
+  },
+  "freiburg im breisgau": {
+    "lat": 47.999,
+    "lng": 7.8421,
+    "country": "DE",
+    "region": "BW"
+  },
+  "heidelberg": {
+    "lat": 49.3988,
+    "lng": 8.6724,
+    "country": "DE",
+    "region": "BW"
+  },
+  "mannheim": {
+    "lat": 49.4875,
+    "lng": 8.466,
+    "country": "DE",
+    "region": "BW"
+  },
+  "ulm": {
+    "lat": 48.4011,
+    "lng": 9.9876,
+    "country": "DE",
+    "region": "BW"
+  },
+  "nuremberg": {
+    "lat": 49.4521,
+    "lng": 11.0767,
+    "country": "DE",
+    "region": "BY"
+  },
+  "nürnberg": {
+    "lat": 49.4521,
+    "lng": 11.0767,
+    "country": "DE",
+    "region": "BY"
+  },
+  "hannover": {
+    "lat": 52.3759,
+    "lng": 9.732,
+    "country": "DE",
+    "region": "NI"
+  },
+  "leipzig": {
+    "lat": 51.3397,
+    "lng": 12.3731,
+    "country": "DE",
+    "region": "SN"
+  },
+  "dresde": {
+    "lat": 51.0504,
+    "lng": 13.7373,
+    "country": "DE",
+    "region": "SN"
+  },
+  "dresden": {
+    "lat": 51.0504,
+    "lng": 13.7373,
+    "country": "DE",
+    "region": "SN"
+  },
+  "bonn": {
+    "lat": 50.7374,
+    "lng": 7.0982,
+    "country": "DE",
+    "region": "NW"
+  },
+  "aix-la-chapelle": {
+    "lat": 50.7753,
+    "lng": 6.0839,
+    "country": "DE",
+    "region": "NW"
+  },
+  "aachen": {
+    "lat": 50.7753,
+    "lng": 6.0839,
+    "country": "DE",
+    "region": "NW"
+  },
+  "bruxelles": {
+    "lat": 50.8503,
+    "lng": 4.3517,
+    "country": "BE",
+    "region": "BRU"
+  },
+  "brussels": {
+    "lat": 50.8503,
+    "lng": 4.3517,
+    "country": "BE",
+    "region": "BRU"
+  },
+  "anvers": {
+    "lat": 51.2194,
+    "lng": 4.4025,
+    "country": "BE",
+    "region": "VAN"
+  },
+  "antwerpen": {
+    "lat": 51.2194,
+    "lng": 4.4025,
+    "country": "BE",
+    "region": "VAN"
+  },
+  "gand": {
+    "lat": 51.0543,
+    "lng": 3.7174,
+    "country": "BE",
+    "region": "VOV"
+  },
+  "gent": {
+    "lat": 51.0543,
+    "lng": 3.7174,
+    "country": "BE",
+    "region": "VOV"
+  },
+  "liege": {
+    "lat": 50.6326,
+    "lng": 5.5797,
+    "country": "BE",
+    "region": "WLG"
+  },
+  "liège": {
+    "lat": 50.6326,
+    "lng": 5.5797,
+    "country": "BE",
+    "region": "WLG"
+  },
+  "louvain-la-neuve": {
+    "lat": 50.6698,
+    "lng": 4.6144,
+    "country": "BE",
+    "region": "WBR"
+  },
+  "lln": {
+    "lat": 50.6698,
+    "lng": 4.6144,
+    "country": "BE",
+    "region": "WBR"
+  },
+  "leuven": {
+    "lat": 50.8798,
+    "lng": 4.7005,
+    "country": "BE",
+    "region": "VBR"
+  },
+  "louvain": {
+    "lat": 50.8798,
+    "lng": 4.7005,
+    "country": "BE",
+    "region": "VBR"
+  },
+  "namur": {
+    "lat": 50.4674,
+    "lng": 4.872,
+    "country": "BE",
+    "region": "WNA"
+  },
+  "mons": {
+    "lat": 50.4542,
+    "lng": 3.9567,
+    "country": "BE",
+    "region": "WHT"
+  },
+  "charleroi": {
+    "lat": 50.4108,
+    "lng": 4.4446,
+    "country": "BE",
+    "region": "WHT"
+  },
+  "bruges": {
+    "lat": 51.2093,
+    "lng": 3.2247,
+    "country": "BE",
+    "region": "VWV"
+  },
+  "brugge": {
+    "lat": 51.2093,
+    "lng": 3.2247,
+    "country": "BE",
+    "region": "VWV"
+  },
+  "luxembourg": {
+    "lat": 49.6116,
+    "lng": 6.1319,
+    "country": "LU",
+    "region": "LU"
+  },
+  "kirchberg": {
+    "lat": 49.6264,
+    "lng": 6.1611,
+    "country": "LU",
+    "region": "LU"
+  },
+  "esch-sur-alzette": {
+    "lat": 49.4958,
+    "lng": 5.9806,
+    "country": "LU",
+    "region": "LU"
+  },
+  "esch": {
+    "lat": 49.4958,
+    "lng": 5.9806,
+    "country": "LU",
+    "region": "LU"
+  },
+  "belval": {
+    "lat": 49.5019,
+    "lng": 5.9264,
+    "country": "LU",
+    "region": "LU"
+  },
+  "differdange": {
+    "lat": 49.5242,
+    "lng": 5.8911,
+    "country": "LU",
+    "region": "LU"
+  },
+  "milan": {
+    "lat": 45.4642,
+    "lng": 9.19,
+    "country": "IT",
+    "region": "LOM"
+  },
+  "milano": {
+    "lat": 45.4642,
+    "lng": 9.19,
+    "country": "IT",
+    "region": "LOM"
+  },
+  "turin": {
+    "lat": 45.0703,
+    "lng": 7.6869,
+    "country": "IT",
+    "region": "PIE"
+  },
+  "torino": {
+    "lat": 45.0703,
+    "lng": 7.6869,
+    "country": "IT",
+    "region": "PIE"
+  },
+  "rome": {
+    "lat": 41.9028,
+    "lng": 12.4964,
+    "country": "IT",
+    "region": "LAZ"
+  },
+  "roma": {
+    "lat": 41.9028,
+    "lng": 12.4964,
+    "country": "IT",
+    "region": "LAZ"
+  },
+  "bologne": {
+    "lat": 44.4949,
+    "lng": 11.3426,
+    "country": "IT",
+    "region": "EMR"
+  },
+  "bologna": {
+    "lat": 44.4949,
+    "lng": 11.3426,
+    "country": "IT",
+    "region": "EMR"
+  },
+  "florence": {
+    "lat": 43.7696,
+    "lng": 11.2558,
+    "country": "IT",
+    "region": "TOS"
+  },
+  "firenze": {
+    "lat": 43.7696,
+    "lng": 11.2558,
+    "country": "IT",
+    "region": "TOS"
+  },
+  "venise": {
+    "lat": 45.4408,
+    "lng": 12.3155,
+    "country": "IT",
+    "region": "VEN"
+  },
+  "venezia": {
+    "lat": 45.4408,
+    "lng": 12.3155,
+    "country": "IT",
+    "region": "VEN"
+  },
+  "genes": {
+    "lat": 44.4056,
+    "lng": 8.9463,
+    "country": "IT",
+    "region": "LIG"
+  },
+  "genova": {
+    "lat": 44.4056,
+    "lng": 8.9463,
+    "country": "IT",
+    "region": "LIG"
+  },
+  "verone": {
+    "lat": 45.4384,
+    "lng": 10.9916,
+    "country": "IT",
+    "region": "VEN"
+  },
+  "verona": {
+    "lat": 45.4384,
+    "lng": 10.9916,
+    "country": "IT",
+    "region": "VEN"
+  },
+  "padoue": {
+    "lat": 45.4064,
+    "lng": 11.8768,
+    "country": "IT",
+    "region": "VEN"
+  },
+  "padova": {
+    "lat": 45.4064,
+    "lng": 11.8768,
+    "country": "IT",
+    "region": "VEN"
+  },
+  "naples": {
+    "lat": 40.8518,
+    "lng": 14.2681,
+    "country": "IT",
+    "region": "CAM"
+  },
+  "napoli": {
+    "lat": 40.8518,
+    "lng": 14.2681,
+    "country": "IT",
+    "region": "CAM"
+  },
+  "trente": {
+    "lat": 46.0748,
+    "lng": 11.1217,
+    "country": "IT",
+    "region": "TN"
+  },
+  "trento": {
+    "lat": 46.0748,
+    "lng": 11.1217,
+    "country": "IT",
+    "region": "TN"
+  },
+  "bolzano": {
+    "lat": 46.4983,
+    "lng": 11.3548,
+    "country": "IT",
+    "region": "BZ"
+  },
+  "bozen": {
+    "lat": 46.4983,
+    "lng": 11.3548,
+    "country": "IT",
+    "region": "BZ"
+  },
+  "madrid": {
+    "lat": 40.4168,
+    "lng": -3.7038,
+    "country": "ES",
+    "region": "MAD"
+  },
+  "barcelone": {
+    "lat": 41.3879,
+    "lng": 2.1699,
+    "country": "ES",
+    "region": "CAT"
+  },
+  "barcelona": {
+    "lat": 41.3879,
+    "lng": 2.1699,
+    "country": "ES",
+    "region": "CAT"
+  },
+  "valence": {
+    "lat": 39.4699,
+    "lng": -0.3763,
+    "country": "ES",
+    "region": "VAL"
+  },
+  "valencia": {
+    "lat": 39.4699,
+    "lng": -0.3763,
+    "country": "ES",
+    "region": "VAL"
+  },
+  "seville": {
+    "lat": 37.3891,
+    "lng": -5.9845,
+    "country": "ES",
+    "region": "AND"
+  },
+  "sevilla": {
+    "lat": 37.3891,
+    "lng": -5.9845,
+    "country": "ES",
+    "region": "AND"
+  },
+  "bilbao": {
+    "lat": 43.263,
+    "lng": -2.935,
+    "country": "ES",
+    "region": "PVA"
+  },
+  "san sebastian": {
+    "lat": 43.3183,
+    "lng": -1.9812,
+    "country": "ES",
+    "region": "PVA"
+  },
+  "donostia": {
+    "lat": 43.3183,
+    "lng": -1.9812,
+    "country": "ES",
+    "region": "PVA"
+  },
+  "malaga": {
+    "lat": 36.7213,
+    "lng": -4.4214,
+    "country": "ES",
+    "region": "AND"
+  },
+  "málaga": {
+    "lat": 36.7213,
+    "lng": -4.4214,
+    "country": "ES",
+    "region": "AND"
+  },
+  "saragosse": {
+    "lat": 41.6488,
+    "lng": -0.8891,
+    "country": "ES",
+    "region": "ARA"
+  },
+  "zaragoza": {
+    "lat": 41.6488,
+    "lng": -0.8891,
+    "country": "ES",
+    "region": "ARA"
+  },
+  "la corogne": {
+    "lat": 43.3623,
+    "lng": -8.4115,
+    "country": "ES",
+    "region": "GAL"
+  },
+  "a coruña": {
+    "lat": 43.3623,
+    "lng": -8.4115,
+    "country": "ES",
+    "region": "GAL"
+  },
+  "vigo": {
+    "lat": 42.2406,
+    "lng": -8.7207,
+    "country": "ES",
+    "region": "GAL"
+  },
+  "oviedo": {
+    "lat": 43.3619,
+    "lng": -5.8494,
+    "country": "ES",
+    "region": "AST"
+  },
+  "gijon": {
+    "lat": 43.5322,
+    "lng": -5.6611,
+    "country": "ES",
+    "region": "AST"
+  },
+  "santander": {
+    "lat": 43.4623,
+    "lng": -3.8099,
+    "country": "ES",
+    "region": "CAN"
+  },
+  "palma": {
+    "lat": 39.5696,
+    "lng": 2.6502,
+    "country": "ES",
+    "region": "BAL"
+  },
+  "palma de mallorca": {
+    "lat": 39.5696,
+    "lng": 2.6502,
+    "country": "ES",
+    "region": "BAL"
+  },
+  "grenade": {
+    "lat": 37.1773,
+    "lng": -3.5986,
+    "country": "ES",
+    "region": "AND"
+  },
+  "granada": {
+    "lat": 37.1773,
+    "lng": -3.5986,
+    "country": "ES",
+    "region": "AND"
+  }
 };
 
 // Geocoding helper that detects City, Country and Region from candidatures
@@ -517,7 +3284,7 @@ export function geocodeCandidature(candidature) {
       .toLowerCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[\\\/,\(\)\.\-]/g, ' ')
+      .replace(/[\\\/\,\(\)\.\-]/g, ' ')
       .trim();
 
   const loc = norm(candidature.location);
@@ -546,19 +3313,16 @@ export function geocodeCandidature(candidature) {
       const regName = norm(reg.name);
       const regCode = norm(reg.code);
       if (
-        cant &&
-        (cant.includes(regCode) ||
-          cant.includes(regName) ||
-          regName.includes(cant) ||
-          loc.includes(regName))
+        (cant && (cant === regCode || cant.includes(regCode) || cant.includes(regName) || regName.includes(cant))) ||
+        (loc && (loc.includes(regName) || regName.includes(loc)))
       ) {
         // Small random offset around region centroid so multiple city pins don't overlap completely
         const hash = Array.from(String(candidature.company || '')).reduce(
           (acc, ch) => acc + ch.charCodeAt(0),
           0
         );
-        const latOffset = ((hash % 10) - 5) * 0.08;
-        const lngOffset = (((hash >> 2) % 10) - 5) * 0.08;
+        const latOffset = ((hash % 10) - 5) * 0.05;
+        const lngOffset = (((hash >> 2) % 10) - 5) * 0.05;
         const projected = projectGpsEurope(reg.lat + latOffset, reg.lng + lngOffset);
         return {
           ...projected,

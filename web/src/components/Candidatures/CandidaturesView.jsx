@@ -204,11 +204,11 @@ export function CandidaturesView({
     }
   };
 
-  // Zoom transform calculation for the Western Europe SVG map (1000x800)
+  // Zoom transform calculation for the Western Europe SVG map (1000x980)
   const zoomTransform = useMemo(() => {
     let baseScale = 1;
     let cx = 500;
-    let cy = 400;
+    let cy = 490;
 
     const countryObj = COUNTRIES.find((c) => c.code === selectedCountry);
     if (countryObj && countryObj.code !== 'ALL') {
@@ -239,7 +239,7 @@ export function CandidaturesView({
     if (effectiveScale <= 1.05) return 'translate(0px, 0px) scale(1)';
 
     const dx = 500 - cx * effectiveScale;
-    const dy = 400 - cy * effectiveScale;
+    const dy = 490 - cy * effectiveScale;
     return `translate(${dx}px, ${dy}px) scale(${effectiveScale})`;
   }, [selectedCountry, activeRegionCode, activeCityKey, cityPins, manualZoom]);
 
@@ -624,7 +624,7 @@ export function CandidaturesView({
 
           <div className="cand-svg-container">
             <svg
-              viewBox="0 0 1000 800"
+              viewBox="0 0 1000 980"
               className="cand-europe-svg"
               onMouseLeave={() => setTooltip((t) => ({ ...t, visible: false }))}
             >

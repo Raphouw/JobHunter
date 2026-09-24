@@ -11,14 +11,13 @@ function parseLine(line) {
   let tag = '';
   let content = body;
 
-  const low = body.toLowerCase();
   if (low.includes('traceback') || low.includes('exception') || low.includes('error') || low.includes('[erreur') || low.includes('crash') || low.includes('échec') || low.includes('failed')) {
     type = 'error';
-  } else if (body.includes('→ RETENUE') || body.includes('→ TOUJOURS ACTIVE') || low.includes('match validé') || low.includes('offre retenue')) {
+  } else if (body.includes('RETENUE') || body.includes('TOUJOURS ACTIVE') || low.includes('match validé') || low.includes('offre retenue') || low.includes('retenue(s)')) {
     type = 'retained';
-  } else if (body.includes('→ RETIRÉE') || body.includes('→ DOUBLON') || low.includes('hors cible') || low.includes('score trop bas') || low.includes('fermé') || low.includes('expirée') || low.includes('doublon')) {
+  } else if (body.includes('RETIRÉE') || body.includes('ÉCARTÉE') || body.includes('REJETÉE') || body.includes('DOUBLON') || low.includes('hors cible') || low.includes('score trop bas') || low.includes('fermé') || low.includes('expirée') || low.includes('doublon')) {
     type = 'removed';
-  } else if (low.includes('coupe-circuit') || low.includes('attention') || low.includes('avertissement')) {
+  } else if (low.includes('coupe-circuit') || low.includes('attention') || low.includes('avertissement') || low.includes('reprise') || low.includes('retry')) {
     type = 'warn';
   }
 

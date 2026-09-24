@@ -63,7 +63,7 @@ class Store:
         }, "return=minimal")
 
 
-def prepare_engine(config, job):
+def prepare_engine(config, job, store=None):
     import stage_hunter as engine
     from datetime import datetime, timezone
 
@@ -98,7 +98,7 @@ def prepare_engine(config, job):
 
     def hook(msg, style=''):
         clean = str(msg).strip()
-        if any(k in clean for k in ('SITE FIXE', 'SITES FIXES', 'WEB', 'ANALYSE', 'RETENUE', 'RETIRÉE', 'DOUBLON', 'DIAGNOSTIC', 'COUPE-CIRCUIT', 'RECHERCHE PROFIL')):
+        if store and job and clean:
             try: store.event(job, clean)
             except Exception: pass
     engine.EVENT_HOOK = hook
@@ -155,20 +155,24 @@ def discover(store, job, engine, profile):
         subset = direct_urls[direct_cursor:direct_cursor + 2]
         direct_profile = {**profile, "_source_pack_urls": subset}
         os.environ["FIXED_SITE_LIMIT"] = str(len(subset))
+        for u in subset:
+            store.event(job, f"🌐 Exploration portail direct : {engine.dom(u)}")
         rows = engine.fixed_site_candidates(direct_profile)
         found = candidate_rows(store, job, rows)
         checkpoint["direct_cursor"] = direct_cursor + len(subset)
         checkpoint["direct_candidates"] = engine.safe_int(checkpoint.get("direct_candidates"), 0) + found
-        message = f"Sites directs {checkpoint['direct_cursor']}/{len(direct_urls)} · {found} candidat(s)"
+        message = f"Sites directs {checkpoint['direct_cursor']}/{len(direct_urls)} · {found} candidat(s) collecté(s)"
     elif web_cursor < len(queries):
         subset = queries[web_cursor:web_cursor + 4]
+        for q in subset:
+            store.event(job, f"🔍 Recherche web : « {q} »")
         rows = engine.search_web(subset, engine.safe_int(os.getenv("SEARCH_RESULTS_PER_QUERY"), 8))
         found = candidate_rows(store, job, rows)
         checkpoint["web_cursor"] = web_cursor + len(subset)
         checkpoint["web_candidates"] = engine.safe_int(checkpoint.get("web_candidates"), 0) + found
-        message = f"Recherche web {checkpoint['web_cursor']}/{len(queries)} · {found} candidat(s)"
+        message = f"Recherche web {checkpoint['web_cursor']}/{len(queries)} · {found} candidat(s) collecté(s)"
     else:
-        store.event(job, "Découverte terminée. Analyse des candidats en cours.")
+        store.event(job, "Découverte terminée. Analyse et notation des opportunités en cours.")
         release(store, job, "analyze", checkpoint, 45)
         return
 
@@ -248,8 +252,12 @@ def analyze(store, job, engine, profile):
             rejection_types = dict(checkpoint.get("rejection_types") or {})
             rejection_types[category] = rejection_types.get(category, 0) + 1
             checkpoint["rejection_types"] = rejection_types
-        store.event(job, f"{status.upper()} · {decision.get('title') or candidate_url[:80]} · "
-                         f"score {decision.get('score') if decision.get('score') is not None else '—'}")
+        status_tag = "✅ RETENUE" if status == "accepted" else ("⏳ REPRISE" if retry else "❌ ÉCARTÉE")
+        title_tag = decision.get('title') or candidate_url[:80]
+        score_val = decision.get('score')
+        score_tag = f"score {score_val}/100" if score_val is not None else "sans score"
+        reason_tag = f" ({decision.get('reason')})" if decision.get('reason') else ""
+        store.event(job, f"{status_tag} · {title_tag} · {score_tag}{reason_tag}")
     total = max(1, engine.safe_int(checkpoint.get("direct_candidates"), 0) + engine.safe_int(checkpoint.get("web_candidates"), 0))
     progress = min(95, 45 + round(50 * engine.safe_int(checkpoint.get("analyzed"), 0) / total))
     release(store, job, "analyze", checkpoint, progress)
@@ -303,7 +311,7 @@ def run_slice(job_id=None):
                     raise RuntimeError("Profil supprimé")
                 config = profile_rows[0]["config"]
                 job["checkpoint"] = {**(job.get("checkpoint") or {}), "profile_config": config}
-            engine, profile = prepare_engine(config, job)
+            engine, profile = prepare_engine(config, job, store)
             if job["phase"] == "discover":
                 discover(store, job, engine, profile)
             elif job["phase"] == "analyze":
