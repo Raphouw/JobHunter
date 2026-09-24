@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173",
-    "build": "vite build"
+    "build": "vite build",
+    "build:cloud": "vite build --mode cloud --outDir dist-cloud"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.1",

@@ -13,17 +13,18 @@
 
 ## Mise en place du prototype gratuit
 
-1. Créer un projet Supabase gratuit. Dans SQL Editor, appliquer
-   `supabase/migrations/202609230001_initial.sql`.
+1. Le projet Supabase « Job Hunter » contient la migration
+   `supabase/migrations/20260924082556_initial_job_hunter_schema.sql`.
 2. Dans Supabase Auth, désactiver les inscriptions publiques et créer les
    comptes autorisés. Chaque personne utilise son propre e-mail et mot de passe.
 3. Dans `web/`, créer `.env.local` à partir de `.env.example` avec l'URL et la
    clé **publishable** du projet. Ces deux valeurs sont destinées au navigateur.
    Ne jamais y mettre la clé `service_role`.
-4. Lancer `npm run build` pour vérifier la compilation. Pour Vercel, choisir
-   `web/` comme dossier racine, le framework Vite, `npm run build` comme commande
-   et `dist` comme dossier de sortie. Définir les mêmes variables publiques dans
-   les paramètres Vercel avant le déploiement.
+4. Lancer `npm run build:cloud` dans `web/` pour vérifier la compilation cloud.
+   Le `vercel.json` à la racine construit ce dossier, avec `web/dist-cloud` comme
+   sortie. Le build local `npm run build` reste dans `web/dist`.
+   Les variables publiques cloud sont dans `web/.env.cloud` ; les
+   déplacer ultérieurement vers les variables Vercel reste possible.
 5. Pour essayer l'import local d'un profil, récupérer l'UUID du compte dans
    Supabase Auth puis lancer :
 
