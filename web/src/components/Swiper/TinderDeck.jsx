@@ -132,6 +132,17 @@ export function TinderDeck({
 
   return (
     <div className="sh-swiper-container">
+      <div className="sh-swipe-intro">
+        <div>
+          <span className="sh-swipe-eyebrow">DÉCOUVRIR · DÉCIDER · AVANCER</span>
+          <h1>Vos offres, à votre rythme.</h1>
+          <p>Une opportunité à la fois. Consultez la fiche, puis gardez, passez ou remettez à plus tard.</p>
+        </div>
+        <div className="sh-swipe-progress" aria-live="polite">
+          <strong>{queue.length}</strong>
+          <span>à parcourir</span>
+        </div>
+      </div>
       {/* Top Deck Toolbar */}
       <div className="sh-deck-toolbar">
         <div className="sh-deck-queue-info">
@@ -301,6 +312,7 @@ export function TinderDeck({
               aria-label="Annuler le dernier choix"
             >
               <Icon name="undo" size={20} />
+              <span className="sh-ctrl-label">Annuler</span>
             </motion.button>
 
             {/* Nope / Reject Button */}
@@ -312,6 +324,7 @@ export function TinderDeck({
               aria-label="Passer cette offre"
             >
               <Icon name="x" size={28} />
+              <span className="sh-ctrl-label">Passer</span>
             </motion.button>
 
             {/* Star / Later Button */}
@@ -323,6 +336,7 @@ export function TinderDeck({
               aria-label="Revoir plus tard"
             >
               <Icon name="clock" size={24} />
+              <span className="sh-ctrl-label">À revoir</span>
             </motion.button>
 
             {/* Like / Keep Button */}
@@ -334,6 +348,7 @@ export function TinderDeck({
               aria-label="Garder en coup de cœur"
             >
               <Icon name="heart" size={30} />
+              <span className="sh-ctrl-label">Garder</span>
             </motion.button>
 
             {/* Open Detail Drawer Button */}
@@ -345,6 +360,7 @@ export function TinderDeck({
               aria-label="Description complète"
             >
               <Icon name="fileText" size={20} />
+              <span className="sh-ctrl-label">Détails</span>
             </motion.button>
           </div>
 
