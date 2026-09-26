@@ -5,7 +5,7 @@ import { ProfileView } from '../components/Profile/ProfileView';
 import { DashboardView } from '../components/Dashboard/DashboardView';
 import { ResultsView } from '../components/Results/ResultsView';
 import { DiagnosticView } from '../components/Diagnostic/DiagnosticView';
-import { CandidaturesView } from '../components/Candidatures/CandidaturesView';
+import { ApplicationsAtlas } from '../design-lab/ApplicationsAtlas';
 import { CloudSearchView, CloudConnectionsView, CloudAutomationView } from './CloudFeatureViews';
 import { DeleteProfileDialog, ProfileSwitcher } from './ProfileSwitcher';
 import { supabase, unwrap } from './client';
@@ -106,7 +106,7 @@ export function CloudApp() {
   const [scanJobs, setScanJobs] = useState([]);
   const [scanEvents, setScanEvents] = useState([]);
   const [workerReady, setWorkerReady] = useState(false);
-  const [page, setPage] = useState('dashboard');
+  const [page, setPage] = useState(window.location.pathname.replace(/\/$/, '') === '/design-lab/applications-map-v2' ? 'candidatures' : 'dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -619,9 +619,10 @@ export function CloudApp() {
                 {page === 'results' && <ResultsView results={offers.filter((offer) => ['keep', 'unsure'].includes(offer.review_decision))}
                   profileId={profileId} busy={busy} onDecide={decide} onRequeue={requeue} onExport={exportOffersCsv}
                   onTransferCandidature={transferOfferToCandidature} candidatures={candidatures} />}
-                {page === 'candidatures' && <CandidaturesView
+                {page === 'candidatures' && <ApplicationsAtlas
                   candidatures={candidatures}
                   profileId={profileId}
+                  accessToken={session.access_token}
                   busy={busy}
                   onSaveCandidature={saveCandidature}
                   onUpdateStatus={updateCandidatureStatus}

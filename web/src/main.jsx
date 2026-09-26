@@ -11,10 +11,13 @@ import { ProfileView } from './components/Profile/ProfileView';
 import { ConnectionsView } from './components/Connections/ConnectionsView';
 import { AutomationView } from './components/Automation/AutomationView';
 import { DiagnosticView } from './components/Diagnostic/DiagnosticView';
-import { CandidaturesView } from './components/Candidatures/CandidaturesView';
+import { ApplicationsAtlas } from './design-lab/ApplicationsAtlas';
 
 const CloudApp = React.lazy(() => import('./cloud/CloudApp'));
+const SwiperDesignLab = React.lazy(() => import('./design-lab/SwiperDesignLab'));
 const cloudEnabled = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY);
+const designLabEnabled = window.location.pathname.replace(/\/$/, '') === '/design-lab/swiper';
+const atlasLabEnabled = window.location.pathname.replace(/\/$/, '') === '/design-lab/applications-map-v2';
 
 const NAV_ITEMS = [
   { id: 'dashboard', icon: 'spark', label: 'Vue d’ensemble' },
@@ -56,6 +59,7 @@ function App() {
   const [profileId, setProfileId] = useState('');
   const [state, setState] = useState(null);
   const [page, setPage] = useState(() => {
+    if (atlasLabEnabled) return 'candidatures';
     const hash = window.location.hash.slice(1);
     return NAV_ITEMS.some((n) => n.id === hash) ? hash : 'dashboard';
   });
@@ -201,6 +205,7 @@ function App() {
 
   // Initial load: profiles list
   useEffect(() => {
+    if (atlasLabEnabled) return;
     api('profiles')
       .then((items) => {
         setProfiles(items);
@@ -524,7 +529,7 @@ function App() {
 
         {/* Dynamic Page Content */}
         <main className="sh-content">
-          {!state ? (
+          {!state && page !== 'candidatures' ? (
             <div className="sh-loading-screen">
               <div className="sh-loading-spinner" />
               <p>Chargement de ton espace Stage Hunter...</p>
@@ -567,7 +572,7 @@ function App() {
               )}
 
               {page === 'candidatures' && (
-                <CandidaturesView
+                <ApplicationsAtlas
                   candidatures={candidatures}
                   profileId={profileId}
                   busy={busy}
@@ -661,7 +666,9 @@ class AppErrorBoundary extends React.Component {
 
 createRoot(document.getElementById('root')).render(
   <AppErrorBoundary>
-    {cloudEnabled
+    {designLabEnabled
+      ? <React.Suspense fallback={null}><SwiperDesignLab /></React.Suspense>
+      : cloudEnabled
       ? <React.Suspense fallback={<div className="cloud-login-shell">Chargement…</div>}><CloudApp /></React.Suspense>
       : <App />}
   </AppErrorBoundary>
