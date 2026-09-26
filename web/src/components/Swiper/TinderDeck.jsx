@@ -3,8 +3,17 @@ import { animate, AnimatePresence, motion, useMotionValue, useTransform } from '
 import { TinderCard } from './TinderCard';
 import { OfferDetailModal } from './OfferDetailModal';
 import './matching.css';
+import './tactile-production.css';
 
 const spring = { type: 'spring', stiffness: 450, damping: 30 };
+
+function ActionIcon({ name }) {
+  const common = { width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.9, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true };
+  if (name === 'undo') return <svg {...common}><path d="M8 7H5v3" /><path d="M5.3 10A8 8 0 1 1 5 15" /><path d="m5 7 3 3" /></svg>;
+  if (name === 'pass') return <svg {...common}><path d="M5 5 19 19M19 5 5 19" /></svg>;
+  if (name === 'later') return <svg {...common}><path d="M5.5 4.5h13v15l-6.5-4-6.5 4z" /></svg>;
+  return <svg {...common}><path d="m4.5 12.5 5 5 10-11" /></svg>;
+}
 
 function Underlay({ offer, depth, progress }) {
   const scale = useTransform(progress, [0, 1], depth === 1 ? [0.955, 1] : [0.91, 0.955]);
@@ -19,6 +28,7 @@ export function TinderDeck({ offers = [], stats = {}, busy = false, onDecide, on
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [selectedOffer, setSelectedOffer] = useState(null);
   const [flight, setFlight] = useState(false);
+  const [intent, setIntent] = useState('');
   const flightRef = useRef(false);
   const x = useMotionValue(0);
   const y = useMotionValue(0);
@@ -29,10 +39,23 @@ export function TinderDeck({ offers = [], stats = {}, busy = false, onDecide, on
   const queue = useMemo(() => offers.filter((offer) => Number(offer.score || 0) >= minScore && (cantonFilter === 'all' || `${offer.canton || ''} ${offer.location || ''}`.toLowerCase().includes(cantonFilter.toLowerCase()))), [offers, minScore, cantonFilter]);
   const [current, next1, next2] = queue;
 
+  const previewIntent = (decision) => {
+    if (flightRef.current || busy) return;
+    setIntent(decision);
+    animate(decision === 'reject' ? x : decision === 'keep' ? x : y, decision === 'reject' ? -12 : decision === 'keep' ? 12 : 10, spring);
+  };
+  const clearIntent = () => {
+    if (flightRef.current) return;
+    setIntent('');
+    animate(x, 0, spring);
+    animate(y, 0, spring);
+  };
+
   const triggerDecision = useCallback(async (decision) => {
     if (!current || busy || flightRef.current || !onDecide) return;
     flightRef.current = true;
     setFlight(true);
+    setIntent('');
     setSelectedOffer(null);
     const target = decision === 'keep' ? window.innerWidth + 400 : decision === 'reject' ? -window.innerWidth - 400 : 250;
     try {
@@ -79,7 +102,7 @@ export function TinderDeck({ offers = [], stats = {}, busy = false, onDecide, on
     return () => window.removeEventListener('keydown', handleKey);
   }, [triggerDecision, current, selectedOffer, busy, onUndo]);
 
-  return <main className={`match-experience ${selectedOffer ? 'details-open' : ''}`}>
+  return <main className={`match-experience ${selectedOffer ? 'details-open' : ''} tactile-intent-${intent || 'none'}`}>
     <div className="match-context">
       <div className="match-context-title"><span>STAGEHUNTER / MATCHING</span><h1>Les opportunités</h1></div>
       <div className="match-context-tools"><span className="match-count" aria-live="polite"><strong>{queue.length}</strong> à parcourir</span><button type="button" className="match-filter-toggle" onClick={() => setFiltersOpen((open) => !open)} aria-expanded={filtersOpen} aria-controls="match-filters">Filtres {minScore > 0 || cantonFilter !== 'all' ? '· actifs' : ''} <span aria-hidden="true">{filtersOpen ? '−' : '+'}</span></button></div>
@@ -98,12 +121,11 @@ export function TinderDeck({ offers = [], stats = {}, busy = false, onDecide, on
       </div> : <div className="match-empty"><span>LA FILE EST VIDE</span><h2>{offers.length ? 'Aucune offre avec ces filtres.' : 'Toutes les offres sont parcourues.'}</h2><p>{offers.length ? 'Ajustez le score ou le lieu pour retrouver des opportunités.' : 'Vous pouvez reprendre les offres mises à revoir ou lancer une nouvelle recherche.'}</p><div>{offers.length > 0 && <button onClick={() => { setMinScore(0); setCantonFilter('all'); }}>Effacer les filtres</button>}{stats.unsure > 0 && onRequeue && <button onClick={() => onRequeue({ all_unsure: true })} disabled={busy}>Reprendre à revoir ({stats.unsure})</button>}{onGoToPage && <button onClick={() => onGoToPage('search')}>Nouvelle recherche ↗</button>}</div></div>}
     </div>
 
-    {current && <div className="match-action-area"><div className="match-action-rail">
-      <motion.button whileTap={{ scale: 0.94 }} className="match-action secondary" onClick={onUndo} disabled={busy || flight || !onUndo} title="Annuler le dernier choix (Ctrl+Z ou Retour arrière)"><span className="match-action-icon">↶</span><span>UNDO</span></motion.button>
-      <motion.button whileTap={{ scale: 0.94 }} className="match-action primary pass" onClick={() => triggerDecision('reject')} disabled={busy || flight} title="Passer (flèche gauche)"><span className="match-action-icon">←</span><span>PASS</span></motion.button>
-      <motion.button whileTap={{ scale: 0.94 }} className="match-action primary later" onClick={() => triggerDecision('unsure')} disabled={busy || flight} title="À revoir (flèche bas)"><span className="match-action-icon">↓</span><span>LATER</span></motion.button>
-      <motion.button whileTap={{ scale: 0.94 }} className="match-action primary keep" onClick={() => triggerDecision('keep')} disabled={busy || flight} title="Garder (flèche droite)"><span className="match-action-icon">→</span><span>KEEP</span></motion.button>
-      <motion.button whileTap={{ scale: 0.94 }} className="match-action secondary" onClick={() => setSelectedOffer(current)} disabled={busy || flight} title="Détails (espace ou flèche haut)"><span className="match-action-icon">↗</span><span>DETAILS</span></motion.button>
+    {current && <div className="match-action-area"><div className="match-action-rail tactile-actions">
+      <motion.button whileTap={{ scale: 0.94 }} className="tactile-action tactile-undo" onClick={onUndo} disabled={busy || flight || !onUndo} title="Annuler le dernier choix (Ctrl+Z ou Retour arrière)" aria-label="Annuler le dernier choix"><ActionIcon name="undo" /><span>Annuler</span></motion.button>
+      <motion.button whileTap={{ scale: 0.94 }} className="tactile-action tactile-pass" onPointerEnter={() => previewIntent('reject')} onPointerLeave={clearIntent} onFocus={() => previewIntent('reject')} onBlur={clearIntent} onClick={() => triggerDecision('reject')} disabled={busy || flight} title="Passer (flèche gauche)"><ActionIcon name="pass" /><span>Passer</span></motion.button>
+      <motion.button whileTap={{ scale: 0.94 }} className="tactile-action tactile-later" onPointerEnter={() => previewIntent('unsure')} onPointerLeave={clearIntent} onFocus={() => previewIntent('unsure')} onBlur={clearIntent} onClick={() => triggerDecision('unsure')} disabled={busy || flight} title="À revoir (flèche bas)"><ActionIcon name="later" /><span>À revoir</span></motion.button>
+      <motion.button whileTap={{ scale: 0.94 }} className="tactile-action tactile-keep" onPointerEnter={() => previewIntent('keep')} onPointerLeave={clearIntent} onFocus={() => previewIntent('keep')} onBlur={clearIntent} onClick={() => triggerDecision('keep')} disabled={busy || flight} title="Garder (flèche droite)"><ActionIcon name="keep" /><span>Garder</span></motion.button>
     </div><div className="match-key-hint">← Passer &nbsp; · &nbsp; ↓ À revoir &nbsp; · &nbsp; → Garder &nbsp; · &nbsp; ↑ Détails</div></div>}
 
     <AnimatePresence>{selectedOffer && <OfferDetailModal offer={selectedOffer} busy={busy} onClose={() => setSelectedOffer(null)} onDecide={(_, decision) => triggerDecision(decision)} onTransferCandidature={onTransferCandidature} />}</AnimatePresence>
