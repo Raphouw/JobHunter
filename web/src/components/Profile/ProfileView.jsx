@@ -4,6 +4,31 @@ import { ResetProfileModal } from './ResetProfileModal';
 
 const linesToString = (arr) => (Array.isArray(arr) ? arr.join('\n') : String(arr || ''));
 const commaListToString = (arr) => (Array.isArray(arr) ? arr.join(', ') : String(arr || ''));
+const contractsForSearch = (type) => ({
+  'stage / internship': ['Internship'],
+  'alternance / apprentissage': ['Apprenticeship'],
+  emploi: ['CDI', 'CDD'],
+  'freelance / mission': ['Freelance'],
+}[type] || []);
+const searchType = (student = {}) => {
+  if (student.stage_type) return student.stage_type;
+  const contracts = (student.contract_types || []).join(' ').toLowerCase();
+  if (/cdi|cdd|emploi|permanent/.test(contracts)) return 'emploi';
+  if (/alternance|apprentice/.test(contracts)) return 'alternance / apprentissage';
+  if (/freelance/.test(contracts)) return 'freelance / mission';
+  return 'stage / internship';
+};
+const alignedContracts = (type, existing) => {
+  const values = Array.isArray(existing) ? existing : [];
+  const expression = {
+    emploi: /\b(?:cdi|cdd|emploi|permanent)\b/i,
+    'stage / internship': /\b(?:stage|intern(?:ship)?)\b/i,
+    'alternance / apprentissage': /\b(?:alternance|apprentice(?:ship)?)\b/i,
+    'freelance / mission': /\b(?:freelance|mission)\b/i,
+  }[type];
+  const compatible = expression ? values.filter((value) => expression.test(value)) : [];
+  return compatible.length ? compatible : contractsForSearch(type);
+};
 const profileDrafts = (profile) => ({
   job_titles: linesToString(profile.target?.job_titles),
   sectors: linesToString(profile.target?.sectors),
@@ -49,7 +74,21 @@ export function ProfileView({ profile = {}, onSave, onResetProfile, busy = false
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSave(form);
+    const stageType = searchType(form.student);
+    const searchCity = String(form.location?.search_city || '').trim();
+    const radius = Number(form.location?.radius_km);
+    onSave({
+      ...form,
+      student: { ...(form.student || {}), stage_type: stageType,
+        contract_types: alignedContracts(stageType, form.student?.contract_types) },
+      location: {
+        ...(form.location || {}),
+        search_city: searchCity,
+        radius_km: searchCity ? (Number.isFinite(radius) && radius > 0 ? Math.min(radius, 1000) : 50) : null,
+        restrict_to_priority_locations: form.location?.restrict_to_priority_locations ??
+          Boolean((form.location?.priority_locations || form.location?.priority_cantons || []).length),
+      },
+    });
   };
 
   // Red flag test simulation
@@ -164,8 +203,15 @@ export function ProfileView({ profile = {}, onSave, onResetProfile, busy = false
             <div className="sh-field">
               <label>Type de recherche principal</label>
               <select
-                value={form.student?.stage_type || 'stage / internship'}
-                onChange={(e) => patch('student', 'stage_type', e.target.value)}
+                value={searchType(form.student)}
+                onChange={(e) => setForm((previous) => ({
+                  ...previous,
+                  student: {
+                    ...(previous.student || {}),
+                    stage_type: e.target.value,
+                    contract_types: contractsForSearch(e.target.value),
+                  },
+                }))}
               >
                 <option value="stage / internship">Stage / Internship</option>
                 <option value="alternance / apprentissage">Alternance / Apprentissage</option>
@@ -327,7 +373,7 @@ export function ProfileView({ profile = {}, onSave, onResetProfile, busy = false
           <div className="sh-section-header">
             <div>
               <h2>Géographie & Langues</h2>
-              <p>Définis les pays, cantons ou villes de recherche ainsi que les langues acceptées.</p>
+              <p>Définis les zones ciblées et, si besoin, une ville et un rayon maximal.</p>
             </div>
           </div>
 
@@ -344,7 +390,7 @@ export function ProfileView({ profile = {}, onSave, onResetProfile, busy = false
 
             <div className="sh-field">
               <label>
-                Régions, cantons ou départements prioritaires
+                Régions, cantons, départements ou villes ciblés
                 <span className="sh-label-hint">S'adapte automatiquement selon les pays (Suisse, France, Belgique, etc.)</span>
               </label>
               <input
@@ -365,6 +411,17 @@ export function ProfileView({ profile = {}, onSave, onResetProfile, busy = false
                 }}
                 placeholder="ex: Auvergne-Rhône-Alpes, Île-de-France, GE, VD, 74, 69, Lyon, Paris, Zurich..."
               />
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5,
+                fontSize: 12, fontWeight: 600, color: 'var(--text-light)' }}>
+                <input
+                  type="checkbox"
+                  style={{ width: 16, height: 16, flex: 'none', padding: 0, accentColor: 'var(--salmon)' }}
+                  checked={form.location?.restrict_to_priority_locations ??
+                    Boolean((form.location?.priority_locations || form.location?.priority_cantons || []).length)}
+                  onChange={(e) => patch('location', 'restrict_to_priority_locations', e.target.checked)}
+                />
+                Limiter les résultats à ces zones quand le lieu de l’offre est connu
+              </label>
             </div>
 
             <div className="sh-field">
@@ -375,6 +432,28 @@ export function ProfileView({ profile = {}, onSave, onResetProfile, busy = false
                 onChange={(e) => patchList('location', 'acceptable_language', e.target.value)}
                 placeholder="fr, en"
               />
+            </div>
+            <div className="sh-field">
+              <label>Ville de référence (facultatif)</label>
+              <input
+                type="text"
+                value={form.location?.search_city || ''}
+                onChange={(e) => patch('location', 'search_city', e.target.value)}
+                placeholder="ex: Toulouse"
+              />
+              <span className="sh-label-hint">Laisse vide pour chercher dans toute la région.</span>
+            </div>
+            <div className="sh-field">
+              <label>Rayon maximal autour de cette ville (km)</label>
+              <input
+                type="number"
+                min="1"
+                max="1000"
+                value={form.location?.radius_km ?? 50}
+                onChange={(e) => patch('location', 'radius_km', e.target.value)}
+                disabled={!String(form.location?.search_city || '').trim()}
+              />
+              <span className="sh-label-hint">Distance à vol d’oiseau. Le score perd progressivement jusqu’à 25 points au bord du rayon ; au-delà, l’offre est écartée si sa ville est connue.</span>
             </div>
           </div>
         </section>

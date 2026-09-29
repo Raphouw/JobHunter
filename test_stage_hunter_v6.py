@@ -120,7 +120,105 @@ class StageHunterV6Tests(unittest.TestCase):
         profile["_source_pack_queries"] = []
         with patch.dict(os.environ, {"SEARCH_QUERY_BUDGET": "10"}, clear=False):
             queries = hunter.build_search_queries(profile, emit_log=False)
-        self.assertTrue(any("emploi R&D ingénieur France" == query for query in queries))
+        self.assertTrue(any("emploi R&D ingénieur Haute-Savoie France" == query for query in queries))
+
+    def test_employment_search_ignores_stale_internship_default_and_targets_occitanie(self):
+        profile = {
+            "student": {"stage_type": "emploi", "contract_types": ["Internship"]},
+            "target": {"job_titles": ["cuisinier"]},
+            "location": {"countries": ["France"], "priority_locations": ["Occitanie"]},
+            "search": {"use_manual_queries": False, "query_budget": 6},
+            "sources": {},
+        }
+        self.assertEqual(hunter.profile_contract_mode(profile), "employment")
+        self.assertFalse(hunter.profile_search_components(profile)["internship_mode"])
+        with patch.dict(os.environ, {"SEARCH_QUERY_BUDGET": "6"}, clear=False):
+            queries = hunter.build_search_queries(profile, emit_log=False)
+        self.assertTrue(any("cuisinier Occitanie France" in query for query in queries))
+        self.assertFalse(any("internship" in query.lower() or "stage" in query.lower() for query in queries))
+
+    def test_occitanie_employment_rejects_paris_and_structured_internship(self):
+        profile = {
+            "student": {"stage_type": "emploi", "contract_types": ["Internship"]},
+            "location": {"countries": ["France"], "priority_locations": ["Occitanie"]},
+            "search": {"require_profile_relevance": False},
+        }
+        title = "Cuisinier de restaurant"
+        body = "Préparer les repas dans une cuisine professionnelle."
+        paris = hunter.detect_meta(title, body, profile, "Paris, France")
+        toulouse = hunter.detect_meta(title, body, profile, "Toulouse, France")
+        self.assertIn("hors zones ciblées", hunter.eligibility_rejection(
+            title, body, paris, profile, {"location": "Paris, France"}))
+        self.assertEqual("", hunter.eligibility_rejection(
+            title, body, toulouse, profile, {"location": "Toulouse, France"}))
+        self.assertIn("stage/internship", hunter.eligibility_rejection(
+            title, body, toulouse, profile,
+            {"location": "Toulouse, France", "employment_type": "INTERN"}))
+
+    def test_location_filter_can_be_disabled_or_wait_for_a_known_location(self):
+        profile = {
+            "student": {"stage_type": "emploi"},
+            "location": {"countries": ["France"], "priority_locations": ["Occitanie"],
+                         "restrict_to_priority_locations": False},
+            "search": {"require_profile_relevance": False},
+        }
+        title, body = "Chef de cuisine", "Cuisine française"
+        paris = hunter.detect_meta(title, body, profile, "Paris, France")
+        self.assertEqual("", hunter.eligibility_rejection(
+            title, body, paris, profile, {"location": "Paris, France"}))
+        profile["location"]["restrict_to_priority_locations"] = True
+        unknown = hunter.detect_meta(title, body, profile)
+        self.assertEqual("", hunter.eligibility_rejection(title, body, unknown, profile))
+
+    def test_city_radius_excludes_far_jobs_and_penalizes_distance(self):
+        profile = {
+            "student": {"stage_type": "emploi", "contract_types": ["CDI"]},
+            "location": {"countries": ["France"], "priority_locations": ["Occitanie"],
+                         "search_city": "Toulouse", "radius_km": 250},
+            "search": {"require_profile_relevance": False},
+        }
+        title, body = "Cuisinier", "Préparation des plats dans un restaurant."
+        profile["target"] = {"job_titles": ["cuisinier"]}
+        profile["sources"] = {}
+        with patch.dict(os.environ, {"SEARCH_QUERY_BUDGET": "6"}, clear=False):
+            queries = hunter.build_search_queries(profile, emit_log=False)
+        self.assertTrue(any("Toulouse Occitanie France" in query for query in queries))
+        def evaluated(city):
+            place = f"{city}, France"
+            meta = hunter.detect_meta(title, body, profile, place)
+            rejected = hunter.eligibility_rejection(title, body, meta, profile, {"location": place})
+            result = hunter.score(title, body, meta, "offer", profile,
+                                  "https://restaurant.example/jobs/123", "Restaurant", {"location": place})
+            return rejected, result
+        near_rejection, near = evaluated("Toulouse")
+        middle_rejection, middle = evaluated("Montauban")
+        far_rejection, far = evaluated("Montpellier")
+        self.assertEqual(near_rejection, "")
+        self.assertEqual(middle_rejection, "")
+        self.assertEqual(far_rejection, "")
+        self.assertGreater(near[0], middle[0])
+        self.assertGreater(middle[0], far[0])
+        self.assertTrue(any("Distance depuis Toulouse" in reason for reason in far[2]))
+        profile["location"]["radius_km"] = 100
+        far_meta = hunter.detect_meta(title, body, profile, "Montpellier, France")
+        self.assertIn("au-delà du rayon", hunter.eligibility_rejection(
+            title, body, far_meta, profile, {"location": "Montpellier, France"}))
+        self.assertAlmostEqual(regions.city_distance_km("Toulouse", "Montauban", ["france"]), 47, delta=3)
+
+    def test_city_radius_needs_an_identifiable_offer_city(self):
+        profile = {
+            "student": {"stage_type": "emploi"},
+            "location": {"countries": ["France"], "search_city": "Toulouse", "radius_km": 30},
+            "search": {"require_profile_relevance": False},
+        }
+        title, body = "Cuisinier", "Cuisine locale"
+        meta = hunter.detect_meta(title, body, profile, "Occitanie, France")
+        self.assertEqual("", hunter.eligibility_rejection(
+            title, body, meta, profile, {"location": "Occitanie, France"}))
+        self.assertIsNone(regions.city_distance_km("Toulouse", "Occitanie, France", ["france"]))
+        paris = hunter.detect_meta(title, body, profile, "Paris, France")
+        self.assertIn("au-delà du rayon", hunter.eligibility_rejection(
+            title, body, paris, profile, {"location": "Paris, France"}))
 
     def test_multiple_countries_generate_country_specific_queries(self):
         profile = dict(self.france)

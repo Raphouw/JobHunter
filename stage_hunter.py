@@ -1,5 +1,5 @@
 from __future__ import annotations
-import argparse, base64, calendar, hashlib, ipaddress, json, os, random, re, sqlite3, threading, time, unicodedata, zlib
+import argparse, base64, calendar, hashlib, ipaddress, json, math, os, random, re, sqlite3, threading, time, unicodedata, zlib
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import closing
@@ -331,6 +331,20 @@ def preferred_search_region(profile):
         'netherlands':'nl-nl','united kingdom':'uk-en','united states':'us-en',
         'canada':'ca-en',
     }.get(canonical,'wt-wt')
+
+def profile_location_distance(profile,offer_location):
+    location_cfg=(profile or {}).get('location') or {}
+    center=norm(location_cfg.get('search_city'))
+    if not center or not offer_location:return None
+    configured=location_cfg.get('countries') or location_cfg.get('country') or []
+    countries=[configured] if isinstance(configured,str) else list(configured)
+    country_keys=[country_aliases(country)[0] for country in countries]
+    return regions.city_distance_km(center,offer_location,country_keys)
+
+def profile_distance_radius(profile):
+    location_cfg=(profile or {}).get('location') or {}
+    radius=safe_float(location_cfg.get('radius_km'),50)
+    return max(1,min(radius,1000)) if math.isfinite(radius) else 50
 def unwrap_url(u):
     """Extract the destination hidden in email tracking or rewrite Indeed /rc/clk."""
     current=(u or '').replace('&amp;','&').strip()
@@ -732,7 +746,7 @@ def internship_title_signal(title):
     folded=fold_text(title)
     return any(re.search(pattern,folded) for pattern in INTERNSHIP_TITLE_PATTERNS)
 
-def contract_rejection(title,text,profile):
+def contract_rejection(title,text,profile,structured=None):
     """Reject an explicitly incompatible contract, never a merely unlabeled one."""
     mode=profile_contract_mode(profile)
     title_fold=fold_text(title)
@@ -754,7 +768,9 @@ def contract_rejection(title,text,profile):
     title_intern=internship_title_signal(title)
     body_head=fold_text(text[:5000])
     body_intern=bool(re.search(r'\b(?:this internship position|this internship role|internship position|internship role|employment type\s*[:\-]?\s*intern|offre de stage|stage de fin|praktikumstelle|technical studentship|student placement)\b',body_head))
-    if title_intern or body_intern:return 'Type de contrat incompatible : stage/internship'
+    declared=fold_text((structured or {}).get('employment_type',''))
+    declared_intern=bool(re.search(r'\b(?:intern(?:ship)?|stage|stagiaire|trainee|praktikum|apprentice(?:ship)?)\b',declared))
+    if title_intern or body_intern or declared_intern:return 'Type de contrat incompatible : stage/internship'
     return ''
 
 def profile_job_family(profile):
@@ -774,10 +790,8 @@ def profile_search_components(profile):
     """Return the profile words that will actually drive discovery."""
     student=profile.get('student') or {};target=profile.get('target') or {};location=profile.get('location') or {}
     skills=profile.get('skills') or {};interests=profile.get('interests') or {}
-    contracts=student.get('contract_types') or [student.get('stage_type') or 'job']
-    if isinstance(contracts,str):contracts=[contracts]
-    objective=' '.join([str(student.get('stage_type',''))]+[str(x) for x in contracts]).lower()
-    internship_mode=any(x in objective for x in ('intern','stage','praktikum','stagiaire'))
+    contracts=profile_contract_terms(profile)
+    internship_mode=profile_contract_mode(profile)=='internship'
     countries=location.get('countries') or location.get('country') or ['Switzerland']
     if isinstance(countries,str):countries=[countries]
     unique_countries=[];seen_countries=set()
@@ -793,7 +807,7 @@ def profile_search_components(profile):
     if internship_mode:
         intents=['internship','stage','Praktikum']
     else:
-        contract_terms=_unique_terms([contracts],4)
+        contract_terms=_unique_terms([[term.upper() if term in ('cdi','cdd') else term for term in contracts]],4)
         intents=_unique_terms([['emploi','job'],contract_terms],6)
     return {'internship_mode':internship_mode,'intents':intents,'roles':roles,'themes':themes,'countries':unique_countries}
 
@@ -805,6 +819,14 @@ def build_search_queries(profile,emit_log=True):
     budget=max(4,min(safe_int(raw_budget,24),300))
     components=profile_search_components(profile)
     intents=components['intents'];roles=components['roles'];themes=components['themes'];countries=components['countries'] or ['']
+    location_cfg=profile.get('location') or {}
+    places=list(dict.fromkeys(norm(x) for x in
+        (location_cfg.get('priority_locations') or [])+(location_cfg.get('priority_cantons') or []) if norm(x)))
+    query_places=places if len(countries)==1 and location_cfg.get('restrict_to_priority_locations',bool(places)) else []
+    search_city=norm(location_cfg.get('search_city')) if len(countries)==1 else ''
+    def search_place(index):
+        region=query_places[index%len(query_places)] if query_places else ''
+        return norm(f'{search_city} {region}') if search_city and fold_text(search_city)!=fold_text(region) else (search_city or region)
     role_pair_limit=max(1,min(safe_int(os.getenv('SEARCH_ROLE_PAIR_LIMIT'),3),8))
     expand_intents=str(os.getenv('SEARCH_INTENT_EXPANSION','0')).strip().lower() in ('1','true','yes','on')
 
@@ -827,7 +849,7 @@ def build_search_queries(profile,emit_log=True):
         for index,role in enumerate(anchors):
             chosen_variants=variants if expand_intents else [variants[index%len(variants)]]
             for intent,country_word in chosen_variants:
-                local_queries.append(norm(f'{intent} {role} {country_word}'))
+                local_queries.append(norm(f'{intent} {role} {search_place(index)} {country_word}'))
         if roles and themes:
             pair_index=0
             for theme in themes:
@@ -839,13 +861,13 @@ def build_search_queries(profile,emit_log=True):
                     for intent,country_word in chosen_variants:
                         # Profile words are deliberately placed before the role:
                         # emploi + R&D + ingénieur -> "emploi R&D ingénieur France".
-                        local_queries.append(norm(f'{intent} {theme} {role} {country_word}'))
+                        local_queries.append(norm(f'{intent} {theme} {role} {search_place(pair_index)} {country_word}'))
                         pair_index+=1
         elif themes:
             for index,theme in enumerate(themes):
                 chosen_variants=variants if expand_intents else [variants[index%len(variants)]]
                 for intent,country_word in chosen_variants:
-                    local_queries.append(norm(f'{intent} {theme} {country_word}'))
+                    local_queries.append(norm(f'{intent} {theme} {search_place(index)} {country_word}'))
         generic_groups.append(list(dict.fromkeys(q for q in local_queries if q)))
         if country_index>=2:break
     generic=[]
@@ -866,7 +888,7 @@ def build_search_queries(profile,emit_log=True):
             if components['internship_mode']:country_word=country_words[min(variant_index%len(intents),2)]
             else:country_word=country_words[0] if fold_text(intent)=='job' else country_words[1]
             anchor=source_anchors[(index*source_queries_per_domain+offset)%len(source_anchors)]
-            source_queries.append(norm(f'site:{host} {intent} {anchor} {country_word}'))
+            source_queries.append(norm(f'site:{host} {intent} {anchor} {search_place(variant_index)} {country_word}'))
     source_queries=list(dict.fromkeys(q for q in source_queries if q))
 
     manual_quota=min(len(manual),max(0,budget//6))
@@ -1409,7 +1431,15 @@ def profile_contract_terms(profile):
     student=(profile or {}).get('student') or {};raw_terms=student.get('contract_types') or []
     terms=[raw_terms] if isinstance(raw_terms,str) else list(raw_terms)
     stage_type=str(student.get('stage_type',''))
-    if stage_type:terms.append(stage_type)
+    objective=fold_text(stage_type)
+    if objective:
+        # The UI edits stage_type. Older cloud profiles can still carry the
+        # initial "Internship" contract_types after switching to employment.
+        if any(word in objective for word in ('emploi','job','cdi','cdd','permanent')):
+            terms=[term for term in terms if not any(word in fold_text(term) for word in ('intern','stage','praktikum','stagiaire'))]
+        elif any(word in objective for word in ('intern','stage','praktikum','stagiaire')):
+            terms=[term for term in terms if not any(word in fold_text(term) for word in ('emploi','job','cdi','cdd','permanent'))]
+        terms.append(stage_type)
     lower=' '.join(str(x).lower() for x in terms)
     if any(x in lower for x in ['intern','stage','praktikum']):terms+=['intern','internship','stage','stagiaire','praktikum']
     return list(dict.fromkeys(norm(x).lower() for x in terms if norm(x)))
@@ -1428,7 +1458,7 @@ def contract_signal(title,text,profile):
 def eligibility_rejection(title,text,meta,profile,structured=None):
     """Return a hard-filter reason for foreign or profile-irrelevant jobs."""
     structured=structured or {};loc,canton,_,_,_,_,_=meta
-    incompatible=contract_rejection(title,text,profile)
+    incompatible=contract_rejection(title,text,profile,structured)
     if incompatible:return incompatible
     location=norm(structured.get('location') or loc);location_fold=fold_text(location)
     configured=(profile.get('location') or {}).get('countries') or (profile.get('location') or {}).get('country') or []
@@ -1444,6 +1474,36 @@ def eligibility_rejection(title,text,meta,profile,structured=None):
                 if re.search(r'(?<!\w)'+re.escape(fold_text(alias))+r'(?!\w)',location_fold):detected.add(canonical);break
         if detected and not (detected & target_countries):
             return f'Localisation hors pays ciblé : {location}'
+
+    location_cfg=profile.get('location') or {}
+    priorities=list(dict.fromkeys(norm(x) for x in
+        (location_cfg.get('priority_locations') or [])+(location_cfg.get('priority_cantons') or []) if norm(x)))
+    restrict=location_cfg.get('restrict_to_priority_locations',bool(priorities))
+    if restrict and priorities and location:
+        country_keys=list(target_countries) or ['france','switzerland','belgium','germany']
+        detected_region=regions.detect_country_region([location],country_keys)
+        region_name=fold_text(detected_region[0].split(' | ')[0]) if detected_region else ''
+        matched=False
+        for place in priorities:
+            wanted=fold_text(place)
+            if re.search(r'(?<!\w)'+re.escape(wanted)+r'(?!\w)',location_fold):
+                matched=True;break
+            for country in country_keys:
+                catalog=regions.COUNTRY_REGIONS_MAP.get(country,(None,None))[0]
+                if not catalog:continue
+                for code,(name,_,aliases) in catalog.items():
+                    if wanted in (fold_text(code),fold_text(name)) or any(wanted==fold_text(alias) for alias in aliases):
+                        if region_name==fold_text(name):matched=True
+                        break
+                if matched:break
+            if matched:break
+        if not matched and detected_region:
+            return f'Localisation hors zones ciblées : {location}'
+
+    distance=profile_location_distance(profile,location)
+    if distance is not None and distance>profile_distance_radius(profile):
+        center=norm(location_cfg.get('search_city'))
+        return f'Localisation au-delà du rayon de {profile_distance_radius(profile):g} km autour de {center} : {distance:.0f} km'
 
     title_fold=fold_text(title);body=fold_text(text[:7000]);skills=profile.get('skills') or {};interests=profile.get('interests') or {}
     target_cfg=profile.get('target') or {};configured_terms=[]
@@ -1947,6 +2007,19 @@ def score(title,text,meta,ptype,profile,url='',company='',structured=None):
         is_priority=canton_code in priority or any(value and value in canton.upper() for value in priority)
         sc+=8 if is_priority else 3
         reasons.append(('Zone prioritaire: ' if is_priority else 'Zone détectée: ')+canton);conf+=8
+
+    if norm(location_cfg.get('search_city')):
+        offer_location=norm((structured or {}).get('location') or loc)
+        distance=profile_location_distance(profile,offer_location)
+        if distance is not None:
+            radius=profile_distance_radius(profile)
+            penalty=round(25*min(distance/radius,1),1)
+            sc-=penalty
+            reasons.append(f'Distance depuis {norm(location_cfg.get("search_city"))}: {distance:.0f} km (−{penalty:g} pts)')
+            conf+=4
+        else:
+            reasons.append('Distance à la ville de recherche non vérifiable')
+            conf-=5
 
     countries=location_cfg.get('countries') or location_cfg.get('country') or []
     if isinstance(countries,str):countries=[countries]

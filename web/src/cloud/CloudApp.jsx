@@ -13,7 +13,7 @@ import { DeleteProfileDialog, ProfileSwitcher } from './ProfileSwitcher';
 import { supabase, unwrap } from './client';
 
 const EMPTY_CONFIG = {
-  student: { contract_types: ['Internship'], min_weeks: 20 },
+  student: { stage_type: 'stage / internship', contract_types: ['Internship'], min_weeks: 20 },
   target: { job_titles: [], sectors: [], red_flags: [] },
   location: { countries: [], acceptable_language: ['fr', 'en'], priority_cantons: [] },
   skills: { core: [], strong_domains: [] },

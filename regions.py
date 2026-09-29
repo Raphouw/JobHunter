@@ -7,6 +7,10 @@ adapted to the searched countries (Switzerland, France, Belgium, Germany, Canada
 from __future__ import annotations
 import re
 import unicodedata
+import json
+import math
+from functools import lru_cache
+from pathlib import Path
 
 
 def fold_text(text: str) -> str:
@@ -66,7 +70,11 @@ FRENCH_REGIONS = {
     ]),
     'OCC': ('Occitanie', '31/34', [
         'occitanie', 'toulouse', 'montpellier', 'nîmes', 'perpignan', 'béziers', 'blagnac', 'labège',
-        'haute-garonne', 'hérault', 'gard', 'pyrénées-orientales', '31', '34', '30', '66'
+        'albi', 'castres', 'montauban', 'tarbes', 'auch', 'rodez', 'carcassonne', 'narbonne',
+        'foix', 'cahors', 'mende', 'sète', 'lourdes', 'agde',
+        'haute-garonne', 'hérault', 'gard', 'pyrénées-orientales', 'aude', 'ariège', 'aveyron',
+        'gers', 'lot', 'lozère', 'hautes-pyrénées', 'tarn', 'tarn-et-garonne',
+        '09', '11', '12', '30', '31', '32', '34', '46', '48', '65', '66', '81', '82'
     ]),
     'NAQ': ('Nouvelle-Aquitaine', '33/64', [
         'nouvelle-aquitaine', 'bordeaux', 'limoges', 'poitiers', 'pau', 'la rochelle', 'mérignac', 'pessac',
@@ -142,6 +150,75 @@ COUNTRY_REGIONS_MAP = {
     'canada': (CANADIAN_REGIONS, 'CA'),
     'united kingdom': (UK_REGIONS, 'UK'),
 }
+
+CITY_COUNTRY_FILES = {
+    'france': 'FR', 'switzerland': 'CH', 'belgium': 'BE',
+    'germany': 'DE', 'italy': 'IT', 'spain': 'ES', 'luxembourg': 'LU',
+}
+
+
+def city_key(value: str) -> str:
+    """Use the same accent- and punctuation-free keys as the map city indexes."""
+    return re.sub(r'\s+', ' ', re.sub(r'[^a-z0-9]+', ' ', fold_text(value))).strip()
+
+
+@lru_cache(maxsize=7)
+def city_index(country: str) -> dict:
+    code = CITY_COUNTRY_FILES.get(country)
+    if not code:
+        return {}
+    root = Path(__file__).resolve().parent
+    path = (root / 'config' / 'france_communes_coordinates.json' if country == 'france'
+            else root / 'web' / 'public' / 'cities' / f'{code}.json')
+    try:
+        return json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return {}
+
+
+def city_coordinates(location: str, country: str) -> tuple[float, float] | None:
+    """Resolve a city from a declared location; never guess a region centroid."""
+    index = city_index(country)
+    if not index:
+        return None
+    first = re.split(r'[,;|]|\s+[–—-]\s+', str(location or ''), maxsplit=1)[0]
+    first = re.sub(r'\([^)]*\)', ' ', first)
+    first = re.sub(r'^\s*\d{4,5}\s+', '', first)
+    first = re.sub(r'\s+\d{4,5}\s*$', '', first)
+    point = index.get(city_key(first))
+    if country == 'france' and isinstance(point, list):
+        postal = re.search(r'(?<!\d)\d{5}(?!\d)', str(location or ''))
+        department = postal.group()[:2] if postal else ''
+        if not department:
+            match = re.search(r'(?<!\w)(?:0[1-9]|[1-8]\d|9[0-5]|2[ab])(?!\w)', fold_text(location))
+            department = match.group() if match else ''
+        if department:
+            matches = [candidate for candidate in point if fold_text(candidate[2]) == department]
+            if not matches:
+                return None
+            point = matches[0]
+        if point and isinstance(point[0], list):
+            if len(point) == 1 or (point[0][3] >= 5000 and point[0][3] >= point[1][3] * 5):
+                point = point[0]
+            else:
+                return None
+    if not isinstance(point, list) or len(point) < 2 or isinstance(point[0], list):
+        return None
+    return float(point[0]), float(point[1])
+
+
+def city_distance_km(origin: str, destination: str, countries: list[str]) -> float | None:
+    for country in countries:
+        start = city_coordinates(origin, country)
+        end = city_coordinates(destination, country)
+        if start and end:
+            lat1, lon1, lat2, lon2 = map(math.radians, (*start, *end))
+            angle = 2 * math.asin(math.sqrt(
+                math.sin((lat2 - lat1) / 2) ** 2 +
+                math.cos(lat1) * math.cos(lat2) * math.sin((lon2 - lon1) / 2) ** 2
+            ))
+            return 6371.0088 * angle
+    return None
 
 
 def detect_country_region(location_sources: list[str], target_country_keys: list[str], profile_custom_regions: list[dict] = None) -> tuple[str, str] | None:
