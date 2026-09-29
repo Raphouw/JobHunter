@@ -21,25 +21,41 @@ const SEQUENCE = ['card', 'title', 'company', 'location', 'detail_link', 'contra
 function cleanClass(name) {
   if (!name || typeof name !== 'string') return '';
   if (name.startsWith('jobhunter-') || name.length > 35 || /\d{5,}/.test(name)) return '';
-  if (name.includes(':') || name.includes('/') || name.includes('\\') || name.includes('[')) return '';
+  if (name.includes(':') || name.includes('/') || name.includes('\\') || name.includes('[') || name.includes('%') || name.includes('.')) return '';
   return name.trim();
 }
 
 function cleanPart(node) {
   if (!node || !node.tagName) return '';
   const tag = node.tagName.toLowerCase();
+
+  // 1. Prioritize robust testing and data attributes (e.g. data-cy, data-testid, role)
+  for (const attr of ['data-cy', 'data-testid', 'data-qa', 'data-test']) {
+    const val = node.getAttribute && node.getAttribute(attr);
+    if (val && !/\d{5,}/.test(val)) {
+      return `${tag}[${attr}="${val}"]`;
+    }
+  }
+
+  // 2. Semantic clean ID
   if (node.id && !/\d{4,}/.test(node.id) && !node.id.includes(':')) {
     return `${tag}#${CSS.escape(node.id)}`;
   }
+
+  // 3. Meaningful CSS classes
   const classes = Array.from(node.classList || [])
     .map(cleanClass)
     .filter(Boolean)
     .slice(0, 2);
-  return tag + classes.map((c) => `.${CSS.escape(c)}`).join('');
+  if (classes.length > 0) {
+    return tag + classes.map((c) => `.${CSS.escape(c)}`).join('');
+  }
+  return tag;
 }
 
 function selectorFor(node, root) {
   if (!node || !root) return '';
+  if (node === root) return 'self';
   const pieces = [];
   let current = node;
   while (current && current !== root && current.tagName && pieces.length < 5) {
@@ -77,14 +93,22 @@ const frameStyle = `
   }
 `;
 
-export function VisualSitePicker({ inspection, site, onSelector }) {
+export function VisualSitePicker({
+  inspection,
+  site,
+  onSelector,
+  onInspectDetail,
+  onInspectListing,
+  firstDetailLink,
+}) {
   const frame = useRef(null);
   const isDetail = inspection?.kind === 'detail';
-  const [field, setField] = useState(isDetail ? 'title' : 'card');
+  const [field, setField] = useState(isDetail ? 'description' : 'card');
   const [options, setOptions] = useState([]);
   const [version, setVersion] = useState(0);
   const [feedback, setFeedback] = useState('');
   const [samples, setSamples] = useState({});
+  const [detectedDetailUrl, setDetectedDetailUrl] = useState('');
 
   const fieldsList = isDetail ? DETAIL_FIELDS : LISTING_FIELDS;
   const currentStep = fieldsList.find((f) => f.id === field) || fieldsList[0];
@@ -168,7 +192,8 @@ export function VisualSitePicker({ inspection, site, onSelector }) {
             if (count >= 1 && count <= 200) {
               const item = { selector: sel, count, label: node.tagName.toLowerCase() };
               choices.push(item);
-              if (!bestCandidate && count >= 2) {
+              // Prioritize data-cy, data-testid, or repeating elements
+              if (!bestCandidate && (sel.includes('[data-') || count >= 2)) {
                 bestCandidate = item;
               }
             }
@@ -196,6 +221,23 @@ export function VisualSitePicker({ inspection, site, onSelector }) {
         } catch (_) {}
       }
 
+      // Check if clicking outside card on listing page (Cockpit / Side Pane mode!)
+      const isOutsideCard = !isDetail && cardRoot && !cardRoot.contains(target) && field !== 'next';
+
+      if (isOutsideCard && field === 'description') {
+        // Cockpit / Master-Detail side panel clicked!
+        const paneSelector = selectorFor(target, doc.body);
+        if (paneSelector) {
+          onSelector('detail_selectors', 'description', paneSelector);
+          const sample = (target.innerText || target.textContent || '').trim().slice(0, 60);
+          setSamples((prev) => ({ ...prev, description: sample + '…' }));
+          setFeedback(`✓ Description (Volet latéral cockpit) : "${sample || paneSelector}" enregistrée !`);
+          setOptions([]);
+          setField('application_link');
+          return;
+        }
+      }
+
       // If card was not yet configured, automatically detect parent card container!
       if (!cardRoot && field !== 'next' && !isDetail) {
         for (let node = target.parentElement; node && node !== doc.body; node = node.parentElement) {
@@ -212,13 +254,23 @@ export function VisualSitePicker({ inspection, site, onSelector }) {
         }
       }
 
-      const root = isDetail || field === 'next' ? doc.body : (cardRoot || doc.body);
+      const root = isDetail || field === 'next' || isOutsideCard ? doc.body : (cardRoot || doc.body);
 
       if (field === 'detail_link' || field === 'application_link' || field === 'next') {
         target = target.closest('a[href]') || target;
       }
 
-      const relSelector = selectorFor(target, root);
+      let relSelector = '';
+      if (field === 'detail_link') {
+        if (target === cardRoot || target.contains(cardRoot) || (cardRoot && cardRoot.tagName.toLowerCase() === 'a')) {
+          relSelector = 'a';
+        } else {
+          relSelector = selectorFor(target, root);
+        }
+      } else {
+        relSelector = selectorFor(target, root);
+      }
+
       if (!relSelector) return;
 
       const targetSection = isDetail ? 'detail_selectors' : field === 'next' ? 'pagination' : 'selectors';
@@ -230,6 +282,12 @@ export function VisualSitePicker({ inspection, site, onSelector }) {
       let sampleVal = '';
       if (field.includes('link') || field === 'next') {
         sampleVal = target.getAttribute('href') || target.href || '';
+        if (field === 'detail_link' && sampleVal) {
+          try {
+            const absoluteUrl = new URL(sampleVal, inspection.url).toString();
+            setDetectedDetailUrl(absoluteUrl);
+          } catch (_) {}
+        }
       } else {
         sampleVal = target.innerText?.trim() || target.textContent?.trim() || '';
       }
@@ -259,15 +317,33 @@ export function VisualSitePicker({ inspection, site, onSelector }) {
 
   if (!inspection) return null;
 
+  const targetDetailUrl = detectedDetailUrl || firstDetailLink;
+
   return (
     <div className="sh-site-picker">
       {/* Top Header & Links */}
       <div className="sh-site-picker-header">
         <div>
           <span className="sh-eyebrow">SÉLECTEUR VISUEL INTERACTIF</span>
-          <h4>{isDetail ? 'Aperçu d’une fiche de détail' : 'Aperçu de la page de listings'}</h4>
+          <h4>{isDetail ? 'Aperçu d’une fiche de détail (Annonce complète)' : 'Aperçu de la page de listings (Offres d’emploi)'}</h4>
         </div>
         <div className="sh-site-picker-actions">
+          {isDetail && onInspectListing && (
+            <button type="button" className="sh-btn-secondary sm" onClick={onInspectListing}>
+              <Icon name="arrow-left" size={13} />
+              <span>← Revenir aux listings</span>
+            </button>
+          )}
+          {!isDetail && targetDetailUrl && onInspectDetail && (
+            <button
+              type="button"
+              className="sh-btn-secondary sm"
+              onClick={() => onInspectDetail(targetDetailUrl)}
+            >
+              <Icon name="external" size={13} />
+              <span>Inspecter la fiche de détail</span>
+            </button>
+          )}
           <a href={inspection.url} target="_blank" rel="noreferrer" className="sh-btn-secondary sm">
             <Icon name="external" size={13} />
             <span>Voir le site original</span>
@@ -312,6 +388,43 @@ export function VisualSitePicker({ inspection, site, onSelector }) {
           <strong>{currentStep?.label} :</strong> {currentStep?.hint}
         </div>
       </div>
+
+      {/* Dedicated Cockpit / Description Helper banner */}
+      {field === 'description' && (
+        <div className="sh-description-helper-box">
+          <div className="sh-description-helper-text">
+            <strong>Où se trouve la description complète sur ce site ?</strong>
+            <ul>
+              <li><strong>Dans la carte :</strong> clique sur l’extrait ou le texte dans la carte.</li>
+              <li><strong>Dans un volet latéral (Cockpit) :</strong> clique directement sur le texte dans le panneau de droite.</li>
+              <li><strong>Sur la page dédiée :</strong> ouvre la fiche de détail avec le bouton ci-contre.</li>
+            </ul>
+          </div>
+          <div className="sh-description-helper-actions">
+            {targetDetailUrl && onInspectDetail && (
+              <button
+                type="button"
+                className="sh-btn-primary sm"
+                onClick={() => onInspectDetail(targetDetailUrl)}
+              >
+                <Icon name="external" size={13} />
+                <span>Ouvrir la fiche de détail réelle</span>
+              </button>
+            )}
+            <button
+              type="button"
+              className="sh-btn-secondary sm"
+              onClick={() => {
+                onSelector('selectors', 'description', '');
+                setFeedback('Description laissée vide : Job Hunter extraira le corps de l’annonce automatiquement lors du scan.');
+                setField('application_link');
+              }}
+            >
+              <span>Passer (extraction auto)</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Status / Feedback message */}
       {feedback && (

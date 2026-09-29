@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from api.sites import merge_site, signature, valid_preview_token
-from site_configs import (crawl_site, extract_detail, inspection_html, missing_fields,
+from site_configs import (crawl_site, extract_cards, extract_detail, inspection_html, missing_fields,
                           profile_listing_url, validate_site)
 from site_network import _resolved_ip, public_http_url
 
@@ -115,6 +115,46 @@ class SiteConfigTests(unittest.TestCase):
             columns = {item[1] for item in connection.execute('PRAGMA table_info(offers)')}
             self.assertTrue({'application_url', 'contract_type', 'posting_date'} <= columns)
             connection.close()
+
+    def test_auto_params_and_card_link_resolution(self):
+        # 1. Automatic parameter detection from URL (e.g. jobs.ch with ?term=)
+        site = validate_site({
+            'name': 'JobsCH',
+            'listing_url': 'https://www.jobs.ch/fr/offres-emplois/?term=&loc=',
+            'selectors': {'card': 'article', 'title': 'h2'}
+        })
+        profile = {'target': {'job_titles': ['Développeur']}, 'location': {'countries': ['Genève']}}
+        evaluated_url = profile_listing_url(site, profile)
+        self.assertIn('term=D%C3%A9veloppeur', evaluated_url)
+        self.assertIn('loc=Gen%C3%A8ve', evaluated_url)
+
+        # 2. Card wrapped in <a> or card itself is <a>
+        html_cards = '''
+        <a class="card-link" href="/jobs/offer-123">
+            <article class="job-item">
+                <h2>Développeur Python</h2>
+            </article>
+        </a>
+        '''
+        site_card = validate_site({
+            'name': 'WrappedCard',
+            'listing_url': 'https://example.org/jobs',
+            'selectors': {'card': 'article.job-item', 'title': 'h2'}
+        })
+        offers, _ = extract_cards(html_cards, 'https://example.org/jobs', site_card)
+        self.assertEqual(len(offers), 1)
+        self.assertEqual(offers[0]['detail_link'], 'https://example.org/jobs/offer-123')
+        self.assertEqual(offers[0]['title'], 'Développeur Python')
+
+        # 3. Intelligent fallback for description on detail page
+        detail_html = '''
+        <div class="header"><h1>Développeur Python</h1></div>
+        <div data-cy="vacancy-description">
+            <p>Nous recherchons un développeur Python passionné pour rejoindre notre équipe à Genève. Profil autonome et motivé.</p>
+        </div>
+        '''
+        details = extract_detail(detail_html, 'https://example.org/jobs/offer-123', site_card)
+        self.assertIn('Nous recherchons un développeur Python', details.get('description', ''))
 
 
 if __name__ == '__main__': unittest.main()

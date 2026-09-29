@@ -26,12 +26,36 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
   const [inspection, setInspection] = useState(null);
   const [catalog, setCatalog] = useState([]);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [detailUrl, setDetailUrl] = useState('');
+
+  const profileKeywords = profile?.target?.job_titles?.[0] || 'Ingénieur / Développeur';
+  const profileLocation = profile?.location?.countries?.[0] || profile?.location?.cities?.[0] || 'Suisse';
+
+  const evaluatedUrl = React.useMemo(() => {
+    if (!site.listing_url) return '';
+    let url = site.listing_url;
+    url = url.replace('{keywords}', encodeURIComponent(profileKeywords));
+    url = url.replace('{location}', encodeURIComponent(profileLocation));
+    try {
+      const parsed = new URL(url);
+      if (site.query?.keyword_param) {
+        parsed.searchParams.set(site.query.keyword_param, profileKeywords);
+      }
+      if (site.query?.location_param) {
+        parsed.searchParams.set(site.query.location_param, profileLocation);
+      }
+      return parsed.toString();
+    } catch (_) {
+      return url;
+    }
+  }, [site.listing_url, site.query?.keyword_param, site.query?.location_param, profileKeywords, profileLocation]);
 
   useEffect(() => {
     setSite(empty());
     setPreview(null);
     setToken('');
     setInspection(null);
+    setDetailUrl('');
   }, [profile?.id]);
 
   useEffect(() => {
@@ -94,6 +118,9 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
       if (action === 'preview') {
         setPreview(result.preview);
         setToken(result.preview_token);
+        if (result.preview?.offers?.[0]?.detail_link) {
+          setDetailUrl(result.preview.offers[0].detail_link);
+        }
         setNotice(`Test réussi : ${result.preview.offers.length} offre(s) extraite(s). Tu peux maintenant activer le site.`);
       } else if (action === 'save') {
         setNotice(result.site.enabled ? '✓ Site validé et activé pour les scans.' : 'Brouillon enregistré.');
@@ -139,6 +166,43 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
   };
 
   const mySites = profile?.sources?.sites || [];
+
+  const handleUrlChange = (newUrl) => {
+    let nextQuery = { ...site.query };
+    try {
+      if (newUrl.startsWith('http')) {
+        const parsed = new URL(newUrl);
+        const searchParamKeys = Array.from(parsed.searchParams.keys()).map((k) => k.toLowerCase());
+
+        const commonKw = ['term', 'q', 'query', 'keywords', 'keyword', 'k', 'what', 'search'];
+        const commonLoc = ['loc', 'location', 'where', 'place', 'city', 'l'];
+
+        const matchedKw = searchParamKeys.find((k) => commonKw.includes(k));
+        if (matchedKw && !site.query.keyword_param) {
+          nextQuery.keyword_param = matchedKw;
+        }
+
+        const matchedLoc = searchParamKeys.find((k) => commonLoc.includes(k));
+        if (matchedLoc && !site.query.location_param) {
+          nextQuery.location_param = matchedLoc;
+        }
+      }
+    } catch (_) {}
+
+    setSite((current) => ({
+      ...current,
+      listing_url: newUrl,
+      query: nextQuery,
+      enabled: false,
+    }));
+    setPreview(null);
+    setToken('');
+  };
+
+  const kwSuggestions = ['term', 'q', 'keywords', 'query', 'what'];
+  const locSuggestions = ['location', 'loc', 'where', 'place'];
+
+  const effectiveDetailLink = detailUrl || preview?.offers?.[0]?.detail_link || '';
 
   return (
     <div className="sh-site-config-view">
@@ -240,10 +304,10 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
             <input
               type="url"
               value={site.listing_url}
-              onChange={(e) => change(null, 'listing_url', e.target.value)}
+              onChange={(e) => handleUrlChange(e.target.value)}
               placeholder="https://exemple.ch/jobs?q={keywords}&loc={location}"
             />
-            <span className="sh-label-hint">Tu peux inclure {'{keywords}'} et {'{location}'} directement dans le chemin de l'URL.</span>
+            <span className="sh-label-hint">Tu peux inclure {'{keywords}'} et {'{location}'} directement dans le chemin de l'URL ou utiliser les paramètres ci-dessous.</span>
           </div>
           <div className="sh-field">
             <label>Paramètre URL des mots-clés du profil</label>
@@ -251,8 +315,21 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
               type="text"
               value={site.query.keyword_param}
               onChange={(e) => change('query', 'keyword_param', e.target.value)}
-              placeholder="ex: q ou keywords"
+              placeholder="ex: term, q, keywords"
             />
+            <div className="sh-param-chips">
+              <span className="sh-chips-label">Suggestions :</span>
+              {kwSuggestions.map((sug) => (
+                <button
+                  type="button"
+                  key={sug}
+                  className={`sh-param-chip ${site.query.keyword_param === sug ? 'active' : ''}`}
+                  onClick={() => change('query', 'keyword_param', sug)}
+                >
+                  {sug}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="sh-field">
             <label>Paramètre URL de localisation</label>
@@ -260,8 +337,67 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
               type="text"
               value={site.query.location_param}
               onChange={(e) => change('query', 'location_param', e.target.value)}
-              placeholder="ex: location ou place"
+              placeholder="ex: location, loc, where"
             />
+            <div className="sh-param-chips">
+              <span className="sh-chips-label">Suggestions :</span>
+              {locSuggestions.map((sug) => (
+                <button
+                  type="button"
+                  key={sug}
+                  className={`sh-param-chip ${site.query.location_param === sug ? 'active' : ''}`}
+                  onClick={() => change('query', 'location_param', sug)}
+                >
+                  {sug}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Live Evaluated URL Banner */}
+        {site.listing_url && (
+          <div className="sh-url-preview-banner">
+            <div className="sh-url-preview-top">
+              <span className="sh-url-preview-label">
+                <Icon name="link" size={14} />
+                <span>URL qui sera réellement explorée pour ton profil :</span>
+              </span>
+              <span className="sh-url-preview-badge ok">Prête pour le scan</span>
+            </div>
+            <code className="sh-url-preview-code">{evaluatedUrl}</code>
+            <div className="sh-url-preview-params">
+              <span>
+                Mots-clés injectés : <strong>"{profileKeywords}"</strong> {site.query.keyword_param ? `(?${site.query.keyword_param}=)` : (site.listing_url.includes('{keywords}') ? '({keywords})' : '(aucun)')}
+              </span>
+              <span>
+                Lieu injecté : <strong>"{profileLocation}"</strong> {site.query.location_param ? `(?${site.query.location_param}=)` : (site.listing_url.includes('{location}') ? '({location})' : '(aucun)')}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Sample Detail URL Input (Optional) */}
+        <div className="sh-form-grid" style={{ marginTop: '14px' }}>
+          <div className="sh-field full-width">
+            <label>URL d'une fiche de détail exemple (pour inspecter et configurer la description)</label>
+            <div className="sh-input-with-button">
+              <input
+                type="url"
+                value={detailUrl}
+                onChange={(e) => setDetailUrl(e.target.value)}
+                placeholder="https://exemple.ch/offres/detail/12345 (auto-rempli dès qu'une offre est détectée)"
+              />
+              <button
+                type="button"
+                className="sh-btn-secondary"
+                disabled={busy || working || !detailUrl}
+                onClick={() => inspectPage('detail', detailUrl)}
+              >
+                <Icon name="external" size={14} />
+                <span>Inspecter cette fiche</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -273,14 +409,14 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
             onClick={() => inspectPage('listing')}
           >
             <Icon name="eye" size={16} />
-            <span>{working ? 'Chargement de la page…' : 'Ouvrir la page et sélectionner visuellement'}</span>
+            <span>{working ? 'Chargement…' : 'Ouvrir la page de listing et sélectionner'}</span>
           </button>
-          {preview?.offers?.[0]?.detail_link && (
+          {effectiveDetailLink && (
             <button
               type="button"
               className="sh-btn-secondary"
               disabled={busy || working}
-              onClick={() => inspectPage('detail', preview.offers[0].detail_link)}
+              onClick={() => inspectPage('detail', effectiveDetailLink)}
             >
               <Icon name="external" size={16} />
               <span>Inspecter une fiche de détail réelle</span>
@@ -289,7 +425,17 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
         </div>
 
         {/* Visual Picker */}
-        <VisualSitePicker inspection={inspection} site={site} onSelector={change} />
+        <VisualSitePicker
+          inspection={inspection}
+          site={site}
+          onSelector={change}
+          onInspectDetail={(url) => {
+            setDetailUrl(url);
+            inspectPage('detail', url);
+          }}
+          onInspectListing={() => inspectPage('listing')}
+          firstDetailLink={effectiveDetailLink}
+        />
 
         {/* Sélecteurs avancés */}
         <div className="sh-advanced-selectors-block">
@@ -321,8 +467,11 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
 
         {/* Sélecteurs fiche de détail */}
         <div className="sh-advanced-selectors-block">
-          <h3>3. Sélecteurs de la fiche de détail (facultatif)</h3>
-          <p>À renseigner si certaines données (description complète, date, etc.) ne figurent pas sur la carte de listing.</p>
+          <h3>3. Sélecteurs de la fiche de détail / Cockpit (facultatif)</h3>
+          <p>
+            Renseigne ces sélecteurs si certaines données (notamment la description complète) ne figurent pas sur la carte de listing mais dans le volet latéral (Cockpit) ou sur la page de détail.
+            <em> Si laissé vide, Job Hunter extrait automatiquement le corps du texte lors du scan.</em>
+          </p>
           <div className="sh-form-grid">
             {fields.slice(1).map((key, index) => (
               <div className="sh-field" key={`detail-${key}`}>

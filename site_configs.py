@@ -46,7 +46,9 @@ def validate_site(raw):
     if not isinstance(selectors, dict) or not isinstance(detail, dict):
         raise ValueError('Sélecteurs invalides')
     card = validate_selector(selectors.get('card', ''), 'carte', True)
-    fields = {key: validate_selector(selectors.get(key, ''), key, key in ('title', 'detail_link')) for key in FIELDS}
+    selectors_copy = dict(selectors)
+    selectors_copy['detail_link'] = selectors.get('detail_link') or 'a'
+    fields = {key: validate_selector(selectors_copy.get(key, ''), key, key in ('title', 'detail_link')) for key in FIELDS}
     details = {key: validate_selector(detail.get(key, ''), 'détail ' + key) for key in FIELDS if key != 'detail_link'}
     query = raw.get('query') or {}
     pagination = raw.get('pagination') or {}
@@ -83,6 +85,10 @@ def validate_site(raw):
     }
 
 
+COMMON_KEYWORD_PARAMS = ('term', 'q', 'query', 'keywords', 'keyword', 'k', 'what', 'search')
+COMMON_LOCATION_PARAMS = ('loc', 'location', 'where', 'place', 'city', 'l')
+
+
 def profile_listing_url(site, profile):
     keyword = (profile.get('target') or {}).get('job_titles') or []
     country = (profile.get('location') or {}).get('countries') or []
@@ -91,25 +97,57 @@ def profile_listing_url(site, profile):
     url = site['listing_url'].replace('{keywords}', quote(str(keyword[0]) if keyword else '', safe=''))
     url = url.replace('{location}', quote(str(country[0]) if country else '', safe=''))
     query = dict(parse_qsl(urlsplit(url).query, keep_blank_values=True))
-    if site['query']['keyword_param'] and keyword:
-        query[site['query']['keyword_param']] = str(keyword[0])
-    if site['query']['location_param'] and country:
-        query[site['query']['location_param']] = str(country[0])
+
+    kw_param = site['query'].get('keyword_param')
+    if not kw_param and keyword:
+        for candidate in COMMON_KEYWORD_PARAMS:
+            if candidate in query:
+                kw_param = candidate
+                break
+    if kw_param and keyword:
+        query[kw_param] = str(keyword[0])
+
+    loc_param = site['query'].get('location_param')
+    if not loc_param and country:
+        for candidate in COMMON_LOCATION_PARAMS:
+            if candidate in query:
+                loc_param = candidate
+                break
+    if loc_param and country:
+        query[loc_param] = str(country[0])
+
     parts = urlsplit(url)
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), ''))
 
 
 def _value(root, selector, base_url, link=False):
-    if not selector:
-        return ''
-    node = root.select_one(selector)
+    if not link:
+        if selector in ('.', 'self', 'this'):
+            return root.get_text(' ', strip=True)[:60000]
+        if not selector:
+            return ''
+        node = root.select_one(selector)
+        return node.get_text(' ', strip=True)[:60000] if node else ''
+
+    # Link resolution
+    node = None
+    if selector and selector not in ('.', 'self', 'this', 'a'):
+        node = root.select_one(selector)
+    if not node or not (node.get('href') or node.get('data-url')):
+        if getattr(root, 'name', '') == 'a' and (root.get('href') or root.get('data-url')):
+            node = root
+        elif hasattr(root, 'find_parent') and root.find_parent('a') and (root.find_parent('a').get('href') or root.find_parent('a').get('data-url')):
+            node = root.find_parent('a')
+        elif hasattr(root, 'find') and root.find('a', href=True):
+            node = root.find('a', href=True)
+        elif selector:
+            node = root.select_one(selector)
+
     if not node:
         return ''
-    if link:
-        href = node.get('href') or node.get('data-url') or ''
-        url = urljoin(base_url, href)
-        return url if href and public_http_url(url) else ''
-    return node.get_text(' ', strip=True)[:60000]
+    href = node.get('href') or node.get('data-url') or ''
+    url = urljoin(base_url, href)
+    return url if href and public_http_url(url) else ''
 
 
 def extract_cards(html, url, site):
@@ -117,20 +155,32 @@ def extract_cards(html, url, site):
     sel = site['selectors']
     offers = []
     seen = set()
-    for card in soup.select(sel['card'])[:site['limits']['max_offers']]:
-        offer = {key: _value(card, sel[key], url, key in LINK_FIELDS) for key in FIELDS}
+    cards = soup.select(sel['card']) if sel.get('card') else []
+    for card in cards[:site['limits']['max_offers']]:
+        offer = {key: _value(card, sel.get(key, ''), url, key in LINK_FIELDS) for key in FIELDS}
         link = offer['detail_link']
+        if not link:
+            link = _value(card, 'a', url, True)
+            offer['detail_link'] = link
         if link and link not in seen:
             seen.add(link)
             offers.append(offer)
-    next_url = _value(soup, site['pagination']['next_selector'], url, True)
+    next_url = _value(soup, site['pagination'].get('next_selector', ''), url, True)
     return offers, next_url
 
 
 def extract_detail(html, url, site):
     soup = BeautifulSoup(html, 'html.parser')
-    return {key: _value(soup, selector, url, key in LINK_FIELDS)
-            for key, selector in site['detail_selectors'].items()}
+    details = {key: _value(soup, selector, url, key in LINK_FIELDS)
+               for key, selector in site.get('detail_selectors', {}).items() if selector}
+    # Intelligent fallback for description if not captured by configured selector
+    if not details.get('description'):
+        for cand in soup.select('[data-cy*="description"], [data-testid*="description"], .job-description, .vacancy-description, #job-description, article, .description, main'):
+            text = cand.get_text(' ', strip=True)
+            if len(text) > 80:
+                details['description'] = text[:60000]
+                break
+    return details
 
 
 def missing_fields(offer):
