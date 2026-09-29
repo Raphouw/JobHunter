@@ -8487,3 +8487,15 @@ a {
 @media (prefers-reduced-motion: reduce) {
   .sh-swiper-container *, .sh-swiper-container *::before, .sh-swiper-container *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+.sh-raw-controls,.sh-raw-pagination{display:flex;gap:1rem;align-items:end;flex-wrap:wrap;margin:1.5rem 0}
+.sh-raw-controls label{display:grid;gap:.4rem;font-weight:600}
+.sh-raw-controls select{min-width:13rem;max-width:100%;padding:.65rem;border:1px solid #d9dce6;border-radius:.65rem;background:#fff}
+.sh-raw-list{display:grid;gap:.8rem}
+.sh-raw-card{border:1px solid #e1e4ed;border-radius:.9rem;background:#fff;overflow:hidden}
+.sh-raw-card summary{display:flex;gap:.8rem;align-items:center;flex-wrap:wrap;padding:1rem;cursor:pointer}
+.sh-raw-card summary strong{flex:1;min-width:14rem}
+.sh-raw-card summary small{color:#64748b}
+.sh-raw-status{padding:.25rem .55rem;border-radius:999px;background:#eef2ff;color:#4338ca;font-size:.8rem;font-weight:700}
+.sh-raw-card-body{padding:0 1rem 1rem;overflow-wrap:anywhere}
+.sh-raw-card-body pre{max-height:25rem;overflow:auto;padding:1rem;border-radius:.7rem;background:#f5f7fb;white-space:pre-wrap;font-size:.8rem}
+.sh-raw-error{color:#b91c1c}

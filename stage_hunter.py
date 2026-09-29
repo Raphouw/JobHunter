@@ -2087,6 +2087,27 @@ def find_duplicate(c,cu,title,company,location=''):
     fingerprint=offer_fingerprint(title,company,location)
     fingerprint_match=c.execute("SELECT id,url,title,company,source,body,score,status FROM offers WHERE fingerprint=? LIMIT 1",(fingerprint,)).fetchone()
     if fingerprint_match:return fingerprint_match
+    identity=candidate_identity(cu)
+    if identity and identity!=cu:
+        for row in c.execute("SELECT id,url,title,company,source,body,score,status FROM offers ORDER BY id DESC LIMIT 3000"):
+            if candidate_identity(row[1])==identity:return row
+    # A rejected short title such as "Robotics Intern" can reappear under a
+    # different board URL or a slightly different location string. The general
+    # fuzzy matcher below requires three title tokens, so honor an exact
+    # company/title rejection before considering a new offer.
+    company_key=normalized_company(company)
+    title_key=normalized_job_title(title)
+    if company_key and company_key!='unknown' and len(title_key.split())==2:
+        for row in c.execute("""SELECT id,url,title,company,source,body,score,status,location
+                                FROM offers WHERE review_decision='reject'
+                                ORDER BY id DESC LIMIT 3000"""):
+            if normalized_company(row[3])!=company_key or normalized_job_title(row[2])!=title_key:
+                continue
+            old_city=fold_text((row[8] or '').split(',')[0])
+            new_city=fold_text((location or '').split(',')[0])
+            if old_city and new_city and old_city!=new_city:
+                continue
+            return row[:8]
     for row in c.execute("SELECT id,url,title,company,source,body,score,status FROM offers WHERE status NOT IN ('deleted','closed') ORDER BY id DESC LIMIT 1500"):
         _,_,old_title,old_company,_,_,_,_=row
         if offers_match(title,company,old_title,old_company):return row
@@ -2514,6 +2535,11 @@ def ingest(c,rows,profile):
         duplicate_row=find_duplicate(c,cu,title,company,loc)
         if duplicate_row:
             stats['duplicate']+=1;old_id,old_url,old_title,old_company,old_source,old_body,old_score,old_status=duplicate_row
+            old_review=c.execute('SELECT review_decision FROM offers WHERE id=?',(old_id,)).fetchone()
+            if old_review and old_review[0]=='reject':
+                audit_decision(r,'known','Offre déjà refusée par le profil',title,pt,txt,html,structured,contract_state,availability,sc,conf,reasons)
+                log_event(f'→ DÉJÀ REFUSÉE · {short_text(old_company or company,24)} · {short_text(title,58)}','dim')
+                continue
             if old_status=='historical':
                 audit_decision(r,'historical_duplicate','Offre déjà présente dans les réponses envoyées',title,pt,txt,html,structured,contract_state,availability,sc,conf,reasons)
                 log_event(f'→ DÉJÀ DANS RÉPONSES · {short_text(old_company or company,24)} · {short_text(title,58)}','dim');continue

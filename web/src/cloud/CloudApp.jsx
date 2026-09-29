@@ -7,6 +7,7 @@ import { ResultsView } from '../components/Results/ResultsView';
 import { DiagnosticView } from '../components/Diagnostic/DiagnosticView';
 import { ApplicationsAtlas } from '../design-lab/ApplicationsAtlas';
 import { CloudSearchView, CloudConnectionsView, CloudAutomationView } from './CloudFeatureViews';
+import { RawCandidatesView } from './RawCandidatesView';
 import { DeleteProfileDialog, ProfileSwitcher } from './ProfileSwitcher';
 import { supabase, unwrap } from './client';
 
@@ -27,6 +28,7 @@ const NAV_ITEMS = [
   ['candidatures', 'Candidatures & Carte', 'map'],
   ['profile', 'Mon profil', 'building'],
   ['search', 'Recherche & Scan', 'search'],
+  ['candidates', 'Candidats bruts', 'layers'],
   ['diagnostic', 'Diagnostic', 'layers'],
   ['connections', 'Connexions Google', 'external'],
   ['automation', 'Automatisation', 'clock'],
@@ -43,6 +45,25 @@ function exportOffersCsv(rows) {
   const anchor = document.createElement('a');
   anchor.href = url; anchor.download = 'job-hunter-offres.csv'; anchor.click();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function reviewIdentity(offer) {
+  const normalize = (value) => String(value || '').normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  return {
+    company: normalize(offer.company), title: normalize(offer.title),
+    city: normalize(String(offer.location || '').split(',')[0]),
+  };
+}
+
+function matchesRejectedOffer(offer, rejected) {
+  const item = reviewIdentity(offer);
+  if (!item.company || !item.title) return false;
+  return rejected.some((prior) => {
+    const previous = reviewIdentity(prior);
+    return item.company === previous.company && item.title === previous.title
+      && (!item.city || !previous.city || item.city === previous.city);
+  });
 }
 
 function Login({ onError }) {
@@ -523,11 +544,17 @@ export function CloudApp() {
     await loadData();
   }, 'Offres remises dans le Swiper.');
 
+  const visiblePendingOffers = useMemo(() => {
+    const rejected = offers.filter((offer) => offer.review_decision === 'reject');
+    return offers.filter((offer) => offer.review_decision === 'pending'
+      && !matchesRejectedOffer(offer, rejected));
+  }, [offers]);
   const stats = useMemo(() => {
     const result = { pending: 0, keep: 0, unsure: 0, reject: 0 };
     offers.forEach((offer) => { if (offer.review_decision in result) result[offer.review_decision] += 1; });
+    result.pending = visiblePendingOffers.length;
     return result;
-  }, [offers]);
+  }, [offers, visiblePendingOffers]);
   const activeProfile = profiles.find((row) => row.id === profileId);
   const profile = useMemo(() => activeProfile
     ? { ...EMPTY_CONFIG, ...activeProfile.config, id: activeProfile.id, name: activeProfile.name }
@@ -635,7 +662,7 @@ export function CloudApp() {
               </section> : <>
                 {page === 'dashboard' && <DashboardView profile={profile} stats={dashboardStats}
                   scan={scan} featuredOffer={offers[0]} onGoToPage={goToPage} />}
-                {page === 'swipe' && <TinderDeck offers={offers.filter((offer) => offer.review_decision === 'pending')}
+                {page === 'swipe' && <TinderDeck offers={visiblePendingOffers}
                   stats={stats} busy={busy} onDecide={decide} onUndo={undo} onRequeue={requeue}
                   onGoToPage={goToPage} onTransferCandidature={transferOfferToCandidature} />}
                 {page === 'results' && <ResultsView results={offers.filter((offer) => ['keep', 'unsure'].includes(offer.review_decision))}
@@ -670,6 +697,8 @@ export function CloudApp() {
                 {page === 'search' && <CloudSearchView scanJobs={scanJobs} scanEvents={scanEvents}
                   workerReady={workerReady} onRun={startScan} onCancel={cancelScan}
                   onRefresh={loadData} busy={busy} />}
+                {page === 'candidates' && <RawCandidatesView profileId={profileId}
+                  accessToken={session.access_token} scanJobs={scanJobs} />}
                 {page === 'diagnostic' && <DiagnosticView diagnostic={diagnostic} scan={scan} />}
                 {page === 'connections' && <CloudConnectionsView profile={profile} accessToken={session.access_token}
                   onSave={saveProfile} onError={setError} onNotice={setNotice} busy={busy} />}
