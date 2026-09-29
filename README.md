@@ -190,13 +190,16 @@ python stage_hunter.py report --profile raphael
 python stage_hunter_scheduler.py status --profile config/profiles/raphael.yaml
 python -m unittest -v test_stage_hunter_v6.py
 ```
+
 # Configurer un site de listings
 
 Dans l’interface cloud, ouvre **Recherche & Scan → Configurer les sites de listings**.
-Ajoute un site avec son URL de listing, les noms des paramètres URL utilisés pour les
-mots clés et le pays du profil (ou les variables `{keywords}` et `{location}` dans
-l’URL), puis les sélecteurs CSS des cartes. Le lien de détail
-et le titre sont requis. Les sélecteurs de détail peuvent préciser le contrat, la
+Entre son URL de listing puis clique **Ouvrir le site et sélectionner visuellement**.
+Choisis la carte complète, le lien de détail, le titre et les autres informations en
+cliquant dans l’aperçu. Les champs CSS avancés restent modifiables si un site a une
+structure particulière. L’aperçu affiche le HTML récupéré, sans scripts ni connexion
+utilisateur : un site qui construit ses offres uniquement avec JavaScript peut rester
+vide. Les sélecteurs de détail peuvent préciser le contrat, la
 date, la description et le lien de candidature. Le site peut avancer avec un lien
 « page suivante » ou un paramètre de page. Chaque configuration est limitée à cinq
 pages et cent offres par scan.
@@ -208,5 +211,10 @@ Supabase existant (`sources.sites`). Les sites sans configuration continuent à 
 analysés par l’extracteur générique. Les pages qui exigent JavaScript, une session ou
 un CAPTCHA peuvent ne rien retourner. Le test inspecte la première page et jusqu’à
 trois fiches de détail ; le scan applique les limites de parcours enregistrées.
+L’administrateur peut ensuite cliquer **Publier pour tous les utilisateurs**. La recette
+commune est automatiquement utilisée par tous les profils ; seuls les comptes administrateurs
+peuvent la publier ou la désactiver. Les recettes personnelles restent dans le profil.
+Les modes cloud parcourent au maximum 20, 35, 50 et 80 sites respectivement ; le mode
+Express accepte maintenant jusqu’à 1 000 pages téléchargées sur 15 minutes de traitement.
 La migration `20260929200910_listing_application_url.sql` ajoute les champs persistés
 de contrat, date de publication et lien de candidature aux offres cloud.

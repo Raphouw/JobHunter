@@ -110,18 +110,18 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual(worker.prefetch_class("https://jobs.example.com/job/123456", "Software Engineering Intern")[0], "offer")
 
     def test_quick_scan_stops_at_persisted_total_budget_without_rejecting_queue(self):
-        job = {"mode": "Rapide", "checkpoint": {"telemetry": {"totals": {"pages_fetched": 400}}}}
-        self.assertIn("400 pages", worker.scan_limit_reached(job))
-        job["checkpoint"]["telemetry"]["totals"] = {"pages_fetched": 399, "wall_seconds": 600}
-        self.assertIn("600 secondes", worker.scan_limit_reached(job))
-        job["checkpoint"]["telemetry"]["totals"] = {"pages_fetched": 399, "wall_seconds": 599}
+        job = {"mode": "Rapide", "checkpoint": {"telemetry": {"totals": {"pages_fetched": 1000}}}}
+        self.assertIn("1000 pages", worker.scan_limit_reached(job))
+        job["checkpoint"]["telemetry"]["totals"] = {"pages_fetched": 999, "wall_seconds": 900}
+        self.assertIn("900 secondes", worker.scan_limit_reached(job))
+        job["checkpoint"]["telemetry"]["totals"] = {"pages_fetched": 999, "wall_seconds": 899}
         self.assertIsNone(worker.scan_limit_reached(job))
 
         class Store:
             def __init__(self): self.events = []; self.released = None
             def event(self, job, message): self.events.append(message)
         store = Store()
-        job["checkpoint"]["telemetry"]["totals"]["pages_fetched"] = 400
+        job["checkpoint"]["telemetry"]["totals"]["pages_fetched"] = 1000
         with patch.object(worker, "release", side_effect=lambda s, j, p, c, n: setattr(store, "released", (p, c))):
             worker.analyze(store, job, None, None)
         self.assertEqual(store.released[0], "finish")
@@ -176,6 +176,7 @@ class WorkerTests(unittest.TestCase):
             phase_counts = {}
             def __init__(self): self.source_yield = {}; self.checkpoint = None
             def event(self, *args): pass
+            def rows(self, *args): return []
         store = Store()
         job = {"id": "job", "user_id": "user", "mode": "Rapide", "batch_size": 2,
                "checkpoint": {"direct_cursor": 0, "web_cursor": 0}}

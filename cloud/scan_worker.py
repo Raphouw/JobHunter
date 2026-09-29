@@ -28,19 +28,19 @@ from cloud.offer_history import known_identities, save_examined
 
 
 MODE_LIMITS = {
-    "Rapide": (24, 8, 4, 6),
-    "Complet": (45, 16, 6, 8),
-    "Maximum": (70, 25, 8, 10),
-    "Exhaustif 1h": (240, 30, 8, 12),
+    "Rapide": (24, 20, 4, 6),
+    "Complet": (45, 35, 6, 8),
+    "Maximum": (70, 50, 8, 10),
+    "Exhaustif 1h": (240, 80, 8, 12),
 }
 
 # A quick scan must have a finite total cost across Vercel invocations. The
 # persisted telemetry is the authority; process memory is never required.
 SCAN_TOTAL_LIMITS = {
-    "Rapide": (400, 600),
-    "Complet": (1200, 1800),
-    "Maximum": (2500, 3600),
-    "Exhaustif 1h": (5000, 7200),
+    "Rapide": (1000, 900),
+    "Complet": (1800, 2400),
+    "Maximum": (3500, 4500),
+    "Exhaustif 1h": (6000, 9000),
 }
 
 DEFERRED_DECISIONS = {"budget_skip", "time_deferred"}
@@ -399,10 +399,10 @@ def discover(store, job, engine, profile):
     checkpoint = dict(job.get("checkpoint") or {})
     checkpoint["failure_streak"] = 0
     query_limit, site_limit, _, _ = MODE_LIMITS[job["mode"]]
-    direct_urls = engine.targeted_fixed_urls(profile)
+    generic_urls = engine.targeted_fixed_urls(profile)
+    direct_urls = []
     configured_sites = (profile.get('sources') or {}).get('sites', []) or []
-    if configured_sites:
-        from site_configs import validate_site
+    from site_configs import validate_site
     for raw_site in configured_sites:
         try:
             site = validate_site(raw_site)
@@ -410,6 +410,18 @@ def discover(store, job, engine, profile):
                 direct_urls.append(site)
         except (ValueError, TypeError):
             continue
+    personal_urls = {site['listing_url'] for site in direct_urls}
+    shared = store.rows("hunter_site_recipes",
+                        "status=eq.published&select=config&order=updated_at.desc&limit=100")
+    for row in shared:
+        try:
+            site = validate_site(row['config'])
+            if site['enabled'] and site['listing_url'] not in personal_urls:
+                direct_urls.append(site)
+                personal_urls.add(site['listing_url'])
+        except (ValueError, TypeError, KeyError):
+            continue
+    direct_urls.extend(url for url in generic_urls if url not in personal_urls)
     direct_urls = direct_urls[:site_limit]
     queries = engine.build_search_queries(profile, emit_log=False)[:query_limit]
     direct_cursor = engine.safe_int(checkpoint.get("direct_cursor"), 0)

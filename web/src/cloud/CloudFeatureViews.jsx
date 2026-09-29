@@ -21,27 +21,27 @@ const SCAN_STATUSES = {
 const MODE_DESCRIPTIONS = {
   Rapide: {
     label: 'Rapide · 24 requêtes',
-    desc: '24 requêtes et 8 sites directs. Le scan reprend automatiquement entre les étapes ; la durée dépend du nombre de fiches.',
+    desc: '24 requêtes, jusqu’à 20 sites et 1 000 pages téléchargées. Le scan reprend automatiquement entre les étapes.',
     badge: 'Express',
-    seconds: 180,
+    seconds: 900,
   },
   Complet: {
     label: 'Complet · 45 requêtes',
-    desc: 'Le meilleur équilibre avec 45 requêtes, exploration récursive et vérification de disponibilité.',
+    desc: '45 requêtes et jusqu’à 35 sites, avec exploration récursive et vérification de disponibilité.',
     badge: 'Recommandé',
-    seconds: 600,
+    seconds: 2400,
   },
   Maximum: {
     label: 'Maximum · 70 requêtes',
-    desc: 'Exploration large avec 70 requêtes, 25 sites fixés et 8 workers en parallèle.',
+    desc: 'Exploration large avec 70 requêtes, jusqu’à 50 sites et 8 workers en parallèle.',
     badge: 'Intensif',
-    seconds: 1500,
+    seconds: 4500,
   },
   'Exhaustif 1h': {
     label: 'Exhaustif',
-    desc: 'Exploration profonde sans coupe-circuit. Le travail peut dépasser une heure selon les fiches trouvées.',
+    desc: 'Exploration profonde avec 240 requêtes et jusqu’à 80 sites, sans coupe-circuit.',
     badge: 'Profondeur max',
-    seconds: 3600,
+    seconds: 9000,
   },
 };
 

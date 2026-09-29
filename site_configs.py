@@ -147,6 +147,24 @@ def page_url(url, site, index):
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), ''))
 
 
+def inspection_html(html, base_url):
+    """Return an inert, bounded listing snapshot for the visual selector."""
+    soup = BeautifulSoup(html, 'html.parser')
+    for node in soup.select('script, style, link, meta, base, iframe, object, embed, form, svg, canvas, video, audio'):
+        node.decompose()
+    for node in soup.find_all(True):
+        for key in list(node.attrs):
+            if key not in ('id', 'class', 'href', 'data-url', 'title', 'alt', 'role'):
+                del node.attrs[key]
+        for key in ('href', 'data-url'):
+            if node.has_attr(key):
+                target = urljoin(base_url, str(node[key]))
+                if public_http_url(target): node[key] = target
+                else: del node.attrs[key]
+    root = soup.body or soup
+    return ''.join(str(child) for child in root.children)[:250_000]
+
+
 def crawl_site(site, profile, fetch, with_details=False):
     """Use an injected network fetcher so previews and scans share extraction."""
     site = validate_site(site)

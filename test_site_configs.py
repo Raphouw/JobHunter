@@ -4,8 +4,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from api.sites import merge_site, signature
-from site_configs import crawl_site, extract_detail, missing_fields, profile_listing_url, validate_site
+from api.sites import merge_site, signature, valid_preview_token
+from site_configs import (crawl_site, extract_detail, inspection_html, missing_fields,
+                          profile_listing_url, validate_site)
 from site_network import _resolved_ip, public_http_url
 
 
@@ -64,6 +65,19 @@ class SiteConfigTests(unittest.TestCase):
                 (None, None, None, None, ('127.0.0.1', 0))]):
             with self.assertRaises(ValueError): _resolved_ip('https://example.org/jobs')
 
+    def test_visual_snapshot_is_inert_and_retains_selectable_cards(self):
+        raw = '''<html><head><script>alert(1)</script></head><body>
+          <article class="job"><a class="title" href="/jobs/1" onclick="alert(2)">Stage</a>
+          <img src="https://tracker.example/pixel" alt="Logo"></article>
+          <form action="https://evil.example"><button>Send</button></form></body></html>'''
+        result = inspection_html(raw, 'https://example.org/jobs')
+        self.assertIn('class="job"', result)
+        self.assertIn('href="https://example.org/jobs/1"', result)
+        self.assertNotIn('<script', result)
+        self.assertNotIn('onclick', result)
+        self.assertNotIn('tracker.example', result)
+        self.assertNotIn('<form', result)
+
     def test_recording_preserves_profile_and_replaces_same_site(self):
         site = validate_site(sample_site())
         config = {'target': {'job_titles': ['Engineer']},
@@ -78,6 +92,10 @@ class SiteConfigTests(unittest.TestCase):
                              signature({**site, 'enabled': True}, 'profile', 'user', stamp))
             self.assertNotEqual(signature(site, 'profile', 'user', stamp),
                                 signature({**site, 'name': 'Altéré'}, 'profile', 'user', stamp))
+            with patch('api.sites.time.time', return_value=stamp):
+                token = f"{stamp}.{signature(site, 'profile', 'user', stamp)}"
+                self.assertTrue(valid_preview_token(token, site, 'profile', 'user'))
+                self.assertFalse(valid_preview_token(token, {**site, 'name': 'Changed'}, 'profile', 'user'))
 
     def test_scanner_uses_configured_detail_and_keeps_generic_storage(self):
         import stage_hunter as hunter

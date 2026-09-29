@@ -37,6 +37,38 @@ class Store:
 
 
 class DiscoveryPipelineTests(unittest.TestCase):
+    def test_published_site_is_scanned_before_generic_site_at_mode_limit(self):
+        from test_site_configs import sample_site
+        class SharedEngine:
+            SCAN_METRICS = {}
+            visited = []
+            @staticmethod
+            def targeted_fixed_urls(profile): return ['https://generic.example/jobs']
+            @staticmethod
+            def build_search_queries(profile, emit_log=False): return []
+            @staticmethod
+            def safe_int(value, default=0): return int(value or default)
+            @classmethod
+            def configured_site_candidates(cls, profile, site):
+                cls.visited.append(site['listing_url'])
+                return [{'url': 'https://example.org/jobs/1'}]
+            @staticmethod
+            def fixed_site_candidates(profile): raise AssertionError('Generic site was not prioritized')
+        class SharedStore(Store):
+            source_yield = {}
+            def rows(self, table, query):
+                return [{'config': {**sample_site(), 'enabled': True}}] if table == 'hunter_site_recipes' else []
+        store = SharedStore()
+        job = {'id': 'job', 'user_id': 'user', 'profile_id': 'profile',
+               'mode': 'Rapide', 'batch_size': 1, 'checkpoint': {}, 'progress_percent': 0}
+        with patch.object(worker, 'MODE_LIMITS', {'Rapide': (24, 1, 4, 6)}), \
+             patch.object(worker, 'stop_at_scan_limit', return_value=False), \
+             patch.object(worker, 'candidate_rows', return_value=1), \
+             patch.object(worker, 'still_owned', return_value=True), \
+             patch.object(worker, 'release'):
+            worker.discover(store, job, SharedEngine, {})
+        self.assertEqual(SharedEngine.visited, ['https://example.org/jobs'])
+
     def test_independent_search_apis_normalize_results(self):
         class Response:
             def raise_for_status(self): pass
