@@ -152,8 +152,11 @@ export function DiagnosticView({ diagnostic = {}, scan = {} }) {
                     Efficacité de chaque site carrière et job board exploré.
                   </p>
                 </div>
-                <span className="sh-panel-badge">{sourceEntries.length} sources analysées</span>
+                <span className="sh-panel-badge">{sourceEntries.length} sources {diagnostic.sourceYieldRetainedOnly ? 'avec offres' : 'analysées'}</span>
               </div>
+              {diagnostic.sourceYieldRetainedOnly && sourceEntries.length > 0 && (
+                <p className="sh-muted">Historique reconstitué à partir des offres retenues. Le nombre de pages analysées par source n’était pas enregistré pour ce scan.</p>
+              )}
 
               {/* Quick Yield Summary KPIs */}
               <div className="sh-yield-kpi-row">

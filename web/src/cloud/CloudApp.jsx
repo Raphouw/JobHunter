@@ -537,11 +537,33 @@ export function CloudApp() {
   const dashboardStats = { ...stats, ready: stats.keep };
   const latestCompleted = scanJobs.find((job) => job.status === 'completed' && job.summary?.metrics);
   const metrics = latestCompleted?.summary?.metrics;
+  // Older cloud scans saved funnel totals but no source breakdown. Rebuild the
+  // retained-offer counts from the offers persisted during that scan.
+  const sourceYield = useMemo(() => {
+    if (!latestCompleted) return {};
+    if (metrics?.source_yield && Object.keys(metrics.source_yield).length) return metrics.source_yield;
+    const started = Date.parse(latestCompleted.created_at);
+    const finished = Date.parse(latestCompleted.finished_at);
+    if (!Number.isFinite(started) || !Number.isFinite(finished)) return {};
+    return offers.reduce((sources, offer) => {
+      const discovered = Date.parse(offer.discovered_at);
+      if (!Number.isFinite(discovered) || discovered < started || discovered > finished) return sources;
+      let domain = String(offer.source || '').trim().toLowerCase();
+      if (!domain) {
+        try { domain = new URL(offer.url).hostname.toLowerCase(); } catch (_) { return sources; }
+      }
+      domain = domain.replace(/^www\./, '');
+      sources[domain] ??= { retained: 0 };
+      sources[domain].retained += 1;
+      return sources;
+    }, {});
+  }, [latestCompleted, metrics, offers]);
   const diagnostic = metrics ? {
     input_candidates: metrics.funnel?.input_candidates || 0,
     expanded_candidates: metrics.funnel?.expanded_candidates || 0,
     stats: metrics.funnel || {},
-    runtime: metrics,
+    runtime: { ...metrics, source_yield: sourceYield },
+    sourceYieldRetainedOnly: !metrics?.source_yield || !Object.keys(metrics.source_yield).length,
   } : {};
   const urgentCount = useMemo(() => {
     const now = new Date();
