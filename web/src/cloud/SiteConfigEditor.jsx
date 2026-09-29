@@ -1,9 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { VisualSitePicker } from './VisualSitePicker';
+import { Icon } from '../components/Common/Icons';
 
 const fields = ['detail_link', 'title', 'company', 'location', 'contract', 'date', 'description', 'application_link'];
-const labels = ['Lien de détail', 'Titre', 'Entreprise', 'Lieu', 'Contrat', 'Date', 'Description', 'Lien de candidature'];
-const empty = () => ({ name: '', listing_url: '', enabled: false,
+const labels = ['Lien de détail *', 'Titre *', 'Entreprise', 'Lieu', 'Contrat', 'Date', 'Description', 'Lien de candidature'];
+
+const empty = () => ({
+  name: '',
+  listing_url: '',
+  enabled: false,
   query: { keyword_param: '', location_param: '' },
   selectors: { card: '', ...Object.fromEntries(fields.map((key) => [key, ''])) },
   detail_selectors: Object.fromEntries(fields.slice(1).map((key) => [key, ''])),
@@ -21,124 +26,453 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
   const [inspection, setInspection] = useState(null);
   const [catalog, setCatalog] = useState([]);
   const [isAdmin, setIsAdmin] = useState(false);
-  useEffect(() => { setSite(empty()); setPreview(null); setToken(''); }, [profile?.id]);
+
+  useEffect(() => {
+    setSite(empty());
+    setPreview(null);
+    setToken('');
+    setInspection(null);
+  }, [profile?.id]);
+
   useEffect(() => {
     if (!profile?.id || !accessToken) return;
-    fetch('/api/sites', { method: 'POST', headers: { 'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}` },
-      body: JSON.stringify({ action: 'catalog', profile_id: profile.id }) })
-      .then((response) => response.json()).then((result) => {
-        setCatalog(result.recipes || []); setIsAdmin(!!result.is_admin);
-      }).catch(() => { setCatalog([]); setIsAdmin(false); });
+    fetch('/api/sites', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ action: 'catalog', profile_id: profile.id }),
+    })
+      .then((res) => res.json())
+      .then((result) => {
+        setCatalog(result.recipes || []);
+        setIsAdmin(Boolean(result.is_admin));
+      })
+      .catch(() => {
+        setCatalog([]);
+        setIsAdmin(false);
+      });
   }, [profile?.id, accessToken]);
-  const edit = (entry) => { setSite(structuredClone(entry)); setPreview(null); setToken(''); setInspection(null); setError(''); };
-  const change = (section, key, value) => {
-    setSite((current) => section ? { ...current, [section]: { ...current[section], [key]: value }, enabled: false }
-      : { ...current, [key]: value, enabled: false });
-    setPreview(null); setToken(''); setNotice('');
+
+  const edit = (entry) => {
+    setSite(structuredClone(entry));
+    setPreview(null);
+    setToken('');
+    setInspection(null);
+    setError('');
+    setNotice('');
   };
+
+  const change = (section, key, value) => {
+    setSite((current) =>
+      section
+        ? { ...current, [section]: { ...current[section], [key]: value }, enabled: false }
+        : { ...current, [key]: value, enabled: false }
+    );
+    setPreview(null);
+    setToken('');
+  };
+
   const run = async (action, nextSite) => {
-    setWorking(true); setError(''); setNotice('');
+    setWorking(true);
+    setError('');
+    setNotice('');
     try {
-      const response = await fetch('/api/sites', { method: 'POST',
+      const response = await fetch('/api/sites', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ action, profile_id: profile.id, site: nextSite,
-          listing_url: nextSite?.listing_url, preview_token: token }) });
+        body: JSON.stringify({
+          action,
+          profile_id: profile.id,
+          site: nextSite,
+          listing_url: nextSite?.listing_url,
+          preview_token: token,
+        }),
+      });
       const result = await response.json();
       if (result.preview) setPreview(result.preview);
       if (!response.ok) throw new Error(result.error || 'Opération impossible');
       if (result.site) setSite(result.site);
-      if (action === 'preview') { setPreview(result.preview); setToken(result.preview_token); }
-      else if (action === 'save') {
-        setNotice(result.site.enabled ? 'Site activé.' : 'Brouillon enregistré.'); await onSaved();
+      if (action === 'preview') {
+        setPreview(result.preview);
+        setToken(result.preview_token);
+        setNotice(`Test réussi : ${result.preview.offers.length} offre(s) extraite(s). Tu peux maintenant activer le site.`);
+      } else if (action === 'save') {
+        setNotice(result.site.enabled ? '✓ Site validé et activé pour les scans.' : 'Brouillon enregistré.');
+        await onSaved();
       } else {
-        setNotice(action === 'publish' ? 'Recette publiée pour tous les utilisateurs.' : 'Recette commune désactivée.');
-        const response = await fetch('/api/sites', { method: 'POST',
+        setNotice(action === 'publish' ? 'Recette publiée pour tous les utilisateurs.' : 'Recette désactivée.');
+        const refreshRes = await fetch('/api/sites', {
+          method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-          body: JSON.stringify({ action: 'catalog', profile_id: profile.id }) });
-        const refreshed = await response.json();
+          body: JSON.stringify({ action: 'catalog', profile_id: profile.id }),
+        });
+        const refreshed = await refreshRes.json();
         setCatalog(refreshed.recipes || []);
       }
-    } catch (failure) { setError(failure.message); }
-    finally { setWorking(false); }
+    } catch (failure) {
+      setError(failure.message);
+    } finally {
+      setWorking(false);
+    }
   };
+
   const inspectPage = async (kind, url = '') => {
-    setWorking(true); setError('');
+    setWorking(true);
+    setError('');
     try {
-      const response = await fetch('/api/sites', { method: 'POST',
+      const response = await fetch('/api/sites', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ action: 'inspect', profile_id: profile.id,
-          ...(kind === 'detail' ? { url } : { site }) }) });
+        body: JSON.stringify({
+          action: 'inspect',
+          profile_id: profile.id,
+          ...(kind === 'detail' ? { url } : { site }),
+        }),
+      });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Impossible de charger la page');
       setInspection({ ...result, kind });
-    } catch (failure) { setError(failure.message); }
-    finally { setWorking(false); }
+    } catch (failure) {
+      setError(failure.message);
+    } finally {
+      setWorking(false);
+    }
   };
-  const input = (label, value, section, key, options = {}) => <label key={`${section}-${key}`}>{label}
-    <input value={value ?? ''} type={options.type || 'text'} min={options.min} max={options.max}
-      placeholder={options.placeholder || ''} onChange={(event) => change(section, key, event.target.value)} /></label>;
-  return <section className="sh-search-section sh-site-config">
-    <div className="sh-section-header"><div><h2>Configurer les sites de listings</h2>
-      <p>Ouvre un aperçu du site, clique les informations à récupérer, teste, puis active la recette.</p></div></div>
-    <h3>Recettes communes · appliquées à tous les profils</h3>
-    <div className="sh-site-config-list">{catalog.length ? catalog.map((row) =>
-      <React.Fragment key={row.id}><button type="button" className="sh-btn-secondary"
-        onClick={() => edit(row.config)}>{row.name} · {row.status === 'published' ? 'Active' : 'Désactivée'}</button>
-        {isAdmin && row.status === 'published' && <button type="button" className="sh-btn-secondary"
-          disabled={working} onClick={() => run('unpublish', { listing_url: row.listing_url })}>Désactiver pour tous</button>}
-      </React.Fragment>) : <p>Aucune recette commune publiée pour le moment.</p>}</div>
-    <h3>Mes recettes personnelles</h3>
-    <div className="sh-site-config-list">{(profile?.sources?.sites || []).map((item) =>
-      <button key={item.id} type="button" className="sh-btn-secondary" onClick={() => edit(item)}>
-        {item.name} · {item.enabled ? 'Actif' : 'Brouillon'}</button>)}
-      <button type="button" className="sh-btn-secondary" onClick={() => edit(empty())}>+ Ajouter un site</button></div>
-    <div className="sh-site-config-grid">
-      {input('Nom du site', site.name, null, 'name')}
-      {input('URL du listing', site.listing_url, null, 'listing_url', { type: 'url', placeholder: 'https://exemple.com/jobs' })}
-      {input('Paramètre des mots du profil', site.query.keyword_param, 'query', 'keyword_param', { placeholder: 'q' })}
-      {input('Paramètre de localisation', site.query.location_param, 'query', 'location_param', { placeholder: 'location' })}
+
+  const mySites = profile?.sources?.sites || [];
+
+  return (
+    <div className="sh-site-config-view">
+      <div className="sh-view-header">
+        <div>
+          <span className="sh-eyebrow">PORTAILS CARRIÈRES & DIRECTS</span>
+          <h1>Configuration des sites de listings</h1>
+          <p>
+            Configure l'extraction automatique d'offres directement sur les sites carrières ou jobboards partenaires.
+            Inspecte visuellement une page, sélectionne les champs clés, teste en conditions réelles et active la recette.
+          </p>
+        </div>
+      </div>
+
+      {/* Recettes existantes */}
+      <section className="sh-form-section">
+        <div className="sh-section-header">
+          <div>
+            <h2>Mes recettes personnelles</h2>
+            <p>Sites explorés spécifiquement pour ton profil.</p>
+          </div>
+          <button type="button" className="sh-btn-secondary" onClick={() => edit(empty())}>
+            <Icon name="plus" size={15} />
+            <span>Ajouter un site</span>
+          </button>
+        </div>
+
+        <div className="sh-site-recipe-cards">
+          {mySites.map((item) => (
+            <div key={item.id} className={`sh-recipe-card ${site.id === item.id ? 'active' : ''}`} onClick={() => edit(item)}>
+              <div className="sh-recipe-card-top">
+                <strong>{item.name || 'Site sans nom'}</strong>
+                <span className={`sh-status-tag ${item.enabled ? 'success' : 'queued'}`}>
+                  {item.enabled ? 'Actif' : 'Brouillon'}
+                </span>
+              </div>
+              <span className="sh-recipe-card-url">{item.listing_url}</span>
+            </div>
+          ))}
+          {mySites.length === 0 && (
+            <p className="sh-site-empty-note">Aucune recette personnalisée pour le moment. Remplis les champs ci-dessous pour configurer un site.</p>
+          )}
+        </div>
+
+        {catalog.length > 0 && (
+          <div className="sh-catalog-box">
+            <h4>Recettes communes du catalogue</h4>
+            <div className="sh-site-recipe-cards">
+              {catalog.map((row) => (
+                <div key={row.id} className="sh-recipe-card" onClick={() => edit(row.config)}>
+                  <div className="sh-recipe-card-top">
+                    <strong>{row.name}</strong>
+                    <span className={`sh-status-tag ${row.status === 'published' ? 'success' : 'queued'}`}>
+                      {row.status === 'published' ? 'Publiée' : 'Désactivée'}
+                    </span>
+                  </div>
+                  <span className="sh-recipe-card-url">{row.listing_url}</span>
+                  {isAdmin && row.status === 'published' && (
+                    <button
+                      type="button"
+                      className="sh-btn-secondary sm"
+                      disabled={working}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        run('unpublish', { listing_url: row.listing_url });
+                      }}
+                    >
+                      Désactiver pour tous
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Formulaire de configuration */}
+      <section className="sh-form-section">
+        <div className="sh-section-header">
+          <div>
+            <h2>1. URL et paramètres de recherche</h2>
+            <p>Indique l’URL de base du moteur du site et comment injecter les critères du profil.</p>
+          </div>
+        </div>
+
+        <div className="sh-form-grid">
+          <div className="sh-field">
+            <label>Nom du site</label>
+            <input
+              type="text"
+              value={site.name}
+              onChange={(e) => change(null, 'name', e.target.value)}
+              placeholder="ex: JobUp Suisse, WTTJ, etc."
+            />
+          </div>
+          <div className="sh-field">
+            <label>URL du listing d'offres</label>
+            <input
+              type="url"
+              value={site.listing_url}
+              onChange={(e) => change(null, 'listing_url', e.target.value)}
+              placeholder="https://exemple.ch/jobs?q={keywords}&loc={location}"
+            />
+            <span className="sh-label-hint">Tu peux inclure {'{keywords}'} et {'{location}'} directement dans le chemin de l'URL.</span>
+          </div>
+          <div className="sh-field">
+            <label>Paramètre URL des mots-clés du profil</label>
+            <input
+              type="text"
+              value={site.query.keyword_param}
+              onChange={(e) => change('query', 'keyword_param', e.target.value)}
+              placeholder="ex: q ou keywords"
+            />
+          </div>
+          <div className="sh-field">
+            <label>Paramètre URL de localisation</label>
+            <input
+              type="text"
+              value={site.query.location_param}
+              onChange={(e) => change('query', 'location_param', e.target.value)}
+              placeholder="ex: location ou place"
+            />
+          </div>
+        </div>
+
+        <div className="sh-site-inspect-action-bar">
+          <button
+            type="button"
+            className="sh-btn-primary"
+            disabled={busy || working || !site.listing_url}
+            onClick={() => inspectPage('listing')}
+          >
+            <Icon name="eye" size={16} />
+            <span>{working ? 'Chargement de la page…' : 'Ouvrir la page et sélectionner visuellement'}</span>
+          </button>
+          {preview?.offers?.[0]?.detail_link && (
+            <button
+              type="button"
+              className="sh-btn-secondary"
+              disabled={busy || working}
+              onClick={() => inspectPage('detail', preview.offers[0].detail_link)}
+            >
+              <Icon name="external" size={16} />
+              <span>Inspecter une fiche de détail réelle</span>
+            </button>
+          )}
+        </div>
+
+        {/* Visual Picker */}
+        <VisualSitePicker inspection={inspection} site={site} onSelector={change} />
+
+        {/* Sélecteurs avancés */}
+        <div className="sh-advanced-selectors-block">
+          <h3>2. Sélecteurs CSS des cartes</h3>
+          <p>Ces sélecteurs sont automatiquement remplis par les clics dans l'aperçu ci-dessus, mais restent ajustables à la main.</p>
+          <div className="sh-form-grid">
+            <div className="sh-field">
+              <label>Carte d’offre complète (conteneur répétitif) *</label>
+              <input
+                type="text"
+                value={site.selectors.card}
+                onChange={(e) => change('selectors', 'card', e.target.value)}
+                placeholder="ex: article.job-card ou li.offer"
+              />
+            </div>
+            {fields.map((key, index) => (
+              <div className="sh-field" key={key}>
+                <label>{labels[index]}</label>
+                <input
+                  type="text"
+                  value={site.selectors[key] || ''}
+                  onChange={(e) => change('selectors', key, e.target.value)}
+                  placeholder={key.includes('link') ? 'a[href]' : '.champ'}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Sélecteurs fiche de détail */}
+        <div className="sh-advanced-selectors-block">
+          <h3>3. Sélecteurs de la fiche de détail (facultatif)</h3>
+          <p>À renseigner si certaines données (description complète, date, etc.) ne figurent pas sur la carte de listing.</p>
+          <div className="sh-form-grid">
+            {fields.slice(1).map((key, index) => (
+              <div className="sh-field" key={`detail-${key}`}>
+                <label>{labels[index + 1]}</label>
+                <input
+                  type="text"
+                  value={site.detail_selectors[key] || ''}
+                  onChange={(e) => change('detail_selectors', key, e.target.value)}
+                  placeholder="ex: .description-body"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Pagination & Limites */}
+        <div className="sh-advanced-selectors-block">
+          <h3>4. Pagination et limites de sécurité</h3>
+          <div className="sh-form-grid">
+            <div className="sh-field">
+              <label>Sélecteur du lien Page Suivante</label>
+              <input
+                type="text"
+                value={site.pagination.next_selector}
+                onChange={(e) => change('pagination', 'next_selector', e.target.value)}
+                placeholder="ex: a.pagination-next"
+              />
+            </div>
+            <div className="sh-field">
+              <label>OU paramètre de page URL</label>
+              <input
+                type="text"
+                value={site.pagination.page_param}
+                onChange={(e) => change('pagination', 'page_param', e.target.value)}
+                placeholder="ex: page ou p"
+              />
+            </div>
+            <div className="sh-field">
+              <label>Pages max par scan (1–5)</label>
+              <input
+                type="number"
+                min="1"
+                max="5"
+                value={site.limits.max_pages}
+                onChange={(e) => change('limits', 'max_pages', Number(e.target.value))}
+              />
+            </div>
+            <div className="sh-field">
+              <label>Offres max par site (1–100)</label>
+              <input
+                type="number"
+                min="1"
+                max="1000"
+                value={site.limits.max_offers}
+                onChange={(e) => change('limits', 'max_offers', Number(e.target.value))}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Boutons d'action */}
+        <div className="sh-site-actions-bar">
+          <button
+            type="button"
+            className="sh-btn-secondary"
+            disabled={busy || working}
+            onClick={() => run('save', { ...site, enabled: false })}
+          >
+            Enregistrer le brouillon
+          </button>
+          <button
+            type="button"
+            className="sh-btn-secondary"
+            disabled={busy || working || !site.listing_url}
+            onClick={() => run('preview', { ...site, enabled: false })}
+          >
+            <Icon name="play" size={15} />
+            <span>{working ? 'Test en cours…' : 'Tester l’extraction réelle'}</span>
+          </button>
+          <button
+            type="button"
+            className="sh-btn-primary"
+            disabled={busy || working || !token}
+            onClick={() => run('save', { ...site, enabled: true })}
+          >
+            <Icon name="check" size={16} />
+            <span>Activer la recette après test</span>
+          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              className="sh-btn-primary"
+              disabled={busy || working || !token}
+              onClick={() => run('publish', { ...site, enabled: true })}
+            >
+              Publier pour tous les profils
+            </button>
+          )}
+          {site.enabled && (
+            <button
+              type="button"
+              className="sh-btn-secondary"
+              disabled={busy || working}
+              onClick={() => run('save', { ...site, enabled: false })}
+            >
+              Désactiver
+            </button>
+          )}
+        </div>
+
+        {error && <div className="sh-history-error-msg"><Icon name="alert" size={14} /><small>{error}</small></div>}
+        {notice && <div className="sh-toast success" role="status">{notice}</div>}
+
+        {/* Rapport de prévisualisation */}
+        {preview && (
+          <div className="sh-site-config-preview">
+            <h3>Résultats du test : {preview.offers.length} offre(s) extraite(s) sur {preview.pages} page(s)</h3>
+            <p className="sh-preview-test-url">
+              URL testée : <a href={preview.listing_url} target="_blank" rel="noreferrer">{preview.listing_url}</a>
+            </p>
+            <div className="sh-preview-offers-list">
+              {preview.offers.map((offer, index) => (
+                <div key={`${offer.detail_link}-${index}`} className="sh-preview-offer-card">
+                  <div className="sh-preview-offer-header">
+                    <strong>{offer.title || 'Titre manquant'}</strong>
+                    <span className="sh-preview-company">{offer.company || 'Entreprise manquante'}</span>
+                    {offer.location && <span className="sh-preview-location">{offer.location}</span>}
+                  </div>
+                  <dl className="sh-preview-details-grid">
+                    {fields.map((key, fieldIndex) => (
+                      <div key={key} className="sh-preview-detail-row">
+                        <dt>{labels[fieldIndex]}</dt>
+                        <dd>{offer[key] || <em className="missing">Non renseigné</em>}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                  {preview.missing?.[index]?.length > 0 && (
+                    <div className="sh-missing-fields-warning">
+                      <Icon name="alert" size={13} />
+                      <span>
+                        Champs manquants : {preview.missing[index].map((key) => labels[fields.indexOf(key)] || key).join(', ')}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
     </div>
-    <p>Le scanner utilise le premier intitulé de poste et le premier pays du profil. Pour une URL à chemin variable, utilise aussi {'{keywords}'} et {'{location}'} dans l’URL.</p>
-    <div className="sh-site-config-test"><button type="button" className="sh-btn-primary"
-      disabled={busy || working || !site.listing_url} onClick={() => inspectPage('listing')}>
-      {working ? 'Chargement…' : 'Ouvrir le site et sélectionner visuellement'}</button>
-      {preview?.offers?.[0]?.detail_link && <button type="button" className="sh-btn-secondary"
-        disabled={busy || working} onClick={() => inspectPage('detail', preview.offers[0].detail_link)}>
-        Sélectionner sur une fiche de détail</button>}</div>
-    <VisualSitePicker inspection={inspection} site={site} onSelector={change} />
-    <h3>Sélecteurs avancés des cartes</h3><div className="sh-site-config-grid">
-      {input('Carte d’offre', site.selectors.card, 'selectors', 'card', { placeholder: '.job-card' })}
-      {fields.map((key, index) => input(labels[index], site.selectors[key], 'selectors', key, { placeholder: key.includes('link') ? 'a[href]' : '.champ' }))}
-    </div>
-    <h3>Page de détail (facultatif)</h3><div className="sh-site-config-grid">
-      {fields.slice(1).map((key, index) => input(labels[index + 1], site.detail_selectors[key], 'detail_selectors', key))}
-    </div>
-    <h3>Pagination et limites</h3><div className="sh-site-config-grid">
-      {input('Lien page suivante', site.pagination.next_selector, 'pagination', 'next_selector', { placeholder: 'a.next' })}
-      {input('Ou paramètre de page', site.pagination.page_param, 'pagination', 'page_param', { placeholder: 'page' })}
-      {input('Page initiale', site.pagination.start, 'pagination', 'start', { type: 'number', min: 0 })}
-      {input('Pas', site.pagination.step, 'pagination', 'step', { type: 'number', min: 1 })}
-      {input('Pages maximum (1–5)', site.limits.max_pages, 'limits', 'max_pages', { type: 'number', min: 1, max: 5 })}
-      {input('Offres maximum (1–100)', site.limits.max_offers, 'limits', 'max_offers', { type: 'number', min: 1, max: 100 })}
-      {input('Détails testés (0–10)', site.limits.max_detail_pages, 'limits', 'max_detail_pages', { type: 'number', min: 0, max: 10 })}
-    </div>
-    <div className="sh-site-config-test">
-      <button type="button" className="sh-btn-secondary" disabled={busy || working} onClick={() => run('save', { ...site, enabled: false })}>Enregistrer le brouillon</button>
-      <button type="button" className="sh-btn-secondary" disabled={busy || working} onClick={() => run('preview', { ...site, enabled: false })}>{working ? 'Test en cours…' : 'Tester sur le site'}</button>
-      <button type="button" className="sh-btn-primary" disabled={busy || working || !token} onClick={() => run('save', { ...site, enabled: true })}>Activer après test</button>
-      {isAdmin && <button type="button" className="sh-btn-primary" disabled={busy || working || !token}
-        onClick={() => run('publish', { ...site, enabled: true })}>Publier pour tous les utilisateurs</button>}
-      {site.enabled && <button type="button" className="sh-btn-secondary" disabled={busy || working} onClick={() => run('save', { ...site, enabled: false })}>Désactiver</button>}
-    </div>
-    {error && <p role="alert" className="sh-history-error-msg">{error}</p>}{notice && <p role="status">{notice}</p>}
-    {preview && <div className="sh-site-config-preview"><h3>Aperçu : {preview.offers.length} offre(s), {preview.pages} page(s)</h3>
-      <p>URL testée : <a href={preview.listing_url} target="_blank" rel="noreferrer">{preview.listing_url}</a></p>
-      {preview.offers.map((offer, index) => <details key={offer.detail_link} open={index === 0}>
-        <summary>{offer.title || 'Titre manquant'} · {offer.company || 'Entreprise manquante'}</summary>
-        <dl>{fields.map((key, fieldIndex) => <React.Fragment key={key}><dt>{labels[fieldIndex]}</dt><dd>{offer[key] || <em>Manquant</em>}</dd></React.Fragment>)}</dl>
-        <p>Champs manquants : {preview.missing[index].length
-          ? preview.missing[index].map((key) => labels[fields.indexOf(key)] || key).join(', ') : 'aucun'}</p>
-      </details>)}</div>}
-  </section>;
+  );
 }

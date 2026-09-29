@@ -148,13 +148,30 @@ def page_url(url, site, index):
 
 
 def inspection_html(html, base_url):
-    """Return an inert, bounded listing snapshot for the visual selector."""
+    """Return an inert, bounded listing snapshot with stylesheets for the visual selector."""
     soup = BeautifulSoup(html, 'html.parser')
-    for node in soup.select('script, style, link, meta, base, iframe, object, embed, form, svg, canvas, video, audio'):
+    for node in soup.select('script, noscript, iframe, object, embed, form, canvas, video, audio'):
         node.decompose()
+
+    styles = []
+    for link in soup.select('link[rel*="stylesheet"], link[as="style"]'):
+        href = link.get('href')
+        if href:
+            target = urljoin(base_url, str(href))
+            if public_http_url(target):
+                link['href'] = target
+                styles.append(str(link))
+        link.decompose()
+
+    for style in soup.select('style'):
+        styles.append(str(style))
+        style.decompose()
+
     for node in soup.find_all(True):
         for key in list(node.attrs):
-            if key not in ('id', 'class', 'href', 'data-url', 'title', 'alt', 'role'):
+            if key.startswith('on') or key in ('srcset', 'ping'):
+                del node.attrs[key]
+            elif key not in ('id', 'class', 'href', 'data-url', 'title', 'alt', 'role', 'style'):
                 del node.attrs[key]
         for key in ('href', 'data-url'):
             if node.has_attr(key):
@@ -162,7 +179,8 @@ def inspection_html(html, base_url):
                 if public_http_url(target): node[key] = target
                 else: del node.attrs[key]
     root = soup.body or soup
-    return ''.join(str(child) for child in root.children)[:250_000]
+    body_content = ''.join(str(child) for child in root.children)
+    return (''.join(styles) + body_content)[:350_000]
 
 
 def crawl_site(site, profile, fetch, with_details=False):

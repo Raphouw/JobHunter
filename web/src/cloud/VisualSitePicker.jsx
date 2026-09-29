@@ -1,107 +1,360 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
+import { Icon } from '../components/Common/Icons';
 
-const listingFields = [
-  ['card', 'Carte complète'], ['detail_link', 'Lien de détail'], ['title', 'Titre'],
-  ['company', 'Entreprise'], ['location', 'Lieu'], ['contract', 'Contrat'],
-  ['date', 'Date'], ['description', 'Description'],
-  ['application_link', 'Lien de candidature'], ['next', 'Page suivante'],
+const LISTING_FIELDS = [
+  { id: 'card', label: 'Carte d’offre', required: true, hint: 'Clique sur le conteneur complet d’une offre d’emploi.' },
+  { id: 'title', label: 'Titre du poste', required: true, hint: 'Clique sur l’intitulé du poste dans la carte.' },
+  { id: 'company', label: 'Entreprise', required: false, hint: 'Clique sur le nom de l’entreprise dans la carte.' },
+  { id: 'location', label: 'Lieu', required: false, hint: 'Clique sur la ville ou le canton dans la carte.' },
+  { id: 'detail_link', label: 'Lien de détail', required: true, hint: 'Clique sur le lien ou titre cliquable menant à l’offre.' },
+  { id: 'contract', label: 'Contrat', required: false, hint: 'Clique sur le type de contrat (Stage, CDI, etc.) si visible.' },
+  { id: 'date', label: 'Date', required: false, hint: 'Clique sur la date de publication si visible.' },
+  { id: 'description', label: 'Description', required: false, hint: 'Clique sur le résumé ou extrait de description.' },
+  { id: 'application_link', label: 'Lien postuler', required: false, hint: 'Clique sur le bouton postuler direct si distinct du lien de détail.' },
+  { id: 'next', label: 'Page suivante', required: false, hint: 'Clique sur le bouton ou lien "Page suivante" de la pagination.' },
 ];
-const detailFields = listingFields.filter(([key]) => !['card', 'detail_link', 'next'].includes(key));
 
-function part(node) {
+const DETAIL_FIELDS = LISTING_FIELDS.filter((f) => !['card', 'detail_link', 'next'].includes(f.id));
+
+const SEQUENCE = ['card', 'title', 'company', 'location', 'detail_link', 'contract', 'date', 'description', 'application_link'];
+
+function cleanClass(name) {
+  if (!name || typeof name !== 'string') return '';
+  if (name.startsWith('jobhunter-') || name.length > 35 || /\d{5,}/.test(name)) return '';
+  if (name.includes(':') || name.includes('/') || name.includes('\\') || name.includes('[')) return '';
+  return name.trim();
+}
+
+function cleanPart(node) {
+  if (!node || !node.tagName) return '';
+  const tag = node.tagName.toLowerCase();
+  if (node.id && !/\d{4,}/.test(node.id) && !node.id.includes(':')) {
+    return `${tag}#${CSS.escape(node.id)}`;
+  }
   const classes = Array.from(node.classList || [])
-    .filter((name) => name.length < 40 && !/\d{5,}/.test(name)).slice(0, 2);
-  return node.tagName.toLowerCase() + classes.map((name) => `.${CSS.escape(name)}`).join('');
+    .map(cleanClass)
+    .filter(Boolean)
+    .slice(0, 2);
+  return tag + classes.map((c) => `.${CSS.escape(c)}`).join('');
 }
 
 function selectorFor(node, root) {
+  if (!node || !root) return '';
   const pieces = [];
   let current = node;
   while (current && current !== root && current.tagName && pieces.length < 5) {
-    pieces.unshift(part(current));
+    pieces.unshift(cleanPart(current));
     const candidate = pieces.join(' > ');
-    try { if (root.querySelectorAll(candidate).length === 1) return candidate; }
-    catch { /* Keep a readable selector for manual adjustment. */ }
+    try {
+      if (root.querySelectorAll(candidate).length === 1) return candidate;
+    } catch (_) {}
     current = current.parentElement;
   }
-  const first = part(node);
+  const first = cleanPart(node);
   const siblings = Array.from(node.parentElement?.children || []).filter((item) => item.tagName === node.tagName);
   return siblings.length > 1 ? `${first}:nth-of-type(${siblings.indexOf(node) + 1})` : first;
 }
 
-const frameStyle = `<style>
-  body{font:14px/1.5 system-ui,sans-serif;color:#18212b;background:#fff;margin:20px}
-  a{color:#0866ba}article,li,[class*="job"],[class*="offer"]{margin:5px 0;padding:5px}
-  *{cursor:crosshair!important}img{max-width:120px} .jobhunter-hover{outline:2px solid #e57819!important;background:#fff3df!important}
-</style>`;
+const frameStyle = `
+  * { cursor: crosshair !important; }
+  .jobhunter-hover {
+    outline: 2.5px solid #fb7185 !important;
+    background: rgba(251, 113, 133, 0.15) !important;
+    transition: outline 0.08s ease !important;
+  }
+  .jobhunter-card-match {
+    outline: 2px dashed #8b5cf6 !important;
+    outline-offset: 2px !important;
+  }
+  .jobhunter-card-active {
+    outline: 3px solid #8b5cf6 !important;
+    background: rgba(139, 92, 246, 0.06) !important;
+    outline-offset: 2px !important;
+  }
+  .jobhunter-field-highlight {
+    outline: 2.5px solid #10b981 !important;
+    background: rgba(16, 185, 129, 0.18) !important;
+  }
+`;
 
 export function VisualSitePicker({ inspection, site, onSelector }) {
   const frame = useRef(null);
-  const [field, setField] = useState('card');
+  const isDetail = inspection?.kind === 'detail';
+  const [field, setField] = useState(isDetail ? 'title' : 'card');
   const [options, setOptions] = useState([]);
   const [version, setVersion] = useState(0);
-  const isDetail = inspection?.kind === 'detail';
-  useEffect(() => { setField(isDetail ? 'title' : 'card'); setOptions([]); }, [inspection?.url, isDetail]);
+  const [feedback, setFeedback] = useState('');
+  const [samples, setSamples] = useState({});
+
+  const fieldsList = isDetail ? DETAIL_FIELDS : LISTING_FIELDS;
+  const currentStep = fieldsList.find((f) => f.id === field) || fieldsList[0];
+
+  useEffect(() => {
+    setField(isDetail ? 'title' : 'card');
+    setOptions([]);
+    setFeedback('');
+  }, [inspection?.url, isDetail]);
+
+  // Synchronize highlights in the iframe when site.selectors change
+  const applyHighlights = (doc) => {
+    if (!doc?.body) return;
+    // Clear previous highlights
+    doc.querySelectorAll('.jobhunter-card-match, .jobhunter-card-active, .jobhunter-field-highlight')
+      .forEach((el) => el.classList.remove('jobhunter-card-match', 'jobhunter-card-active', 'jobhunter-field-highlight'));
+
+    const cardSel = site?.selectors?.card;
+    if (cardSel) {
+      try {
+        const cards = doc.querySelectorAll(cardSel);
+        cards.forEach((card, idx) => {
+          card.classList.add(idx === 0 ? 'jobhunter-card-active' : 'jobhunter-card-match');
+        });
+        const firstCard = cards[0];
+        if (firstCard) {
+          // Highlight configured fields inside first card
+          const configuredKeys = ['title', 'company', 'location', 'detail_link', 'contract', 'date', 'description', 'application_link'];
+          configuredKeys.forEach((key) => {
+            const selector = site?.selectors?.[key];
+            if (selector) {
+              try {
+                const el = firstCard.querySelector(selector);
+                if (el) el.classList.add('jobhunter-field-highlight');
+              } catch (_) {}
+            }
+          });
+        }
+      } catch (_) {}
+    }
+  };
+
+  useEffect(() => {
+    const doc = frame.current?.contentDocument;
+    if (doc?.body) {
+      applyHighlights(doc);
+    }
+  }, [site?.selectors, version]);
+
   useEffect(() => {
     const doc = frame.current?.contentDocument;
     if (!doc?.body || !inspection) return undefined;
-    let highlighted;
+
+    let highlighted = null;
+
     const hover = (event) => {
-      highlighted?.classList.remove('jobhunter-hover');
+      if (highlighted) {
+        highlighted.classList.remove('jobhunter-hover');
+      }
       highlighted = event.target;
-      highlighted?.classList.add('jobhunter-hover');
+      if (highlighted && highlighted !== doc.body) {
+        highlighted.classList.add('jobhunter-hover');
+      }
     };
+
     const click = (event) => {
-      event.preventDefault(); event.stopPropagation();
+      event.preventDefault();
+      event.stopPropagation();
       let target = event.target;
+      if (!target || target === doc.body) return;
+
       if (field === 'card') {
         const choices = [];
-        for (let node = target; node && node !== doc.body && choices.length < 7; node = node.parentElement) {
-          const selector = part(node);
-          const count = doc.querySelectorAll(selector).length;
-          if (count <= 100 && (node.classList.length || count > 1))
-            choices.push({ selector, count, label: node.tagName.toLowerCase() });
+        let bestCandidate = null;
+
+        for (let node = target; node && node !== doc.body && choices.length < 6; node = node.parentElement) {
+          const sel = cleanPart(node);
+          if (!sel) continue;
+          try {
+            const count = doc.querySelectorAll(sel).length;
+            if (count >= 1 && count <= 200) {
+              const item = { selector: sel, count, label: node.tagName.toLowerCase() };
+              choices.push(item);
+              if (!bestCandidate && count >= 2) {
+                bestCandidate = item;
+              }
+            }
+          } catch (_) {}
+        }
+
+        const chosen = bestCandidate || choices[0];
+        if (chosen) {
+          onSelector('selectors', 'card', chosen.selector);
+          setFeedback(`Carte sélectionnée : "${chosen.selector}" (${chosen.count} cartes trouvées sur la page).`);
+          applyHighlights(doc);
+          // Advance to Title
+          setField('title');
         }
         setOptions(choices);
         return;
       }
-      const root = isDetail || field === 'next' ? doc.body
-        : doc.querySelector(site.selectors.card);
-      if (!root || !root.contains(target)) {
-        setOptions([{ error: 'Clique dans la première carte d’offre sélectionnée.' }]);
-        return;
+
+      // Handling inner fields (title, company, location, detail_link, etc.)
+      const cardSelector = site?.selectors?.card;
+      let cardRoot = null;
+      if (cardSelector) {
+        try {
+          cardRoot = target.closest(cardSelector) || doc.querySelector(cardSelector);
+        } catch (_) {}
       }
-      if (field === 'detail_link' || field === 'application_link' || field === 'next')
+
+      // If card was not yet configured, automatically detect parent card container!
+      if (!cardRoot && field !== 'next' && !isDetail) {
+        for (let node = target.parentElement; node && node !== doc.body; node = node.parentElement) {
+          const sel = cleanPart(node);
+          if (!sel) continue;
+          try {
+            const count = doc.querySelectorAll(sel).length;
+            if (count >= 2) {
+              onSelector('selectors', 'card', sel);
+              cardRoot = node;
+              break;
+            }
+          } catch (_) {}
+        }
+      }
+
+      const root = isDetail || field === 'next' ? doc.body : (cardRoot || doc.body);
+
+      if (field === 'detail_link' || field === 'application_link' || field === 'next') {
         target = target.closest('a[href]') || target;
-      onSelector(isDetail ? 'detail_selectors' : field === 'next' ? 'pagination' : 'selectors',
-                 field === 'next' ? 'next_selector' : field, selectorFor(target, root));
+      }
+
+      const relSelector = selectorFor(target, root);
+      if (!relSelector) return;
+
+      const targetSection = isDetail ? 'detail_selectors' : field === 'next' ? 'pagination' : 'selectors';
+      const targetKey = field === 'next' ? 'next_selector' : field;
+
+      onSelector(targetSection, targetKey, relSelector);
+
+      // Extract sample text for instant live feedback
+      let sampleVal = '';
+      if (field.includes('link') || field === 'next') {
+        sampleVal = target.getAttribute('href') || target.href || '';
+      } else {
+        sampleVal = target.innerText?.trim() || target.textContent?.trim() || '';
+      }
+      if (sampleVal.length > 55) sampleVal = sampleVal.slice(0, 55) + '…';
+
+      setSamples((prev) => ({ ...prev, [field]: sampleVal }));
+      setFeedback(`✓ ${currentStep?.label} : "${sampleVal || relSelector}" enregistré.`);
       setOptions([]);
+
+      // Auto-advance to the next field in sequence
+      const nextIdx = SEQUENCE.indexOf(field);
+      if (nextIdx >= 0 && nextIdx < SEQUENCE.length - 1) {
+        const nextId = SEQUENCE[nextIdx + 1];
+        setField(nextId);
+      }
     };
+
     doc.addEventListener('mouseover', hover, true);
     doc.addEventListener('click', click, true);
-    return () => { doc.removeEventListener('mouseover', hover, true);
-      doc.removeEventListener('click', click, true); highlighted?.classList.remove('jobhunter-hover'); };
-  }, [field, inspection, isDetail, onSelector, site.selectors.card, version]);
+
+    return () => {
+      doc.removeEventListener('mouseover', hover, true);
+      doc.removeEventListener('click', click, true);
+      if (highlighted) highlighted.classList.remove('jobhunter-hover');
+    };
+  }, [field, inspection, isDetail, onSelector, site?.selectors?.card, version, currentStep]);
 
   if (!inspection) return null;
-  return <div className="sh-site-picker">
-    <div className="sh-site-picker-toolbar">
-      <strong>{isDetail ? 'Fiche de détail' : 'Page de listings'}</strong>
-      <a href={inspection.url} target="_blank" rel="noreferrer">Voir le site original</a>
-      <label>Élément à sélectionner <select value={field} onChange={(event) => { setField(event.target.value); setOptions([]); }}>
-        {(isDetail ? detailFields : listingFields).map(([key, label]) =>
-          <option key={key} value={key}>{label}</option>)}</select></label>
+
+  return (
+    <div className="sh-site-picker">
+      {/* Top Header & Links */}
+      <div className="sh-site-picker-header">
+        <div>
+          <span className="sh-eyebrow">SÉLECTEUR VISUEL INTERACTIF</span>
+          <h4>{isDetail ? 'Aperçu d’une fiche de détail' : 'Aperçu de la page de listings'}</h4>
+        </div>
+        <div className="sh-site-picker-actions">
+          <a href={inspection.url} target="_blank" rel="noreferrer" className="sh-btn-secondary sm">
+            <Icon name="external" size={13} />
+            <span>Voir le site original</span>
+          </a>
+        </div>
+      </div>
+
+      {/* Stepper Navigation Pills */}
+      <div className="sh-picker-stepper-bar">
+        {fieldsList.map((item, idx) => {
+          const isSelected = field === item.id;
+          const selectorVal = isDetail
+            ? site?.detail_selectors?.[item.id]
+            : item.id === 'next'
+            ? site?.pagination?.next_selector
+            : site?.selectors?.[item.id];
+          const hasVal = Boolean(selectorVal);
+          const sample = samples[item.id];
+
+          return (
+            <button
+              type="button"
+              key={item.id}
+              className={`sh-picker-pill ${isSelected ? 'active' : ''} ${hasVal ? 'configured' : ''}`}
+              onClick={() => {
+                setField(item.id);
+                setOptions([]);
+              }}
+            >
+              <span className="sh-picker-pill-num">{hasVal ? '✓' : idx + 1}</span>
+              <span className="sh-picker-pill-name">{item.label}</span>
+              {hasVal && sample && <span className="sh-picker-pill-sample">"{sample}"</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Action / Guidance banner */}
+      <div className="sh-picker-instruction">
+        <Icon name="info" size={16} />
+        <div>
+          <strong>{currentStep?.label} :</strong> {currentStep?.hint}
+        </div>
+      </div>
+
+      {/* Status / Feedback message */}
+      {feedback && (
+        <div className="sh-picker-feedback-bar">
+          <Icon name="check" size={15} />
+          <span>{feedback}</span>
+        </div>
+      )}
+
+      {/* Multiple Candidate Selector Chips (if card clicked) */}
+      {options.length > 0 && field === 'card' && (
+        <div className="sh-site-picker-options">
+          <span className="sh-options-label">Conteneurs détectés :</span>
+          {options.map((item, index) => (
+            <button
+              type="button"
+              key={`${item.selector}-${index}`}
+              className="sh-btn-secondary sm"
+              onClick={() => {
+                onSelector('selectors', 'card', item.selector);
+                setFeedback(`Carte définie sur : ${item.selector} (${item.count} trouvées)`);
+                setField('title');
+                setOptions([]);
+              }}
+            >
+              <strong>{item.selector}</strong>
+              <small>({item.count} cartes)</small>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Iframe displaying the authentic page */}
+      <div className="sh-picker-frame-wrapper">
+        <iframe
+          ref={frame}
+          title="Aperçu sélectionnable du site"
+          sandbox="allow-same-origin"
+          referrerPolicy="no-referrer"
+          srcDoc={`<!doctype html><html><head><meta charset="utf-8"><base href="${inspection.url}"><style>${frameStyle}</style></head><body>${inspection.html}</body></html>`}
+          onLoad={() => setVersion((v) => v + 1)}
+        />
+      </div>
     </div>
-    <p>Clique l’élément dans la page ci-dessous. Pour une carte complète, choisis ensuite le conteneur proposé. Les sélecteurs restent modifiables dans les champs avancés.</p>
-    {options.length > 0 && <div className="sh-site-picker-options">
-      {options.map((item, index) => item.error ? <span key={index}>{item.error}</span>
-        : <button type="button" key={`${item.selector}-${index}`} onClick={() => {
-          onSelector('selectors', 'card', item.selector); setOptions([]);
-        }}>{item.selector} · {item.count} élément(s)</button>)}
-    </div>}
-    <iframe ref={frame} title="Aperçu sélectionnable du site"
-      sandbox="allow-same-origin" referrerPolicy="no-referrer"
-      srcDoc={`<!doctype html><html><head><meta charset="utf-8">${frameStyle}</head><body>${inspection.html}</body></html>`}
-      onLoad={() => setVersion((value) => value + 1)} />
-  </div>;
+  );
 }

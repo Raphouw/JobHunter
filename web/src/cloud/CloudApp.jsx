@@ -132,6 +132,34 @@ export function CloudApp() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
+  const userEmail = (session?.user?.email || '').trim().toLowerCase();
+  const isOwner = ['confituresmc@gmail.com', 'raph.brassart@gmail.com'].includes(userEmail);
+
+  const navItems = useMemo(() => {
+    const list = [
+      ['dashboard', 'Vue d’ensemble', 'spark'],
+      ['swipe', 'Swiper les offres', 'heart'],
+      ['results', 'Mes offres', 'briefcase'],
+      ['candidatures', 'Candidatures & Carte', 'map'],
+      ['profile', 'Mon profil', 'building'],
+      ['search', 'Recherche & Scan', 'search'],
+      ['candidates', 'Candidats bruts', 'layers'],
+      ['diagnostic', 'Diagnostic', 'layers'],
+      ['connections', 'Connexions Google', 'external'],
+      ['automation', 'Automatisation', 'clock'],
+    ];
+    if (isOwner) {
+      list.push(['sites', 'Sites & Sources', 'globe']);
+    }
+    return list;
+  }, [isOwner]);
+
+  useEffect(() => {
+    if (page === 'sites' && !isOwner) {
+      setPage('dashboard');
+    }
+  }, [page, isOwner]);
   const [notice, setNotice] = useState('');
   const [newName, setNewName] = useState('');
   const [lastDecision, setLastDecision] = useState(null);
@@ -640,7 +668,7 @@ export function CloudApp() {
             </div>
             <nav className="sh-sidebar-nav" aria-label="Menu principal">
               <span className="sh-nav-group-label">NAVIGATION</span>
-              {NAV_ITEMS.map(([id, label, icon]) => (
+              {navItems.map(([id, label, icon]) => (
                 <button key={id} className={`sh-nav-item ${page === id ? 'active' : ''}`}
                   onClick={() => goToPage(id)}><Icon name={icon} size={18} /><span>{label}</span>
                   {id === 'swipe' && stats.pending > 0 && <span className="sh-nav-badge">{stats.pending}</span>}
@@ -662,7 +690,7 @@ export function CloudApp() {
               <button className="sh-mobile-toggle" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 aria-label="Ouvrir le menu"><Icon name="menu" size={22} /></button>
               <div className="sh-breadcrumbs"><span>Stage Hunter</span><span className="sh-sep">/</span>
-                <strong>{NAV_ITEMS.find(([id]) => id === page)?.[1] || 'Accueil'}</strong></div>
+                <strong>{navItems.find(([id]) => id === page)?.[1] || 'Accueil'}</strong></div>
               <div className="sh-topbar-actions">
                 {scan.running && (
                   <div className="sh-scan-status-pill active">
@@ -718,11 +746,13 @@ export function CloudApp() {
                     </form>
                   </section>
                 </div>}
-                {page === 'search' && <><CloudSearchView scanJobs={scanJobs} scanEvents={scanEvents}
+                {page === 'search' && <CloudSearchView scanJobs={scanJobs} scanEvents={scanEvents}
                   workerReady={workerReady} onRun={startScan} onCancel={cancelScan}
-                  onRefresh={loadData} busy={busy} />
+                  onRefresh={loadData} busy={busy} />}
+                {page === 'sites' && isOwner && <div className="sh-view">
                   <SiteConfigEditor profile={profile} accessToken={session.access_token}
-                    onSaved={loadProfiles} busy={busy} /></>}
+                    onSaved={loadProfiles} busy={busy} />
+                </div>}
                 {page === 'candidates' && <RawCandidatesView profileId={profileId}
                   accessToken={session.access_token} scanJobs={scanJobs} />}
                 {page === 'diagnostic' && <DiagnosticView diagnostic={diagnostic} scan={scan} />}
