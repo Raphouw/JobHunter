@@ -268,10 +268,11 @@ export function SearchView({
           <div className="sh-telemetry-header">
             <div>
               <h2>Suivi du scan</h2>
-              <span className="sh-scan-phase-pill">
-                <i className={scan.running ? 'pulse' : ''} />
-                {scan.phase || (scan.running ? 'En cours' : 'Terminé')}
-              </span>
+              {scan.running && (
+                <span className="sh-scan-phase-pill">
+                  {scan.phase || 'En cours'}
+                </span>
+              )}
             </div>
             {scan.lines?.length > 0 && (
               <button

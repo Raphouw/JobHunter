@@ -73,7 +73,22 @@ function App() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [scanMode, setScanMode] = useState('Complet');
+  const [scanMode, setScanMode] = useState(() => {
+    try {
+      return localStorage.getItem('jobhunter_local_scan_mode') || 'Complet';
+    } catch {
+      return 'Complet';
+    }
+  });
+
+  useEffect(() => {
+    if (state?.scan?.mode) {
+      setScanMode(state.scan.mode);
+      try {
+        localStorage.setItem('jobhunter_local_scan_mode', state.scan.mode);
+      } catch (_) {}
+    }
+  }, [state?.scan?.mode]);
 
   const flash = (msg) => {
     setNotice(msg);
@@ -490,25 +505,16 @@ function App() {
           <div className="sh-topbar-actions">
             {/* Scan Activity Status */}
             {(() => {
+              if (!scan.running) return null;
               const isCurrent = !scan.profile || scan.profile === profileId;
-              const pillClass = scan.running
-                ? isCurrent
-                  ? 'active'
-                  : 'other-profile'
+              const pillClass = isCurrent ? 'active' : 'other-profile';
+              const pillText = isCurrent ? 'Scan en cours' : `Scan sur ${scan.profile_name || scan.profile}`;
+              const pillTitle = !isCurrent
+                ? `Scan en cours d'exécution sur le profil « ${scan.profile_name || scan.profile} »`
                 : '';
-              const pillText = scan.running
-                ? isCurrent
-                  ? 'Scan en cours'
-                  : `Scan sur ${scan.profile_name || scan.profile}`
-                : 'Moteur prêt';
-              const pillTitle =
-                scan.running && !isCurrent
-                  ? `Scan en cours d'exécution sur le profil « ${scan.profile_name || scan.profile} »`
-                  : '';
 
               return (
                 <div className={`sh-scan-status-pill ${pillClass}`} title={pillTitle}>
-                  <span className="sh-scan-dot" />
                   <span>{pillText}</span>
                 </div>
               );

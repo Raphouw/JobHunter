@@ -8,6 +8,7 @@ import { DiagnosticView } from '../components/Diagnostic/DiagnosticView';
 import { ApplicationsAtlas } from '../design-lab/ApplicationsAtlas';
 import { CloudSearchView, CloudConnectionsView, CloudAutomationView } from './CloudFeatureViews';
 import { RawCandidatesView } from './RawCandidatesView';
+import { SiteConfigEditor } from './SiteConfigEditor';
 import { DeleteProfileDialog, ProfileSwitcher } from './ProfileSwitcher';
 import { supabase, unwrap } from './client';
 
@@ -325,6 +326,8 @@ export function CloudApp() {
 
   const saveProfile = (form) => run(async () => {
     const { id, name, ...config } = form;
+    const latest = unwrap(await supabase.from('hunter_profiles').select('config').eq('id', profileId).single());
+    config.sources = { ...(config.sources || {}), sites: latest?.config?.sources?.sites || [] };
     unwrap(await supabase.from('hunter_profiles')
       .update({ name, config }).eq('id', profileId));
     await loadProfiles();
@@ -562,9 +565,12 @@ export function CloudApp() {
 
   const visiblePendingOffers = useMemo(() => {
     const rejected = offers.filter((offer) => offer.review_decision === 'reject');
+    const activeScan = scanJobs.find((job) => ['queued', 'running'].includes(job.status));
+    const activeStart = activeScan?.created_at ? new Date(activeScan.created_at).getTime() : Infinity;
     return offers.filter((offer) => offer.review_decision === 'pending'
+      && new Date(offer.discovered_at).getTime() < activeStart
       && !matchesRejectedOffer(offer, rejected));
-  }, [offers]);
+  }, [offers, scanJobs]);
   const stats = useMemo(() => {
     const result = { pending: 0, keep: 0, unsure: 0, reject: 0 };
     offers.forEach((offer) => { if (offer.review_decision in result) result[offer.review_decision] += 1; });
@@ -658,9 +664,11 @@ export function CloudApp() {
               <div className="sh-breadcrumbs"><span>Stage Hunter</span><span className="sh-sep">/</span>
                 <strong>{NAV_ITEMS.find(([id]) => id === page)?.[1] || 'Accueil'}</strong></div>
               <div className="sh-topbar-actions">
-                <div className={`sh-scan-status-pill ${scan.running ? 'active' : ''}`}>
-                  <span className="sh-scan-dot" /><span>{scan.running ? 'Scan en cours' : workerReady ? 'Moteur prêt' : 'Moteur à configurer'}</span>
-                </div>
+                {scan.running && (
+                  <div className="sh-scan-status-pill active">
+                    <span>Scan en cours</span>
+                  </div>
+                )}
                 <ProfileSwitcher profiles={profiles} activeId={profileId} onSelect={setProfileId}
                   onCreate={createProfile} onDelete={prepareDeleteProfile} busy={busy} />
                 <button className="sh-btn-secondary" onClick={() => supabase.auth.signOut()}>Déconnexion</button>
@@ -710,9 +718,11 @@ export function CloudApp() {
                     </form>
                   </section>
                 </div>}
-                {page === 'search' && <CloudSearchView scanJobs={scanJobs} scanEvents={scanEvents}
+                {page === 'search' && <><CloudSearchView scanJobs={scanJobs} scanEvents={scanEvents}
                   workerReady={workerReady} onRun={startScan} onCancel={cancelScan}
-                  onRefresh={loadData} busy={busy} />}
+                  onRefresh={loadData} busy={busy} />
+                  <SiteConfigEditor profile={profile} accessToken={session.access_token}
+                    onSaved={loadProfiles} busy={busy} /></>}
                 {page === 'candidates' && <RawCandidatesView profileId={profileId}
                   accessToken={session.access_token} scanJobs={scanJobs} />}
                 {page === 'diagnostic' && <DiagnosticView diagnostic={diagnostic} scan={scan} />}

@@ -4,7 +4,7 @@ import { Icon } from '../Common/Icons';
 export function LiveActivityTicker({ scan = {}, mode = '' }) {
   const isRunning = !!scan.running;
   const currentAction = scan.current_action || {
-    text: isRunning ? 'Exploration en cours...' : 'Moteur prêt pour le prochain scan',
+    text: isRunning ? 'Exploration en cours...' : '',
     type: isRunning ? 'active' : 'idle',
     timestamp: '',
   };
@@ -26,28 +26,34 @@ export function LiveActivityTicker({ scan = {}, mode = '' }) {
       case 'sync':
         return 'external';
       default:
-        return 'spark';
+        return 'search';
     }
   };
+
+  const displayText = currentAction.text || (isRunning ? 'Exploration en cours...' : 'Prêt pour le prochain scan.');
 
   return (
     <div className={`sh-gemini-single-ticker ${isRunning ? 'active' : ''}`}>
       <div className="sh-ticker-left">
-        <span className="sh-gemini-sparkle">✦</span>
-        <strong className="sh-ticker-lead">Moteur IA en direct</strong>
-        <span className="sh-ticker-sep">·</span>
-        <span className={`sh-ticker-badge ${isRunning ? 'running' : 'idle'}`}>
-          <span className={`sh-ticker-dot ${isRunning ? 'pulse' : ''}`} />
-          {isRunning ? (mode ? `En cours (${mode})` : 'En cours') : 'En attente'}
-        </span>
+        <strong className="sh-ticker-lead">Moteur IA direct</strong>
+        {isRunning && (
+          <>
+            <span className="sh-ticker-sep">·</span>
+            <span className="sh-ticker-badge running">
+              {mode ? `En cours (${mode})` : 'En cours'}
+            </span>
+          </>
+        )}
       </div>
 
       <div className="sh-ticker-center">
-        <div className={`sh-ticker-icon-box ${isRunning ? 'pulse-icon' : ''}`}>
-          <Icon name={getActionIcon(currentAction.type)} size={15} />
-        </div>
-        <span className="sh-ticker-action-text" title={currentAction.text}>
-          {currentAction.text || 'Prêt pour le prochain scan.'}
+        {isRunning && currentAction.type && (
+          <div className="sh-ticker-icon-box">
+            <Icon name={getActionIcon(currentAction.type)} size={14} />
+          </div>
+        )}
+        <span className="sh-ticker-action-text" title={displayText}>
+          {displayText}
         </span>
       </div>
 

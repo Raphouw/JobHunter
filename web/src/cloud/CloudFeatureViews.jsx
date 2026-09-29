@@ -57,7 +57,13 @@ function formatDuration(totalSeconds = 0) {
 }
 
 export function CloudSearchView({ scanJobs = [], scanEvents = [], workerReady = false, onRun, onCancel, onRefresh, busy = false }) {
-  const [mode, setMode] = useState('Complet');
+  const [mode, setMode] = useState(() => {
+    try {
+      return localStorage.getItem('jobhunter_cloud_scan_mode') || 'Complet';
+    } catch {
+      return 'Complet';
+    }
+  });
   const [elapsed, setElapsed] = useState(0);
   const [autoScroll, setAutoScroll] = useState(true);
   const [downloadError, setDownloadError] = useState('');
@@ -66,6 +72,15 @@ export function CloudSearchView({ scanJobs = [], scanEvents = [], workerReady = 
   const active = scanJobs.find((job) => ['queued', 'running'].includes(job.status));
   const latestJob = scanJobs[0];
   const isRunning = !!active;
+
+  useEffect(() => {
+    if (active?.mode) {
+      setMode(active.mode);
+      try {
+        localStorage.setItem('jobhunter_cloud_scan_mode', active.mode);
+      } catch (_) {}
+    }
+  }, [active?.mode]);
 
   // 1-second client timer for active scan
   useEffect(() => {
@@ -83,8 +98,8 @@ export function CloudSearchView({ scanJobs = [], scanEvents = [], workerReady = 
   }, [active?.id, active?.created_at]);
 
   // Expected duration & progress calculation
-  const currentMode = active ? active.mode : mode;
-  const expectedSec = MODE_DESCRIPTIONS[currentMode]?.seconds || 600;
+  const effectiveMode = active?.mode || mode;
+  const expectedSec = MODE_DESCRIPTIONS[effectiveMode]?.seconds || 600;
   const progressPercent = active
     ? (active.progress_percent !== undefined && active.progress_percent !== null
         ? Math.max(6, Math.min(99, active.progress_percent))
@@ -140,8 +155,8 @@ export function CloudSearchView({ scanJobs = [], scanEvents = [], workerReady = 
   const tickerScan = {
     running: isRunning,
     current_action: {
-      text: lastEvent ? lastEvent.message : (isRunning ? `Phase : ${SCAN_PHASES[active?.phase] || active?.phase}...` : 'Moteur prêt pour le prochain scan'),
-      type: active?.phase === 'discover' ? 'search' : active?.phase === 'analyze' ? 'analyze' : 'spark',
+      text: lastEvent ? lastEvent.message : (isRunning ? `Phase : ${SCAN_PHASES[active?.phase] || active?.phase}...` : ''),
+      type: active?.phase === 'discover' ? 'search' : active?.phase === 'analyze' ? 'analyze' : 'browse',
       timestamp: lastEvent?.created_at ? new Date(lastEvent.created_at).toLocaleTimeString('fr-FR') : '',
     }
   };
@@ -170,13 +185,19 @@ export function CloudSearchView({ scanJobs = [], scanEvents = [], workerReady = 
 
         <div className="sh-mode-grid">
           {Object.entries(MODE_DESCRIPTIONS).map(([key, meta]) => {
-            const isSelected = mode === key;
+            const isSelected = effectiveMode === key;
             return (
               <button
                 key={key}
                 type="button"
                 className={`sh-mode-card ${isSelected ? 'selected' : ''}`}
-                onClick={() => setMode(key)}
+                onClick={() => {
+                  if (isRunning) return;
+                  setMode(key);
+                  try {
+                    localStorage.setItem('jobhunter_cloud_scan_mode', key);
+                  } catch (_) {}
+                }}
                 disabled={isRunning}
               >
                 <div className="sh-mode-top">
@@ -198,7 +219,7 @@ export function CloudSearchView({ scanJobs = [], scanEvents = [], workerReady = 
           <button
             type="button"
             className={`sh-btn-launch ${isRunning ? 'running' : ''}`}
-            onClick={() => onRun(mode)}
+            onClick={() => onRun(effectiveMode)}
             disabled={!workerReady || busy || isRunning}
           >
             {isRunning ? (
@@ -209,7 +230,7 @@ export function CloudSearchView({ scanJobs = [], scanEvents = [], workerReady = 
             ) : (
               <>
                 <Icon name="play" size={18} />
-                <span>Lancer le scan ({mode})</span>
+                <span>Lancer le scan ({effectiveMode})</span>
               </>
             )}
           </button>
@@ -243,18 +264,14 @@ export function CloudSearchView({ scanJobs = [], scanEvents = [], workerReady = 
       {/* ACTIVE SCAN PROGRESS & TELEMETRY */}
       {(isRunning || latestJob) && (
         <section className="sh-search-section sh-telemetry-section">
-          {/* Live Activity Ticker */}
-          <LiveActivityTicker scan={tickerScan} mode={active?.mode || latestJob?.mode || mode} />
-
           <div className="sh-telemetry-header">
             <div>
               <h2>Suivi du scan</h2>
-              <span className="sh-scan-phase-pill">
-                <i className={isRunning ? 'pulse' : ''} />
-                {active
-                  ? (SCAN_PHASES[active.phase] || active.phase)
-                  : (latestJob ? (SCAN_STATUSES[latestJob.status] || latestJob.status) : 'Prêt')}
-              </span>
+              {isRunning && active && (
+                <span className="sh-scan-phase-pill">
+                  {SCAN_PHASES[active.phase] || active.phase || 'En cours'}
+                </span>
+              )}
             </div>
             {terminalLines.length > 0 && (
               <button
@@ -299,8 +316,9 @@ export function CloudSearchView({ scanJobs = [], scanEvents = [], workerReady = 
             </div>
           </div>
 
-          {/* Real-time Colored Terminal */}
+          {/* Real-time Ticker & Colored Terminal */}
           <div className="sh-terminal-wrapper">
+            <LiveActivityTicker scan={tickerScan} mode={effectiveMode} />
             <ColoredTerminal
               lines={terminalLines}
               autoScroll={autoScroll}

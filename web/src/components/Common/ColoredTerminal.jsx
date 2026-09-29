@@ -104,7 +104,6 @@ export function ColoredTerminal({
       {/* Top Header Bar */}
       <div className="sh-terminal-header">
         <div className="sh-terminal-title">
-          <span className="sh-terminal-led" />
           <strong>Journal d'exécution en direct</strong>
           <span className="sh-line-count">
             {filter === 'all'
@@ -129,21 +128,21 @@ export function ColoredTerminal({
             className={`sh-term-filter-btn green ${filter === 'retained' ? 'active' : ''}`}
             onClick={() => setFilter('retained')}
           >
-            ★ Retenues ({counts.retained})
+            Retenues ({counts.retained})
           </button>
           <button
             type="button"
             className={`sh-term-filter-btn red ${filter === 'removed' ? 'active' : ''}`}
             onClick={() => setFilter('removed')}
           >
-            ✕ Écartées ({counts.removed})
+            Écartées ({counts.removed})
           </button>
           <button
             type="button"
             className={`sh-term-filter-btn danger ${filter === 'error' ? 'active' : ''}`}
             onClick={() => setFilter('error')}
           >
-            ⚠ Erreurs ({counts.error})
+            Erreurs ({counts.error})
           </button>
         </div>
 
