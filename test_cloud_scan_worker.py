@@ -124,6 +124,10 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual(store.released[0], "finish")
         self.assertIn("partial_reason", store.released[1])
         self.assertIn("restent en attente", store.events[0])
+        store.released = None
+        with patch.object(worker, "release", side_effect=lambda s, j, p, c, n: setattr(store, "released", (p, c))):
+            worker.discover(store, job, None, None)
+        self.assertEqual(store.released[0], "finish")
 
     def test_deduplication_and_resume_after_save(self):
         store = FakeCandidateStore()

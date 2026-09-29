@@ -376,6 +376,8 @@ def apply_decisions(store, job, changes):
 
 
 def discover(store, job, engine, profile):
+    if stop_at_scan_limit(store, job):
+        return
     checkpoint = dict(job.get("checkpoint") or {})
     checkpoint["failure_streak"] = 0
     query_limit, site_limit, _, _ = MODE_LIMITS[job["mode"]]
@@ -535,13 +537,19 @@ def scan_limit_reached(job):
     return None
 
 
+def stop_at_scan_limit(store, job):
+    reason = scan_limit_reached(job)
+    if not reason:
+        return False
+    checkpoint = dict(job.get("checkpoint") or {})
+    checkpoint["partial_reason"] = reason
+    store.event(job, f"Scan partiel · {reason}. Les pistes restantes restent en attente, sans rejet.")
+    release(store, job, "finish", checkpoint, 96)
+    return True
+
+
 def analyze(store, job, engine, profile):
-    limit_reason = scan_limit_reached(job)
-    if limit_reason:
-        checkpoint = dict(job.get("checkpoint") or {})
-        checkpoint["partial_reason"] = limit_reason
-        store.event(job, f"Scan partiel · {limit_reason}. Les pistes restantes restent en attente, sans rejet.")
-        release(store, job, "finish", checkpoint, 96)
+    if stop_at_scan_limit(store, job):
         return
     due_at = urllib.parse.quote(utc_now(), safe="")
     pending = store.rows("hunter_scan_candidates",
