@@ -176,7 +176,7 @@ export function ApplicationsAtlas({ candidatures = [], profileId, accessToken, b
       return;
     }
     if (event.target.closest?.('[data-point]')) return;
-    dragRef.current = { x: event.clientX, y: event.clientY, origin: mapPoint(svgRef.current, event.clientX, event.clientY) };
+    dragRef.current = { x: event.clientX, y: event.clientY, view };
   };
   const panMove = (event) => {
     if (pointersRef.current.has(event.pointerId)) pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -189,11 +189,21 @@ export function ApplicationsAtlas({ candidatures = [], profileId, accessToken, b
       suppressClickRef.current = true;
       return;
     }
-    if (!dragRef.current) return;
-    if (Math.hypot(event.clientX - dragRef.current.x, event.clientY - dragRef.current.y) < 4) return;
-    if (!svgRef.current.hasPointerCapture(event.pointerId)) svgRef.current.setPointerCapture(event.pointerId);
-    const current = mapPoint(svgRef.current, event.clientX, event.clientY);
-    setView((previous) => ({ ...previous, x: previous.x + dragRef.current.origin.x - current.x, y: previous.y + dragRef.current.origin.y - current.y }));
+    const drag = dragRef.current;
+    if (!drag || !pointersRef.current.has(event.pointerId)) return;
+    const dx = event.clientX - drag.x;
+    const dy = event.clientY - drag.y;
+    if (Math.hypot(dx, dy) < 4) return;
+    const svg = svgRef.current;
+    if (!svg) return;
+    const bounds = svg.getBoundingClientRect();
+    if (!bounds.width || !bounds.height) return;
+    if (!svg.hasPointerCapture(event.pointerId)) svg.setPointerCapture(event.pointerId);
+    setView({
+      ...drag.view,
+      x: drag.view.x - dx * 1000 / (drag.view.scale * bounds.width),
+      y: drag.view.y - dy * 980 / (drag.view.scale * bounds.height),
+    });
     suppressClickRef.current = true;
   };
   const panEnd = (event) => { pointersRef.current.delete(event.pointerId); dragRef.current = null; if (pointersRef.current.size < 2) gestureRef.current = null; window.setTimeout(() => { suppressClickRef.current = false; }, 0); };
