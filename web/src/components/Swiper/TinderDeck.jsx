@@ -15,11 +15,17 @@ function ActionIcon({ name }) {
   return <svg {...common}><path d="m4.5 12.5 5 5 10-11" /></svg>;
 }
 
-function Underlay({ depth, progress }) {
+function Underlay({ offer, depth, progress }) {
   const scale = useTransform(progress, [0, 1], depth === 1 ? [0.955, 1] : [0.91, 0.955]);
   const y = useTransform(progress, [0, 1], depth === 1 ? [20, 0] : [39, 20]);
   const rotate = useTransform(progress, [0, 1], depth === 1 ? [-2.4, 0] : [2.8, -2.4]);
-  return <motion.div className="match-underlay" style={{ scale, y, rotate, zIndex: 3 - depth }} aria-hidden="true" />;
+  return <motion.div className="match-underlay" style={{ scale, y, rotate, zIndex: 3 - depth }} aria-hidden="true">
+    <div className="match-underlay-preview">
+      <div><strong>{offer.company || 'Entreprise inconnue'}</strong><span>{offer.location || offer.canton || 'Lieu à confirmer'}</span></div>
+      <span className="match-underlay-score">{Math.max(0, Math.min(100, Math.round(Number(offer.score) || 0)))}<small>match</small></span>
+      <h2>{offer.title || 'Offre sans titre'}</h2>
+    </div>
+  </motion.div>;
 }
 
 export function TinderDeck({ offers = [], stats = {}, busy = false, onDecide, onUndo, onRequeue, onGoToPage, onTransferCandidature }) {
@@ -115,8 +121,8 @@ export function TinderDeck({ offers = [], stats = {}, busy = false, onDecide, on
 
     <div className="match-deck-area">
       {current ? <div className="match-stack">
-        {next2 && <Underlay key={`third-${next2.id || next2.url || next2.title}`} depth={2} progress={dragDistance} />}
-        {next1 && <Underlay key={`second-${next1.id || next1.url || next1.title}`} depth={1} progress={dragDistance} />}
+        {next2 && <Underlay key={`third-${next2.id || next2.url || next2.title}`} offer={next2} depth={2} progress={dragDistance} />}
+        {next1 && <Underlay key={`second-${next1.id || next1.url || next1.title}`} offer={next1} depth={1} progress={dragDistance} />}
         <TinderCard key={`front-${current.id || current.url || current.title}`} offer={current} isFront x={x} y={y} rotate={rotate} disabled={busy || flight || !!selectedOffer} onDragEnd={handleDragEnd} onOpenDetails={setSelectedOffer} />
       </div> : <div className="match-empty"><span>LA FILE EST VIDE</span><h2>{offers.length ? 'Aucune offre avec ces filtres.' : 'Toutes les offres sont parcourues.'}</h2><p>{offers.length ? 'Ajustez le score ou le lieu pour retrouver des opportunités.' : 'Vous pouvez reprendre les offres mises à revoir ou lancer une nouvelle recherche.'}</p><div>{offers.length > 0 && <button onClick={() => { setMinScore(0); setCantonFilter('all'); }}>Effacer les filtres</button>}{stats.unsure > 0 && onRequeue && <button onClick={() => onRequeue({ all_unsure: true })} disabled={busy}>Reprendre à revoir ({stats.unsure})</button>}{onGoToPage && <button onClick={() => onGoToPage('search')}>Nouvelle recherche ↗</button>}</div></div>}
     </div>
