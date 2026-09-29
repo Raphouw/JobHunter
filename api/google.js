@@ -1,7 +1,7 @@
 import { createCipheriv, createDecipheriv, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://seacseklrbucmgxaykgc.supabase.co';
-const PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_wQCX6LA7JVPRaL5cE-Lfsw_oUxISayf';
+const PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || 'sb_publishable_wQCX6LA7JVPRaL5cE-Lfsw_oUxISayf';
 const SCOPES = [
   'openid', 'email',
   'https://www.googleapis.com/auth/spreadsheets',
@@ -97,11 +97,13 @@ async function authenticatedUser(request) {
 }
 
 async function database(path, settings, options = {}) {
+  const serviceKey = settings.serviceKey || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceKey) throw new Error('SUPABASE_SERVICE_ROLE_KEY manquante pour interroger la base de données');
   const result = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     ...options,
     headers: {
-      apikey: settings.serviceKey,
-      Authorization: `Bearer ${settings.serviceKey}`,
+      apikey: serviceKey,
+      Authorization: `Bearer ${serviceKey}`,
       'Content-Type': 'application/json',
       ...(options.headers || {}),
     },

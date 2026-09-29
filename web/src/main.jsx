@@ -15,7 +15,12 @@ import { ApplicationsAtlas } from './design-lab/ApplicationsAtlas';
 
 const CloudApp = React.lazy(() => import('./cloud/CloudApp'));
 const SwiperDesignLab = React.lazy(() => import('./design-lab/SwiperDesignLab'));
-const cloudEnabled = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY);
+const cloudEnabled =
+  import.meta.env.MODE === 'cloud' ||
+  Boolean(
+    import.meta.env.VITE_SUPABASE_URL &&
+    (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY)
+  );
 const designLabEnabled = window.location.pathname.replace(/\/$/, '') === '/design-lab/swiper';
 const atlasLabEnabled = window.location.pathname.replace(/\/$/, '') === '/design-lab/applications-map-v2';
 

@@ -2,7 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Icon } from '../Common/Icons';
 import { COUNTRIES, REGIONS_BY_COUNTRY, geocodeCandidature } from './europeMapData';
 
-export function AddCandidatureModal({ prefill = null, onClose, onSave, busy = false }) {
+const isUuid = (val) => typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
+export function AddCandidatureModal({ prefill = null, isEdit = false, onClose, onSave, busy = false }) {
+  const isEditing = Boolean(isEdit || prefill?.status_history || (prefill?.id && isUuid(prefill.id)));
   const [company, setCompany] = useState('');
   const [country, setCountry] = useState('CH');
   const [region, setRegion] = useState('VD');
@@ -82,6 +85,11 @@ export function AddCandidatureModal({ prefill = null, onClose, onSave, busy = fa
     }
     setError('');
 
+    const rawOfferId = isEditing
+      ? prefill?.offer_id
+      : (prefill?.offer_id || (Number.isInteger(Number(prefill?.id)) && Number(prefill?.id) > 0 ? Number(prefill.id) : null));
+    const offerId = Number.isInteger(Number(rawOfferId)) && Number(rawOfferId) > 0 ? Number(rawOfferId) : null;
+
     const candidature = {
       company: company.trim(),
       country: country || 'CH',
@@ -97,7 +105,7 @@ export function AddCandidatureModal({ prefill = null, onClose, onSave, busy = fa
       rating: Number(rating) || 0,
       status: status || 'Demande initiale',
       contact_email: contactEmail.trim(),
-      offer_id: prefill?.offer_id || (prefill?.status_history ? null : prefill?.id) || null,
+      offer_id: offerId,
     };
 
     const saved = await onSave(candidature);
@@ -114,7 +122,7 @@ export function AddCandidatureModal({ prefill = null, onClose, onSave, busy = fa
             <span className="sh-modal-icon">💼</span>
             <div>
               <h3>
-                {prefill?.id
+                {isEditing
                   ? 'Modifier la candidature'
                   : prefill?.company
                   ? 'Ajouter aux candidatures postulées'
@@ -268,7 +276,7 @@ export function AddCandidatureModal({ prefill = null, onClose, onSave, busy = fa
               Annuler
             </button>
             <button type="submit" className="sh-btn-primary" disabled={busy}>
-              {busy ? 'Enregistrement…' : prefill?.id ? 'Mettre à jour' : '🚀 Ajouter & Placer sur la carte'}
+              {busy ? 'Enregistrement…' : isEditing ? 'Mettre à jour' : '🚀 Ajouter & Placer sur la carte'}
             </button>
           </div>
         </form>

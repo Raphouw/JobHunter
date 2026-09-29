@@ -25,11 +25,11 @@ class handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
-        base = os.getenv("SUPABASE_URL", "").rstrip("/")
+        base = (os.getenv("SUPABASE_URL") or "https://seacseklrbucmgxaykgc.supabase.co").rstrip("/")
         key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
         authorization = self.headers.get("Authorization", "")
         if not base or not key:
-            return self.respond(503, {"error": "Service de candidats non configuré"})
+            return self.respond(503, {"error": "Service de candidats non configuré (SUPABASE_SERVICE_ROLE_KEY manquant)"})
         if not authorization.startswith("Bearer "):
             return self.respond(401, {"error": "Authentification requise"})
         params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)

@@ -45,8 +45,8 @@ class handler(BaseHTTPRequestHandler):
             if not authorization.startswith("Bearer ") or not job_id:
                 self.respond(401, {"error": "Authentification requise"})
                 return
-            url = os.getenv("SUPABASE_URL").rstrip("/")
-            publishable = os.getenv("SUPABASE_PUBLISHABLE_KEY", "sb_publishable_wQCX6LA7JVPRaL5cE-Lfsw_oUxISayf")
+            url = (os.getenv("SUPABASE_URL") or "https://seacseklrbucmgxaykgc.supabase.co").rstrip("/")
+            publishable = os.getenv("SUPABASE_PUBLISHABLE_KEY") or os.getenv("SUPABASE_ANON_KEY") or "sb_publishable_wQCX6LA7JVPRaL5cE-Lfsw_oUxISayf"
             user_request = urllib.request.Request(f"{url}/auth/v1/user", headers={
                 "apikey": publishable, "Authorization": authorization})
             try:

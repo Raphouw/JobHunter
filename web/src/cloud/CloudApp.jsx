@@ -332,15 +332,31 @@ export function CloudApp() {
 
   const saveCandidature = (data) => run(async () => {
     const now = new Date();
-    const candId = data.id || undefined;
+    const isUuid = (val) => typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+    const hasValidUuid = isUuid(data.id);
+    const candId = hasValidUuid ? data.id : undefined;
+
+    let rawOfferId = data.offer_id;
+    if (!rawOfferId && !hasValidUuid && Number.isInteger(Number(data.id)) && Number(data.id) > 0) {
+      rawOfferId = Number(data.id);
+    }
+    const offerId = Number.isInteger(Number(rawOfferId)) && Number(rawOfferId) > 0 ? Number(rawOfferId) : null;
+
     const payload = {
       ...data,
+      offer_id: offerId,
       user_id: session.user.id,
       profile_id: profileId,
       updated_at: now.toISOString(),
     };
-    if (candId) payload.id = candId;
-    if (!data.id) {
+
+    if (candId) {
+      payload.id = candId;
+    } else {
+      delete payload.id;
+    }
+
+    if (!candId) {
       payload.created_at = now.toISOString();
       const day = String(now.getDate()).padStart(2, '0');
       const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -364,7 +380,7 @@ export function CloudApp() {
       localStorage.setItem(`sh_candidatures_${profileId}`, JSON.stringify(next));
       return next;
     });
-  }, data.id ? 'Candidature modifiée.' : 'Nouvelle candidature enregistrée.');
+  }, data.id && isUuid(data.id) ? 'Candidature modifiée.' : 'Nouvelle candidature enregistrée.');
 
   const updateCandidatureStatus = (candId, newStatus) => {
     const now = new Date();

@@ -951,6 +951,7 @@ export function CandidaturesView({
       {showAddModal && (
         <AddCandidatureModal
           prefill={prefillFromOffer}
+          isEdit={false}
           busy={busy}
           onClose={() => {
             setShowAddModal(false);
@@ -970,6 +971,7 @@ export function CandidaturesView({
       {editingCandidature && (
         <AddCandidatureModal
           prefill={editingCandidature}
+          isEdit={true}
           busy={busy}
           onClose={() => setEditingCandidature(null)}
           onSave={async (data) => {

@@ -1,4 +1,4 @@
-import{r as o,R as e}from"./index-ZbDZvHAX.js";const N="Dufour Aerospace",h="Dübendorf, CH",k="Internship - Embedded Software",f="6 mois",g="Anglais",y=77,C="Automatique / contrôle, Systèmes embarqués, Électronique, Informatique, Robotique / SLAM, Firmware / microcontrôleurs",A=`Type de contrat ciblé confirmé
+import{r as o,R as e}from"./index-CBqydG66.js";const N="Dufour Aerospace",h="Dübendorf, CH",k="Internship - Embedded Software",f="6 mois",g="Anglais",y=77,C="Automatique / contrôle, Systèmes embarqués, Électronique, Informatique, Robotique / SLAM, Firmware / microcontrôleurs",A=`Type de contrat ciblé confirmé
 Compétences ciblées: Automatique / contrôle, Systèmes embarqués, Électronique, Informatique, Robotique / SLAM, Firmware / microcontrôleurs
 Métier proche du titre ciblé: embedded
 Secteurs ciblés: embedded systems, robotics

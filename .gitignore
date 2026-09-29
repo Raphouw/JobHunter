@@ -4,6 +4,7 @@ web/.env.production.local
 .venv/
 __pycache__/
 *.py[cod]
+*.log
 credentials/
 output/
 scheduled_tasks/
