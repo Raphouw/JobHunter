@@ -208,5 +208,5 @@ Supabase existant (`sources.sites`). Les sites sans configuration continuent à 
 analysés par l’extracteur générique. Les pages qui exigent JavaScript, une session ou
 un CAPTCHA peuvent ne rien retourner. Le test inspecte la première page et jusqu’à
 trois fiches de détail ; le scan applique les limites de parcours enregistrées.
-La migration `20260929194700_listing_application_url.sql` ajoute les champs persistés
+La migration `20260929200910_listing_application_url.sql` ajoute les champs persistés
 de contrat, date de publication et lien de candidature aux offres cloud.
