@@ -2,13 +2,29 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../Common/Icons';
 import { ResetProfileModal } from './ResetProfileModal';
 
+const linesToString = (arr) => (Array.isArray(arr) ? arr.join('\n') : String(arr || ''));
+const commaListToString = (arr) => (Array.isArray(arr) ? arr.join(', ') : String(arr || ''));
+const profileDrafts = (profile) => ({
+  job_titles: linesToString(profile.target?.job_titles),
+  sectors: linesToString(profile.target?.sectors),
+  core: linesToString(profile.skills?.core),
+  strong_domains: linesToString(profile.skills?.strong_domains),
+  red_flags: linesToString(profile.target?.red_flags || profile.search?.red_flags),
+  soft_red_flags: linesToString(profile.target?.soft_red_flags || profile.search?.soft_red_flags),
+  countries: commaListToString(profile.location?.countries),
+  priority_locations: commaListToString(profile.location?.priority_cantons || profile.location?.priority_locations),
+  acceptable_language: commaListToString(profile.location?.acceptable_language),
+});
+
 export function ProfileView({ profile = {}, onSave, onResetProfile, busy = false }) {
   const [form, setForm] = useState(profile);
+  const [drafts, setDrafts] = useState(() => profileDrafts(profile));
   const [testTitle, setTestTitle] = useState('');
   const [showResetModal, setShowResetModal] = useState(false);
 
   useEffect(() => {
     setForm(profile);
+    setDrafts(profileDrafts(profile));
   }, [profile]);
 
   const patch = (section, key, value) => {
@@ -21,12 +37,15 @@ export function ProfileView({ profile = {}, onSave, onResetProfile, busy = false
     }));
   };
 
-  const linesToString = (arr) => (Array.isArray(arr) ? arr.join('\n') : String(arr || ''));
   const stringToLines = (str) =>
     String(str || '')
       .split(/\n|,/)
       .map((s) => s.trim())
       .filter(Boolean);
+  const patchList = (section, key, value, draftKey = key) => {
+    setDrafts((previous) => ({ ...previous, [draftKey]: value }));
+    patch(section, key, stringToLines(value));
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -199,8 +218,8 @@ export function ProfileView({ profile = {}, onSave, onResetProfile, busy = false
               <label>Intitulés de poste recherchés</label>
               <textarea
                 rows={5}
-                value={linesToString(form.target?.job_titles)}
-                onChange={(e) => patch('target', 'job_titles', stringToLines(e.target.value))}
+                value={drafts.job_titles}
+                onChange={(e) => patchList('target', 'job_titles', e.target.value)}
                 placeholder="ex: embedded systems intern&#10;stagiaire ingénieur robotique"
               />
             </div>
@@ -209,8 +228,8 @@ export function ProfileView({ profile = {}, onSave, onResetProfile, busy = false
               <label>Secteurs d’activité</label>
               <textarea
                 rows={5}
-                value={linesToString(form.target?.sectors)}
-                onChange={(e) => patch('target', 'sectors', stringToLines(e.target.value))}
+                value={drafts.sectors}
+                onChange={(e) => patchList('target', 'sectors', e.target.value)}
                 placeholder="ex: embedded systems&#10;sensors and instrumentation&#10;robotics&#10;MedTech"
               />
             </div>
@@ -219,8 +238,8 @@ export function ProfileView({ profile = {}, onSave, onResetProfile, busy = false
               <label>Compétences clés (recherchées dans l’offre)</label>
               <textarea
                 rows={5}
-                value={linesToString(form.skills?.core)}
-                onChange={(e) => patch('skills', 'core', stringToLines(e.target.value))}
+                value={drafts.core}
+                onChange={(e) => patchList('skills', 'core', e.target.value)}
                 placeholder="ex: C, C++, Python&#10;capteurs, RTOS, PCB&#10;traitement du signal"
               />
             </div>
@@ -229,8 +248,8 @@ export function ProfileView({ profile = {}, onSave, onResetProfile, busy = false
               <label>Domaines d'expertise forts</label>
               <textarea
                 rows={5}
-                value={linesToString(form.skills?.strong_domains)}
-                onChange={(e) => patch('skills', 'strong_domains', stringToLines(e.target.value))}
+                value={drafts.strong_domains}
+                onChange={(e) => patchList('skills', 'strong_domains', e.target.value)}
                 placeholder="ex: instrumentation&#10;embedded systems&#10;robotique"
               />
             </div>
@@ -256,8 +275,8 @@ export function ProfileView({ profile = {}, onSave, onResetProfile, busy = false
               </label>
               <textarea
                 rows={4}
-                value={linesToString(form.target?.red_flags || form.search?.red_flags)}
-                onChange={(e) => patch('target', 'red_flags', stringToLines(e.target.value))}
+                value={drafts.red_flags}
+                onChange={(e) => patchList('target', 'red_flags', e.target.value)}
                 placeholder="senior&#10;lead&#10;head of&#10;director&#10;principal"
               />
             </div>
@@ -269,8 +288,8 @@ export function ProfileView({ profile = {}, onSave, onResetProfile, busy = false
               </label>
               <textarea
                 rows={4}
-                value={linesToString(form.target?.soft_red_flags || form.search?.soft_red_flags)}
-                onChange={(e) => patch('target', 'soft_red_flags', stringToLines(e.target.value))}
+                value={drafts.soft_red_flags}
+                onChange={(e) => patchList('target', 'soft_red_flags', e.target.value)}
                 placeholder="confirmé&#10;expérimenté&#10;5 ans&#10;cdi obligatoire"
               />
             </div>
@@ -317,8 +336,8 @@ export function ProfileView({ profile = {}, onSave, onResetProfile, busy = false
               <label>Pays ciblés (séparés par virgules)</label>
               <input
                 type="text"
-                value={(form.location?.countries || []).join(', ')}
-                onChange={(e) => patch('location', 'countries', stringToLines(e.target.value))}
+                value={drafts.countries}
+                onChange={(e) => patchList('location', 'countries', e.target.value)}
                 placeholder="Switzerland, France"
               />
             </div>
@@ -330,9 +349,11 @@ export function ProfileView({ profile = {}, onSave, onResetProfile, busy = false
               </label>
               <input
                 type="text"
-                value={(form.location?.priority_cantons || form.location?.priority_locations || []).join(', ')}
+                value={drafts.priority_locations}
                 onChange={(e) => {
-                  const arr = stringToLines(e.target.value);
+                  const value = e.target.value;
+                  const arr = stringToLines(value);
+                  setDrafts((previous) => ({ ...previous, priority_locations: value }));
                   setForm((prev) => ({
                     ...prev,
                     location: {
@@ -350,8 +371,8 @@ export function ProfileView({ profile = {}, onSave, onResetProfile, busy = false
               <label>Langues acceptées</label>
               <input
                 type="text"
-                value={(form.location?.acceptable_language || []).join(', ')}
-                onChange={(e) => patch('location', 'acceptable_language', stringToLines(e.target.value))}
+                value={drafts.acceptable_language}
+                onChange={(e) => patchList('location', 'acceptable_language', e.target.value)}
                 placeholder="fr, en"
               />
             </div>
