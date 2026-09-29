@@ -347,40 +347,110 @@ export function CloudSearchView({ scanJobs = [], scanEvents = [], workerReady = 
           <div className="cloud-result-list">
             {scanJobs.map((job) => {
               const statusClass = job.status === 'completed' ? 'success' : job.status === 'failed' ? 'error' : job.status === 'running' ? 'running' : 'queued';
+              const isCompleted = job.status === 'completed';
+              const hasSummary = Boolean(job.summary && typeof job.summary.new !== 'undefined');
+              const retainedCount = job.summary?.new ?? 0;
+              const rejectedCount = job.summary?.rejected;
+              const deferredCount = job.summary?.deferred;
+              const unavailableCount = job.summary?.temporarily_unavailable;
+              const totalCandidates = job.summary?.metrics?.funnel?.input_candidates
+                ?? (job.summary?.direct_candidates !== undefined || job.summary?.web_candidates !== undefined
+                  ? (job.summary?.direct_candidates || 0) + (job.summary?.web_candidates || 0)
+                  : undefined);
+
               return (
-                <div className="cloud-result-row" key={job.id}>
-                  <div className="cloud-result-title">
-                    <strong className="sh-scan-history-mode">{job.mode}{job.summary?.origin === 'local_import' ? ' · Import local' : ''}</strong>
-                    <span className={`sh-status-tag ${statusClass}`}>
-                      {SCAN_STATUSES[job.status] || job.status}
-                    </span>
+                <div className="sh-scan-history-card" key={job.id}>
+                  <div className="sh-scan-card-header">
+                    <div className="sh-scan-card-header-main">
+                      <strong className="sh-scan-history-mode">{job.mode}</strong>
+                      {job.summary?.origin === 'local_import' && (
+                        <span className="sh-scan-origin-tag">Import local</span>
+                      )}
+                      <span className={`sh-status-tag ${statusClass}`}>
+                        {SCAN_STATUSES[job.status] || job.status}
+                      </span>
+                    </div>
+
+                    <div className="sh-scan-card-header-meta">
+                      <span className="sh-scan-card-date">
+                        {new Date(job.created_at).toLocaleString('fr-FR', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                      <span className="sh-scan-card-phase-pill">
+                        {job.status === 'running'
+                          ? `${SCAN_PHASES[job.phase] || job.phase} (${job.progress_percent}%)`
+                          : `${job.progress_percent}% complété`}
+                      </span>
+                    </div>
                   </div>
-                  <div className="cloud-result-meta">
-                    <span>Phase : {SCAN_PHASES[job.phase] || job.phase}</span>
-                    <span>·</span>
-                    <span>Progression : {job.progress_percent}%</span>
-                    <span>·</span>
-                    <span>{new Date(job.created_at).toLocaleString('fr-FR')}</span>
-                    {job.summary?.new !== undefined && (
-                      <>
-                        <span>·</span>
-                        <strong className="sh-history-offers-count">{job.summary.new} offre(s) retenue(s)</strong>
-                        {job.summary.rejected !== undefined && <span>· {job.summary.rejected} rejetée(s) après examen</span>}
-                        {job.summary.deferred !== undefined && <span>· {job.summary.deferred} non examinée(s)</span>}
-                        {job.summary.temporarily_unavailable !== undefined && <span>· {job.summary.temporarily_unavailable} inaccessible(s)</span>}
-                      </>
-                    )}
-                  </div>
-                  {job.error_message && (
-                    <div className="sh-history-error-msg">
-                      <Icon name="alert" size={14} />
-                      <small>{job.error_message}</small>
+
+                  {hasSummary && (
+                    <div className="sh-scan-card-stats">
+                      <div className={`sh-stat-chip ${retainedCount > 0 ? 'retained-success' : 'retained-zero'}`}>
+                        <span className="sh-stat-chip-label">Offres retenues</span>
+                        <strong className="sh-stat-chip-val">
+                          {retainedCount > 0 ? `+${retainedCount}` : '0'}
+                        </strong>
+                      </div>
+
+                      {rejectedCount !== undefined && (
+                        <div className="sh-stat-chip neutral">
+                          <span className="sh-stat-chip-label">Écartées après examen</span>
+                          <strong className="sh-stat-chip-val">{rejectedCount}</strong>
+                        </div>
+                      )}
+
+                      {totalCandidates !== undefined && totalCandidates > 0 && (
+                        <div className="sh-stat-chip neutral">
+                          <span className="sh-stat-chip-label">Candidats explorés</span>
+                          <strong className="sh-stat-chip-val">{totalCandidates}</strong>
+                        </div>
+                      )}
+
+                      {deferredCount !== undefined && deferredCount > 0 && (
+                        <div className="sh-stat-chip deferred">
+                          <span className="sh-stat-chip-label">Pistes en réserve</span>
+                          <strong className="sh-stat-chip-val">{deferredCount}</strong>
+                        </div>
+                      )}
+
+                      {unavailableCount !== undefined && unavailableCount > 0 && (
+                        <div className="sh-stat-chip unavailable">
+                          <span className="sh-stat-chip-label">Inaccessibles</span>
+                          <strong className="sh-stat-chip-val">{unavailableCount}</strong>
+                        </div>
+                      )}
                     </div>
                   )}
+
+                  {isCompleted && hasSummary && retainedCount === 0 && (
+                    <div className="sh-scan-notice info">
+                      <Icon name="info" size={14} />
+                      <span>
+                        Toutes les pistes analysées lors de ce scan étaient des doublons déjà présents dans ta base ou hors critères. Aucune nouvelle offre n'a été ajoutée.
+                      </span>
+                    </div>
+                  )}
+
                   {job.summary?.partial_reason && (
-                    <div className="sh-history-error-msg">
+                    <div className="sh-scan-notice warning">
                       <Icon name="alert" size={14} />
-                      <small>Scan partiel : {job.summary.partial_reason}. Les pistes en attente ne sont pas rejetées.</small>
+                      <span>
+                        Scan partiel : {job.summary.partial_reason}
+                        {deferredCount > 0 ? ` — Les ${deferredCount} pistes non examinées restent en réserve pour les prochains scans.` : ''}
+                      </span>
+                    </div>
+                  )}
+
+                  {job.error_message && (
+                    <div className="sh-scan-notice error">
+                      <Icon name="alert" size={14} />
+                      <span>{job.error_message}</span>
                     </div>
                   )}
                 </div>
