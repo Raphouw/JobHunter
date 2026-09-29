@@ -106,6 +106,25 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual(worker.prefetch_class("https://jobs.example.com/jobs/search", "Jobs at Example")[0], "listing")
         self.assertEqual(worker.prefetch_class("https://jobs.example.com/job/123456", "Software Engineering Intern")[0], "offer")
 
+    def test_quick_scan_stops_at_persisted_total_budget_without_rejecting_queue(self):
+        job = {"mode": "Rapide", "checkpoint": {"telemetry": {"totals": {"pages_fetched": 400}}}}
+        self.assertIn("400 pages", worker.scan_limit_reached(job))
+        job["checkpoint"]["telemetry"]["totals"] = {"pages_fetched": 399, "wall_seconds": 600}
+        self.assertIn("600 secondes", worker.scan_limit_reached(job))
+        job["checkpoint"]["telemetry"]["totals"] = {"pages_fetched": 399, "wall_seconds": 599}
+        self.assertIsNone(worker.scan_limit_reached(job))
+
+        class Store:
+            def __init__(self): self.events = []; self.released = None
+            def event(self, job, message): self.events.append(message)
+        store = Store()
+        job["checkpoint"]["telemetry"]["totals"]["pages_fetched"] = 400
+        with patch.object(worker, "release", side_effect=lambda s, j, p, c, n: setattr(store, "released", (p, c))):
+            worker.analyze(store, job, None, None)
+        self.assertEqual(store.released[0], "finish")
+        self.assertIn("partial_reason", store.released[1])
+        self.assertIn("restent en attente", store.events[0])
+
     def test_deduplication_and_resume_after_save(self):
         store = FakeCandidateStore()
         job = {"id": "job-1", "user_id": "user-1"}

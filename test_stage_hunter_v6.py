@@ -319,6 +319,27 @@ class StageHunterV6Tests(unittest.TestCase):
             "https://ch.indeed.com/rc/clk?jk=abc123", "Embedded Systems Intern"
         ))
 
+    def test_nested_search_pages_do_not_become_job_cards(self):
+        navigational = [
+            "https://www.jobup.ch/fr/emplois/?term=sp%C3%A9cialiste%20support%20internet",
+            "https://www.jobscout24.ch/en/jobs-in-aarau/salesman/",
+            "https://embedded.jobs/electrical-engineer-jobs-in-hong-kong",
+        ]
+        for url in navigational:
+            with self.subTest(url=url):
+                self.assertTrue(hunter.listing_lead_is_noise(url, "Software Engineer Intern"))
+        details = [
+            "https://www.jobup.ch/fr/emplois/detail/12345/",
+            "https://www.jobscout24.ch/en/job/6ff5b4cd-9fdf-4639-a25a-c1832c523c0f/",
+        ]
+        for url in details:
+            with self.subTest(url=url):
+                self.assertFalse(hunter.listing_lead_is_noise(url, "Software Engineer Intern"))
+        html = '<a href="/fr/emplois/?term=engineer">Software Engineer Intern</a>' \
+               '<a href="/fr/emplois/detail/12345/">Software Engineer Intern</a>'
+        leads = hunter.discover_listing_leads("https://www.jobup.ch/fr/emplois/", html)
+        self.assertEqual([lead["url"] for lead in leads], [details[0]])
+
     def test_known_job_board_detail_urls_are_recognized(self):
         urls = [
             "https://www.internshipdaily.com/internship/embedded-systems-intern-zurich",

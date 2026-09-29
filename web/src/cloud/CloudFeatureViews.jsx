@@ -359,6 +359,12 @@ export function CloudSearchView({ scanJobs = [], scanEvents = [], workerReady = 
                       <small>{job.error_message}</small>
                     </div>
                   )}
+                  {job.summary?.partial_reason && (
+                    <div className="sh-history-error-msg">
+                      <Icon name="alert" size={14} />
+                      <small>Scan partiel : {job.summary.partial_reason}. Les pistes en attente ne sont pas rejetées.</small>
+                    </div>
+                  )}
                 </div>
               );
             })}

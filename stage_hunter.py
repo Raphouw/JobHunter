@@ -1456,6 +1456,14 @@ def listing_lead_is_noise(url,title=''):
     blocked_hosts={'apps.apple.com','itunes.apple.com','play.google.com','apps.microsoft.com','instagram.com','facebook.com'}
     if host in blocked_hosts:return True
     if search_result_filter_status(url,canon(url))!='URL exploitable':return True
+    # Listing pages are useful as entry points, but following their related
+    # searches as if they were job cards creates an unbounded listing graph.
+    # Keep individual offer paths below; only discard navigation found inside
+    # another listing.
+    if host in {'jobup.ch','jobs.ch'} and re.match(r'^/(?:fr|de|en|it)/(?:emplois|jobs|stellen)(?:/|$)',path):
+        if not re.search(r'/(?:detail|job|stelle)/[^/]+',path):return True
+    if host=='jobscout24.ch' and re.match(r'^/(?:fr|de|en|it)/(?:jobs(?:-in-[^/]+)?|emplois)(?:/|$)',path):return True
+    if host=='embedded.jobs' and re.search(r'-jobs-in-[^/]+/?$',path):return True
     if 'indeed.' in host and (path.startswith('/career/') or path.startswith('/promo/')):return True
     if any(marker in path for marker in ('/salaires/','/salaire/','/cmp/','/reviews/','/salaries/','/salary/','/avis/','/career-advice/','/interview/')):return True
     if path in ('/login','/signin','/signup','/register','/privacy','/terms'):return True

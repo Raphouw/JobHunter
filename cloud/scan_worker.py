@@ -32,6 +32,15 @@ MODE_LIMITS = {
     "Exhaustif 1h": (240, 30, 8, 12),
 }
 
+# A quick scan must have a finite total cost across Vercel invocations. The
+# persisted telemetry is the authority; process memory is never required.
+SCAN_TOTAL_LIMITS = {
+    "Rapide": (400, 600),
+    "Complet": (1200, 1800),
+    "Maximum": (2500, 3600),
+    "Exhaustif 1h": (5000, 7200),
+}
+
 DEFERRED_DECISIONS = {"budget_skip", "time_deferred"}
 TEMPORARY_DECISIONS = {"retry", "protected_access"}
 MAX_DEFER_ATTEMPTS = 6
@@ -514,7 +523,26 @@ def audit_candidate_rows(audits, engine):
     return list(rows.values())
 
 
+def scan_limit_reached(job):
+    pages_limit, wall_limit = SCAN_TOTAL_LIMITS[job["mode"]]
+    totals = ((job.get("checkpoint") or {}).get("telemetry") or {}).get("totals") or {}
+    pages = float(totals.get("pages_fetched") or 0)
+    wall = float(totals.get("wall_seconds") or 0)
+    if pages >= pages_limit:
+        return f"Limite de sécurité du scan : {pages_limit} pages téléchargées"
+    if wall >= wall_limit:
+        return f"Limite de sécurité du scan : {wall_limit} secondes de traitement"
+    return None
+
+
 def analyze(store, job, engine, profile):
+    limit_reason = scan_limit_reached(job)
+    if limit_reason:
+        checkpoint = dict(job.get("checkpoint") or {})
+        checkpoint["partial_reason"] = limit_reason
+        store.event(job, f"Scan partiel · {limit_reason}. Les pistes restantes restent en attente, sans rejet.")
+        release(store, job, "finish", checkpoint, 96)
+        return
     due_at = urllib.parse.quote(utc_now(), safe="")
     pending = store.rows("hunter_scan_candidates",
                          f"job_id=eq.{job['id']}&status=in.(pending,retry,deferred)&next_attempt_at=lte.{due_at}&select=id,payload,decision,priority&order=priority.desc,id.asc&limit=30")
@@ -720,7 +748,8 @@ def finish(store, job):
                "direct_candidates": checkpoint.get("direct_candidates", 0),
                "web_candidates": checkpoint.get("web_candidates", 0),
                "rejection_types": checkpoint.get("rejection_types", {}),
-               "engine": "stage_hunter", "checkpointed": True}
+               "engine": "stage_hunter", "checkpointed": True,
+               "partial_reason": checkpoint.get("partial_reason")}
     # Summary PATCH, aggregate completion event and release RPC follow this
     # snapshot; count their calls without adding a second telemetry write.
     checkpoint = record_phase(store, job, checkpoint, planned_calls=3)
@@ -757,7 +786,8 @@ def finish(store, job):
        "fixed_sites": {"visited": totals["sites"], "links": checkpoint.get("direct_candidates", 0)},
        "source_yield": source_counts, "recommendations": []}
     store.patch("hunter_scan_jobs", f"id=eq.{job['id']}&lease_token=eq.{job['lease_token']}", {"summary": summary})
-    store.event(job, f"Scan terminé · {summary['new']} offre(s) retenue(s), {summary['rejected']} rejetée(s) après examen, {summary['deferred']} non examinée(s), {summary['temporarily_unavailable']} inaccessible(s).")
+    completion = "Scan partiel terminé" if summary["partial_reason"] else "Scan terminé"
+    store.event(job, f"{completion} · {summary['new']} offre(s) retenue(s), {summary['rejected']} rejetée(s) après examen, {summary['deferred']} non examinée(s), {summary['temporarily_unavailable']} inaccessible(s).")
     release(store, job, "finish", checkpoint, 100, completed=True)
 
 
