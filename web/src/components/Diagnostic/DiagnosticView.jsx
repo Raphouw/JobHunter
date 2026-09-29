@@ -35,6 +35,8 @@ export function DiagnosticView({ diagnostic = {}, scan = {} }) {
   const funnel = runtime.funnel || diagnostic.stats || {};
   const sources = runtime.source_yield || {};
   const recommendations = runtime.recommendations || [];
+  const cloud = runtime.cloud;
+  const cloudTotals = cloud?.totals || {};
 
   const hasData = Object.keys(diagnostic).length > 0;
 
@@ -140,6 +142,27 @@ export function DiagnosticView({ diagnostic = {}, scan = {} }) {
               </div>
             </div>
           </section>
+
+          {cloud && (
+            <section className="sh-diagnostic-section" aria-label="Télémétrie du scan cloud">
+              <div className="sh-section-header">
+                <div>
+                  <h2>Temps et ressources du scan cloud</h2>
+                  <p>{cloud.invocations} invocation(s) · {cloud.phases?.length || 0} phase(s) enregistrée(s). Le temps réseau additionne les appels parallèles.</p>
+                </div>
+              </div>
+              <div className="sh-metrics-grid">
+                <div className="sh-stat-card card-blue"><strong className="sh-stat-val">{Math.round(cloudTotals.wall_seconds || 0)} s</strong><span className="sh-stat-label">Travail des phases</span></div>
+                <div className="sh-stat-card card-purple"><strong className="sh-stat-val">{Math.round(cloudTotals.gap_since_previous_invocation_seconds || 0)} s</strong><span className="sh-stat-label">Attente entre invocations</span></div>
+                <div className="sh-stat-card card-emerald"><strong className="sh-stat-val">{cloudTotals.supabase_calls || 0}</strong><span className="sh-stat-label">Appels Supabase</span></div>
+                <div className="sh-stat-card card-pink"><strong className="sh-stat-val">{Math.round((cloudTotals.bytes_downloaded || 0) / 1024 / 1024 * 10) / 10} Mo</strong><span className="sh-stat-label">Pages téléchargées</span></div>
+              </div>
+              <p>Sites {cloudTotals.sites || 0} · Requêtes {cloudTotals.queries || 0} · Candidats {cloudTotals.candidates_discovered || 0} · Fiches téléchargées {cloudTotals.pages_fetched || 0}</p>
+              <p>Retenues {funnel.retained || 0} · Rejetées après examen {funnel.rejected_after_examination || 0} · Non examinées {funnel.deferred || 0} · Temporairement inaccessibles {funnel.temporarily_unavailable || 0}</p>
+              <p>Liens filtrés avant fiche {funnel.filtered_pre_download || 0} · URL non publiques ou invalides {cloudTotals.filtered_non_public || 0}. Les motifs des liens conservés sont consultables dans « Candidats bruts ».</p>
+              <p>Réseau {Math.round(cloudTotals.network_seconds || 0)} s cumulés · CPU analyse/parsing {Math.round(cloudTotals.parsing_analysis_cpu_seconds || 0)} s · Supabase {Math.round(cloudTotals.supabase_seconds || 0)} s · Échanges Supabase ~{Math.round(((cloudTotals.supabase_bytes_sent || 0) + (cloudTotals.supabase_bytes_received || 0)) / 1024)} Ko</p>
+            </section>
+          )}
 
           {/* Source Yield & Engine Recommendations */}
           <section className="sh-two-col">

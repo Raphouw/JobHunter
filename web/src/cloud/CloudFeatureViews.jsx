@@ -347,6 +347,9 @@ export function CloudSearchView({ scanJobs = [], scanEvents = [], workerReady = 
                       <>
                         <span>·</span>
                         <strong className="sh-history-offers-count">{job.summary.new} offre(s) retenue(s)</strong>
+                        {job.summary.rejected !== undefined && <span>· {job.summary.rejected} rejetée(s) après examen</span>}
+                        {job.summary.deferred !== undefined && <span>· {job.summary.deferred} non examinée(s)</span>}
+                        {job.summary.temporarily_unavailable !== undefined && <span>· {job.summary.temporarily_unavailable} inaccessible(s)</span>}
                       </>
                     )}
                   </div>

@@ -155,7 +155,7 @@ APPLICATION_CONFIRMATION_PHRASES=(
     'bewerbung erhalten','vielen dank für deine bewerbung','vielen dank für ihre bewerbung'
 )
 INTERNSHIP_TITLE_PATTERNS=(
-    r'\bintern(?:ship)?\b',r'\bstage\b',r'\bstagiaire\b',r'\bpraktikum\b',r'\btrainee\b',
+    r'\bintern(?:ship)?\b',r'\bstage\b',r'\bstagiaire\b',r'\bpraktikum\b',r'\bpraktikant(?::in|en|in|innen)?\b',r'\btrainee(?:ship)?\b',
     r'\bstage\s+(?:ingenieur|de fin|pfe|\(|en\b)',r'\bstudentship\b',
     r'\bstudent\s+(?:programme|program|placement|intern|job|opportunity)\b',
     r'\btechnical\s+student\b',r'\bshort[- ]term\s+internship\b',
@@ -617,13 +617,26 @@ def fetch(u):
             metadata.update(status='empty' if not payload else 'ok',bytes_read=len(payload));_HTTP_LOCAL.last_fetch_meta=metadata
             return payload.decode(r.encoding or 'utf-8',errors='replace'),final_url
     except Exception as error:
-        metadata.update(status='network_error',error_type=type(error).__name__,error=short_text(error,240));_HTTP_LOCAL.last_fetch_meta=metadata
+        state='timeout' if isinstance(error,requests.exceptions.Timeout) else 'network_error'
+        metadata.update(status=state,error_type=type(error).__name__,error=short_text(error,240));_HTTP_LOCAL.last_fetch_meta=metadata
         return '',u
 
 def page(u,fallback=''):
     h,final_url=fetch(u)
     if not h:return fallback,'',final_url
     return norm(extract(h,include_links=True,include_tables=True) or BeautifulSoup(h,'html.parser').get_text(' ',strip=True))[:40000],h,final_url
+
+def fetch_failure_decision(meta,url):
+    """Keep transport failures distinct from an examined irrelevant page."""
+    meta=meta or {};state=meta.get('status','unknown');code=meta.get('http_status')
+    if state=='blocked':return 'invalid_url','URL ou redirection non publique/invalide'
+    if code in (403,429):return 'protected_access',f'Accès protégé ou limité (HTTP {code})'
+    if code in (404,410):return 'gone',f'Page absente (HTTP {code})'
+    if state=='empty':return 'empty_page','Page vide'
+    if state=='timeout':return 'retry','Délai réseau dépassé (timeout)'
+    if state=='network_error':return 'retry',f'Erreur réseau temporaire ({meta.get("error_type") or "inconnue"})'
+    if code and code>=500:return 'retry',f'Erreur serveur temporaire (HTTP {code})'
+    return 'retry',f'Page inaccessible ou sans contenu exploitable ({state})'
 
 def iter_parallel_pages(rows,label='HTTP'):
     """Yield downloaded pages in bounded batches to keep peak RAM predictable."""
@@ -885,6 +898,11 @@ def configured_search_backends():
     resolved,ignored,migrated=normalize_search_backends(raw)
     return resolved or ['duckduckgo','yahoo'],ignored,migrated,legacy_upgrade
 
+def search_backend_primary_index(index,backend_count,observed_weights=None):
+    """Prefer the best recent backend while probing alternatives every fourth query."""
+    if not observed_weights:return (index-1)%backend_count
+    return 0 if backend_count==1 or index%4 else 1+(index//4-1)%(backend_count-1)
+
 def search_result_filter_status(raw_url,canonical_url='',seen=None):
     """Explain whether a search result URL can enter the discovery funnel."""
     raw_url=norm(raw_url);canonical_url=canonical_url or (canon(raw_url) if raw_url else '')
@@ -1052,10 +1070,16 @@ def search_web(qs,limit,c=None):
     fallback, not a reason to wait twelve seconds for dozens of empty queries.
     """
     qs=rank_search_queries(c,list(qs));out=[];seen=set();empty=[];failed=[];total=len(qs);executed=0;productive=0
+    backend_stats={}
     workers=max(1,min(safe_int(os.getenv('SEARCH_WORKERS'),4),8,total or 1))
     retries=max(0,min(safe_int(os.getenv('SEARCH_RETRIES'),1),4))
     backoff=max(0.1,safe_float(os.getenv('SEARCH_RETRY_BACKOFF'),1.0))
     backends,ignored_backends,migrated_backends,legacy_upgrade=configured_search_backends()
+    observed_weights={}
+    try:
+        observed_weights=json.loads(os.getenv('SEARCH_BACKEND_WEIGHTS','{}'))
+        backends.sort(key=lambda name:-float(observed_weights.get(name,0)))
+    except (ValueError,TypeError):pass
     if legacy_upgrade:log_event('WEB — ancien réglage par défaut DuckDuckGo/Brave remplacé par DuckDuckGo/Yahoo après diagnostic.','yellow')
     if ignored_backends:log_event('WEB — moteur(s) DDGS ignoré(s) car non pris en charge : '+', '.join(ignored_backends)+'.','yellow')
     if migrated_backends:log_event('WEB — alias moteur appliqué : '+', '.join(f'{a}→{b}' for a,b in migrated_backends)+'.','yellow')
@@ -1076,7 +1100,9 @@ def search_web(qs,limit,c=None):
         # session entre threads provoque des erreurs HTTP/2 aléatoires.
         if delay_high>0:time.sleep(random.uniform(delay_low,delay_high))
         last_error='';had_empty=False;attempt_trace=[];executed_attempts=0
-        primary_backend_offset=(index-1)%len(backends)
+        # A less productive engine still leads one query in four so that its
+        # recovery is observed instead of being permanently hidden.
+        primary_backend_offset=search_backend_primary_index(index,len(backends),observed_weights)
         for attempt in range(retries+1):
             # Rotate the first-choice backend across queries. With
             # retry_empty_results disabled, every configured engine is still
@@ -1107,6 +1133,13 @@ def search_web(qs,limit,c=None):
                 try:index,q,rr,error,attempts,query_started,attempt_trace=future.result()
                 except Exception as unexpected:
                     rr=[];error=str(unexpected);attempts=1;query_started=result_started;attempt_trace=[]
+                for trace in attempt_trace:
+                    stats=backend_stats.setdefault(trace.get('backend','unknown'),{'attempts':0,'results':0,'empty':0,'errors':0,'raw_links':0})
+                    stats['attempts']+=1
+                    state=trace.get('status')
+                    if state=='results':stats['results']+=1;stats['raw_links']+=trace.get('raw_count',0)
+                    elif state in ('empty','empty_exception'):stats['empty']+=1
+                    else:stats['errors']+=1
                 elapsed_ms=round((time.perf_counter()-query_started)*1000);source=metric_source(q)
                 if error:
                     failed.append((q,error));record_source_metric(c,source,'web',attempts=attempts,elapsed_ms=elapsed_ms)
@@ -1146,7 +1179,7 @@ def search_web(qs,limit,c=None):
             batch=qs[cursor:cursor+batch_size];run_batch(batch,cursor+1);cursor+=len(batch)
     if c is not None:c.commit()
     skipped=total-executed
-    SCAN_METRICS['web']={'configured':total,'executed':executed,'skipped':skipped,'productive':productive,'empty':len(empty),'failed':len(failed),'links':len(out),'circuit_breaker':circuit_open,'deadline_reached':deadline_reached}
+    SCAN_METRICS['web']={'configured':total,'executed':executed,'skipped':skipped,'productive':productive,'empty':len(empty),'failed':len(failed),'links':len(out),'circuit_breaker':circuit_open,'deadline_reached':deadline_reached,'backends':backend_stats}
     log_event(f'WEB terminé · {productive}/{executed} exécutée(s) productive(s), {len(empty)} sans résultat, {len(failed)} erreur(s), {skipped} évitée(s), {len(out)} lien(s) unique(s).','bold cyan')
     if failed:
         for q,msg in failed[:5]:log_event(f'Erreur réseau · {short_text(q,70)} — {short_text(msg,110)}','yellow')
@@ -1574,14 +1607,16 @@ def fixed_site_candidates(profile,c=None):
     urls=targeted_fixed_urls(profile)
     max_sites=max(0,min(safe_int(os.getenv('FIXED_SITE_LIMIT'),len(urls) or 0),30))
     urls=rank_fixed_urls(c,urls)[:max_sites]
+    SCAN_METRICS['fixed_sites_visited']=0
     if not urls:
         log_event('SITES FIXES — aucune page configurée pour ce profil.','dim');return []
     rows=[{'url':u,'title':'','snippet':'','source':dom(u),'origin':'fixed_site'} for u in urls]
-    candidates=[];seen=set();title_only=0;raw_leads=0
+    candidates=[];seen=set();title_only=0;raw_leads=0;visited_sites=0
     priority_components=profile_search_components(profile);priority_contracts=profile_contract_terms(profile)
     log_event(f'SITES FIXES — exploration directe de {len(rows)} listing(s).','bold cyan')
     fixed_started=time.perf_counter()
     for row,text,html,final_url in iter_parallel_pages(rows,label='SITES FIXES'):
+        visited_sites+=1
         leads=discover_listing_leads(final_url or row['url'],html)
         state='OK' if html else 'HTML vide / accès bloqué'
         log_event(f'SITE FIXE · {dom(final_url or row["url"])} · {state} · {len(html)} car. HTML · {len(leads)} piste(s) · {short_text(final_url or row["url"],88)}','green' if leads else 'yellow')
@@ -1602,6 +1637,7 @@ def fixed_site_candidates(profile,c=None):
                 'company':lead.get('company',''),'location':lead.get('location',''),
             })
     if c is not None:c.commit()
+    SCAN_METRICS['fixed_sites_visited']=visited_sites
     SCAN_METRICS['phases']['fixed_sites_seconds']=round(time.perf_counter()-fixed_started,2)
     log_event(f'SITES FIXES — {len(candidates)} lien(s) individuel(s) extrait(s) sur {raw_leads} piste(s) · {title_only} titre(s) sans lien ignoré(s).','green' if candidates else 'yellow')
     return candidates
@@ -2287,18 +2323,15 @@ def ingest(c,rows,profile):
         if not html and not structured:
             stats['unavailable']+=1
             fetch_meta=r.get('_fetch_meta') or {}
-            fetch_state=fetch_meta.get('status','unknown')
-            http_code=fetch_meta.get('http_status')
             u_dom=dom(r.get('url',''))
-            is_bot_blocked=(http_code in (403,429)) or (fetch_state in ('http_error','network_error') and any(k in u_dom for k in ('indeed.','glassdoor.','linkedin.')))
-            if is_bot_blocked:
-                reason=f'Accès protégé par anti-bot ({http_code or fetch_state})'
-                audit_decision(r,'protected_access',reason,effective_title,'',effective_text,html,structured)
+            failure_kind,reason=fetch_failure_decision(fetch_meta,r.get('url',''))
+            if failure_kind=='protected_access':
+                audit_decision(r,failure_kind,reason,effective_title,'',effective_text,html,structured)
                 log_event(f'→ ACCÈS PROTÉGÉ · {u_dom} requiert un navigateur · {short_text(r.get("url",""),72)}','dim')
             else:
-                reason=f'Page inaccessible ou sans contenu exploitable ({fetch_state})'
-                audit_decision(r,'retry',reason,effective_title,'',effective_text,html,structured)
-                log_event(f'→ À RÉESSAYER · {reason} · {short_text(r.get("url",""),72)}','yellow')
+                audit_decision(r,failure_kind,reason,effective_title,'',effective_text,html,structured)
+                label='→ INACCESSIBLE' if failure_kind in ('invalid_url','gone') else '→ À RÉESSAYER'
+                log_event(f'{label} · {reason} · {short_text(r.get("url",""),72)}','yellow')
             continue
         candidate_hint=bool(r.get('_depth') or r.get('_listing_url') or r.get('origin') in ('fixed_site','listing_recursive'))
         pt,class_reason=classify_with_reason(final_url,effective_title,effective_text,html,profile,candidate_hint=candidate_hint);classification_reasons[class_reason]+=1
@@ -2379,13 +2412,29 @@ def ingest(c,rows,profile):
     per_listing_cap=max(5,min(safe_int(os.getenv('MAX_LEADS_PER_SUBLISTING'),24),80))
     minimum_lead_priority=safe_float(os.getenv('MIN_LISTING_LEAD_PRIORITY'),4)
     known_urls=set(batch_seen)|{candidate_identity(row.get('url','')) for row in expanded}
+    def record_unopened_lead(lead,decision,reason,depth):
+        url=lead.get('url')
+        if not url or not safe_public_url(url):return
+        audit_decision({'url':url,'title':lead.get('title',''),'source':dom(url),
+                        'origin':'listing_recursive','_depth':depth,
+                        '_original_url':url},decision,reason,lead.get('title',''))
     crawled_total=0
     for depth_round in range(crawl_depth):
         listing_rows=[row for row in expanded if row.get('_pt')=='listing' and not row.get('_listing_expanded')]
-        if not listing_rows or crawled_total>=recursive_cap or detail_downloads>=detail_cap or scan_budget_exhausted():break
+        if not listing_rows:break
+        if crawled_total>=recursive_cap or detail_downloads>=detail_cap or scan_budget_exhausted():
+            for listing in listing_rows:
+                for lead in listing.get('_listing_leads') or []:
+                    record_unopened_lead(lead,'budget_skip','Quota de sous-listings atteint avant examen',depth_round+2)
+                listing['_listing_expanded']=True
+            break
         discovered=[];round_started=time.perf_counter();round_leads=0
         for listing_index,row in enumerate(listing_rows,start=1):
             if scan_budget_exhausted():
+                for listing in listing_rows[listing_index-1:]:
+                    for lead in listing.get('_listing_leads') or []:
+                        record_unopened_lead(lead,'time_deferred','Budget de temps atteint avant examen du sous-listing',depth_round+2)
+                    listing['_listing_expanded']=True
                 log_event(f'LISTINGS — budget temps atteint pendant le traitement des sous-listings ({listing_index-1}/{len(listing_rows)}).','bold yellow')
                 break
             row['_listing_expanded']=True
@@ -2398,15 +2447,23 @@ def ingest(c,rows,profile):
                 url=lead.get('url');canonical=candidate_identity(url or '')
                 if not url or canonical in known_urls:continue
                 lead['_priority']=listing_lead_priority(lead,profile,priority_components,priority_contracts)
-                if lead['_priority']<minimum_lead_priority:continue
+                if lead['_priority']<minimum_lead_priority:
+                    record_unopened_lead(lead,'filtered',f'Priorité de listing {lead["_priority"]:g} sous le seuil {minimum_lead_priority:g} ; vérification manuelle possible',depth_round+2)
+                    continue
                 ranked.append(lead)
-            for lead in sorted(ranked,key=lambda item:item.get('_priority',0),reverse=True)[:per_listing_cap]:
+            ranked=sorted(ranked,key=lambda item:item.get('_priority',0),reverse=True)
+            for lead in ranked[per_listing_cap:]:
+                record_unopened_lead(lead,'budget_skip','Quota de fiches par sous-listing atteint',depth_round+2)
+            for lead in ranked[:per_listing_cap]:
                 known_urls.add(candidate_identity(lead['url']));discovered.append(lead)
             if listing_index%25==0 or listing_index==len(listing_rows):
                 log_event(f'LISTINGS NIVEAU {depth_round+2} — {listing_index}/{len(listing_rows)} sous-listing(s) analysé(s), {len(discovered)} piste(s) sélectionnée(s), {elapsed_label(round_started)} écoulée(s).','dim')
         if not discovered:continue
         remaining=min(recursive_cap-crawled_total,detail_cap-detail_downloads)
-        discovered=sorted(discovered,key=lambda lead:lead.get('_priority',0),reverse=True)[:remaining]
+        discovered=sorted(discovered,key=lambda lead:lead.get('_priority',0),reverse=True)
+        for lead in discovered[remaining:]:
+            record_unopened_lead(lead,'budget_skip','Quota global de fiches récursives atteint',depth_round+2)
+        discovered=discovered[:remaining]
         SCAN_METRICS.setdefault('recursive_listing_rounds',[]).append({'depth':depth_round+2,'listings':len(listing_rows),'leads':round_leads,'selected':len(discovered),'parsing_seconds':round(time.perf_counter()-round_started,2)})
         new_rows=[{
             'url':lead['url'],'title':lead['title'],'snippet':norm(lead.get('company','')+' '+lead.get('location','')),
@@ -2432,6 +2489,11 @@ def ingest(c,rows,profile):
                 audit_decision(row,'time_deferred','Budget de temps atteint avant la fiche récursive',row.get('title',''))
         crawled_total+=len(new_rows)
     if crawled_total:log_event(f'LISTINGS — {crawled_total} fiche(s) supplémentaires ouvertes sur {crawl_depth} niveau(x) maximum.','bold cyan')
+    for listing in expanded:
+        if listing.get('_pt')=='listing' and not listing.get('_listing_expanded'):
+            for lead in listing.get('_listing_leads') or []:
+                record_unopened_lead(lead,'budget_skip','Profondeur ou quota de sous-listings atteint avant examen',listing.get('_depth',0)+1)
+            listing['_listing_expanded']=True
 
     detail_cache.flush()
     try:os.fsync(detail_cache.fileno())
@@ -2466,18 +2528,15 @@ def ingest(c,rows,profile):
         if not (html or r.get('_had_html')) and not structured:
             stats['unavailable']+=1
             fetch_meta=r.get('_fetch_meta') or {}
-            fetch_state=fetch_meta.get('status','unknown')
-            http_code=fetch_meta.get('http_status')
             u_dom=dom(r.get('url',''))
-            is_bot_blocked=(http_code in (403,429)) or (fetch_state in ('http_error','network_error') and any(k in u_dom for k in ('indeed.','glassdoor.','linkedin.')))
-            if is_bot_blocked:
-                reason=f'Accès protégé par anti-bot ({http_code or fetch_state})'
-                audit_decision(r,'protected_access',reason,title,pt or '',txt or '',html,structured)
+            failure_kind,reason=fetch_failure_decision(fetch_meta,r.get('url',''))
+            if failure_kind=='protected_access':
+                audit_decision(r,failure_kind,reason,title,pt or '',txt or '',html,structured)
                 log_event(f'→ ACCÈS PROTÉGÉ · {u_dom} requiert un navigateur · {short_text(r.get("url",""),72)}','dim')
             else:
-                reason=f'Page inaccessible ou sans contenu exploitable ({fetch_state})'
-                audit_decision(r,'retry',reason,title,pt or '',txt or '',html,structured)
-                log_event(f'→ À RÉESSAYER · {reason} · {short_text(r.get("url",""),72)}','yellow')
+                audit_decision(r,failure_kind,reason,title,pt or '',txt or '',html,structured)
+                label='→ INACCESSIBLE' if failure_kind in ('invalid_url','gone') else '→ À RÉESSAYER'
+                log_event(f'{label} · {reason} · {short_text(r.get("url",""),72)}','yellow')
             continue
         if not title or len(title)<5:
             soup=BeautifulSoup(html,'html.parser') if html else None; title=norm(soup.title.get_text(' ',strip=True) if soup and soup.title else '')
