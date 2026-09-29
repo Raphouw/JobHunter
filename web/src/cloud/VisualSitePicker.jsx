@@ -29,11 +29,14 @@ function cleanPart(node) {
   if (!node || !node.tagName) return '';
   const tag = node.tagName.toLowerCase();
 
-  // 1. Prioritize robust testing and data attributes (e.g. data-cy, data-testid, role)
-  for (const attr of ['data-cy', 'data-testid', 'data-qa', 'data-test']) {
+  // 1. Prioritize robust testing and item data attributes
+  for (const attr of ['data-cy', 'data-testid', 'data-qa', 'data-test', 'data-id-storage-item-id', 'data-item-id', 'data-job-id', 'data-offer-id']) {
     const val = node.getAttribute && node.getAttribute(attr);
-    if (val && !/\d{5,}/.test(val)) {
-      return `${tag}[${attr}="${val}"]`;
+    if (val !== null && val !== undefined) {
+      if (!/\d{5,}/.test(val) && !val.includes('/') && !val.includes(':')) {
+        return `${tag}[${attr}="${val}"]`;
+      }
+      return `${tag}[${attr}]`;
     }
   }
 
@@ -50,6 +53,15 @@ function cleanPart(node) {
   if (classes.length > 0) {
     return tag + classes.map((c) => `.${CSS.escape(c)}`).join('');
   }
+
+  // 4. If bare <li> inside a classed <ul>, generate e.g. ul.grid > li
+  if (tag === 'li' && node.parentElement && node.parentElement.tagName.toLowerCase() === 'ul') {
+    const parentClasses = Array.from(node.parentElement.classList || []).map(cleanClass).filter(Boolean);
+    if (parentClasses.length > 0) {
+      return `ul.${CSS.escape(parentClasses[0])} > li`;
+    }
+  }
+
   return tag;
 }
 
@@ -186,14 +198,14 @@ export function VisualSitePicker({
 
         for (let node = target; node && node !== doc.body && choices.length < 6; node = node.parentElement) {
           const sel = cleanPart(node);
-          if (!sel) continue;
+          if (!sel || sel === 'div' || sel === 'li' || sel === 'ul' || sel === 'body') continue;
           try {
             const count = doc.querySelectorAll(sel).length;
             if (count >= 1 && count <= 200) {
               const item = { selector: sel, count, label: node.tagName.toLowerCase() };
               choices.push(item);
-              // Prioritize data-cy, data-testid, or repeating elements
-              if (!bestCandidate && (sel.includes('[data-') || count >= 2)) {
+              // Prioritize data-cy, data-testid, compound selectors, or repeating elements
+              if (!bestCandidate && (sel.includes('[data-') || sel.includes(' > ') || (count >= 2 && count <= 100))) {
                 bestCandidate = item;
               }
             }

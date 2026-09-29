@@ -221,7 +221,7 @@ def inspection_html(html, base_url):
         for key in list(node.attrs):
             if key.startswith('on') or key in ('srcset', 'ping'):
                 del node.attrs[key]
-            elif key not in ('id', 'class', 'href', 'data-url', 'title', 'alt', 'role', 'style'):
+            elif key not in ('id', 'class', 'href', 'data-url', 'title', 'alt', 'role', 'style') and not key.startswith('data-'):
                 del node.attrs[key]
         for key in ('href', 'data-url'):
             if node.has_attr(key):

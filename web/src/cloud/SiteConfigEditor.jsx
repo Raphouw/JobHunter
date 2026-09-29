@@ -121,7 +121,11 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
         if (result.preview?.offers?.[0]?.detail_link) {
           setDetailUrl(result.preview.offers[0].detail_link);
         }
-        setNotice(`Test réussi : ${result.preview.offers.length} offre(s) extraite(s). Tu peux maintenant activer le site.`);
+        if (result.sample_tested) {
+          setNotice(`✓ Test réussi sur l'URL d'exemple : ${result.preview.offers.length} offre(s) extraite(s). Note : avec les critères actuels de ton profil, ce site ne renvoie aucune offre pour le moment, mais les sélecteurs sont validés et le site est activable !`);
+        } else {
+          setNotice(`Test réussi : ${result.preview.offers.length} offre(s) extraite(s). Tu peux maintenant activer le site.`);
+        }
       } else if (action === 'save') {
         setNotice(result.site.enabled ? '✓ Site validé et activé pour les scans.' : 'Brouillon enregistré.');
         await onSaved();
@@ -169,9 +173,23 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
 
   const handleUrlChange = (newUrl) => {
     let nextQuery = { ...site.query };
+    let cleanedUrl = newUrl;
     try {
       if (newUrl.startsWith('http')) {
         const parsed = new URL(newUrl);
+
+        // Auto-clean noise or autocomplete session params (like HelloWork l_autocomplete / k_autocomplete)
+        let modified = false;
+        for (const p of ['k_autocomplete', 'l_autocomplete', 'msa']) {
+          if (parsed.searchParams.has(p)) {
+            parsed.searchParams.delete(p);
+            modified = true;
+          }
+        }
+        if (modified) {
+          cleanedUrl = parsed.toString();
+        }
+
         const searchParamKeys = Array.from(parsed.searchParams.keys()).map((k) => k.toLowerCase());
 
         const commonKw = ['term', 'q', 'query', 'keywords', 'keyword', 'k', 'what', 'search'];
@@ -191,7 +209,7 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
 
     setSite((current) => ({
       ...current,
-      listing_url: newUrl,
+      listing_url: cleanedUrl,
       query: nextQuery,
       enabled: false,
     }));

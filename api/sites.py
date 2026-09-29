@@ -112,11 +112,22 @@ class handler(BaseHTTPRequestHandler):
                                                  'max_pages': 1,
                                                  'max_offers': min(20, site['limits']['max_offers']),
                                                  'max_detail_pages': min(3, site['limits']['max_detail_pages'])}}
+                # 1. Try crawling with user's profile criteria
                 result = crawl_site(preview_site, current_config, fetch_preview, with_details=True)
+                sample_tested = False
                 if not result['offers']:
-                    return self.respond(422, {'error': 'Aucune offre avec lien de détail trouvée', 'preview': result})
+                    # 2. If profile criteria returned 0 offers, test the listing_url directly as entered in the form
+                    raw_site = {**preview_site, 'query': {'keyword_param': '', 'location_param': ''}}
+                    raw_result = crawl_site(raw_site, {}, fetch_preview, with_details=True)
+                    if raw_result['offers']:
+                        result = raw_result
+                        sample_tested = True
+
+                if not result['offers']:
+                    tested_url = result.get('listing_url') or site.get('listing_url')
+                    return self.respond(422, {'error': f'Aucune offre avec lien de détail trouvée sur {tested_url}', 'preview': result})
                 stamp = int(time.time())
-                return self.respond(200, {'preview': result, 'site': site,
+                return self.respond(200, {'preview': result, 'site': site, 'sample_tested': sample_tested,
                                           'preview_token': f'{stamp}.{signature(site, profile_id, user_id, stamp)}'})
             if action == 'publish':
                 if not admin:
