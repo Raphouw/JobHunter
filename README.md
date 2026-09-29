@@ -190,4 +190,23 @@ python stage_hunter.py report --profile raphael
 python stage_hunter_scheduler.py status --profile config/profiles/raphael.yaml
 python -m unittest -v test_stage_hunter_v6.py
 ```
-"# JobHunter" 
+# Configurer un site de listings
+
+Dans l’interface cloud, ouvre **Recherche & Scan → Configurer les sites de listings**.
+Ajoute un site avec son URL de listing, les noms des paramètres URL utilisés pour les
+mots clés et le pays du profil (ou les variables `{keywords}` et `{location}` dans
+l’URL), puis les sélecteurs CSS des cartes. Le lien de détail
+et le titre sont requis. Les sélecteurs de détail peuvent préciser le contrat, la
+date, la description et le lien de candidature. Le site peut avancer avec un lien
+« page suivante » ou un paramètre de page. Chaque configuration est limitée à cinq
+pages et cent offres par scan.
+
+**Tester sur le site** charge une vraie page côté serveur et montre les offres ainsi
+que les champs manquants. L’activation nécessite ce test ; après toute modification,
+il faut le refaire. Les brouillons et sites actifs sont enregistrés dans le profil
+Supabase existant (`sources.sites`). Les sites sans configuration continuent à être
+analysés par l’extracteur générique. Les pages qui exigent JavaScript, une session ou
+un CAPTCHA peuvent ne rien retourner. Le test inspecte la première page et jusqu’à
+trois fiches de détail ; le scan applique les limites de parcours enregistrées.
+La migration `20260929194700_listing_application_url.sql` ajoute les champs persistés
+de contrat, date de publication et lien de candidature aux offres cloud.

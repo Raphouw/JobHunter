@@ -48,6 +48,11 @@ export function Icon({ name, size = 20, className = '' }) {
     map: <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" />,
     columns: <><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M12 3v18" /></>,
     target: <><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" /></>,
+    grid: <><rect width="7" height="7" x="3" y="3" rx="1.5" /><rect width="7" height="7" x="14" y="3" rx="1.5" /><rect width="7" height="7" x="14" y="14" rx="1.5" /><rect width="7" height="7" x="3" y="14" rx="1.5" /></>,
+    split: <><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M9 3v18" /></>,
+    table: <><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M3 9h18" /><path d="M3 15h18" /><path d="M9 3v18" /></>,
+    eye: <><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></>,
+    send: <><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></>,
   };
 
   return <svg {...common} aria-hidden="true">{shapes[name] || shapes.spark}</svg>;

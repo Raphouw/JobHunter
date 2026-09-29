@@ -9,7 +9,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
-sys.modules.setdefault("yaml", types.SimpleNamespace(safe_dump=lambda *a, **k: ""))
+try:
+    import yaml  # noqa: F401
+except ImportError:
+    sys.modules.setdefault("yaml", types.SimpleNamespace(safe_dump=lambda *a, **k: ""))
 from cloud import scan_worker as worker
 
 

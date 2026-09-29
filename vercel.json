@@ -8,8 +8,12 @@
   "functions": {
     "api/scan.py": {
       "maxDuration": 300,
-      "includeFiles": "{stage_hunter.py,connectors.py,regions.py,cloud/scan_worker.py,config/**}",
+      "includeFiles": "{stage_hunter.py,connectors.py,regions.py,site_configs.py,site_network.py,cloud/scan_worker.py,cloud/offer_history.py,config/**}",
       "excludeFiles": "{credentials/**,output/**,web/**,tests/**,logs/**,*.sqlite3,*.xlsx,*.log}"
+    },
+    "api/sites.py": {
+      "maxDuration": 60,
+      "includeFiles": "{cloud/scan_worker.py,cloud/offer_history.py,site_configs.py,site_network.py}"
     }
   },
   "crons": [

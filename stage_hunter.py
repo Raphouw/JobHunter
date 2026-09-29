@@ -25,6 +25,8 @@ from trafilatura import extract
 from urllib3.util import Retry
 import connectors
 import regions
+from site_configs import crawl_site, extract_detail, validate_site
+from site_network import fetch_preview
 
 import sys
 if hasattr(sys.stdout, 'reconfigure'):
@@ -395,7 +397,7 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS offers(id INTEGER PRIMARY KEY,url TEXT UNIQUE,title TEXT,company TEXT,location TEXT,source TEXT,snippet TEXT,body TEXT,language TEXT,discovered_at TEXT,score REAL,status TEXT DEFAULT 'new',reasons TEXT,gmail_seen INTEGER DEFAULT 0)''')
     existing={x[1] for x in c.execute('PRAGMA table_info(offers)')}
     added=set()
-    for name,typ in [('canonical_url','TEXT'),('canton','TEXT'),('duration','TEXT'),('start_date','TEXT'),('domain_category','TEXT'),('skills_found','TEXT'),('confidence','REAL'),('page_type','TEXT'),('review_decision','TEXT'),('reviewed_at','TEXT'),('review_note','TEXT'),('sheet_synced','INTEGER DEFAULT 0'),('availability_status',"TEXT DEFAULT 'unknown'"),('availability_reason','TEXT'),('last_checked_at','TEXT'),('fingerprint','TEXT'),('learned_adjustment','REAL DEFAULT 0')]:
+    for name,typ in [('canonical_url','TEXT'),('application_url','TEXT'),('contract_type','TEXT'),('posting_date','TEXT'),('canton','TEXT'),('duration','TEXT'),('start_date','TEXT'),('domain_category','TEXT'),('skills_found','TEXT'),('confidence','REAL'),('page_type','TEXT'),('review_decision','TEXT'),('reviewed_at','TEXT'),('review_note','TEXT'),('sheet_synced','INTEGER DEFAULT 0'),('availability_status',"TEXT DEFAULT 'unknown'"),('availability_reason','TEXT'),('last_checked_at','TEXT'),('fingerprint','TEXT'),('learned_adjustment','REAL DEFAULT 0')]:
         if name not in existing:c.execute(f'ALTER TABLE offers ADD COLUMN {name} {typ}');added.add(name)
     # Rows still marked ``new`` may come from a scan that finished before the
     # Tinder workflow was installed. Put them in the review queue. The Sheet
@@ -644,7 +646,19 @@ def iter_parallel_pages(rows,label='HTTP'):
     workers=max(1,min(safe_int(os.getenv('SCRAPE_WORKERS'),8),12,len(rows)));results=[None]*len(rows);completed=0
     log_event(f'{label} — téléchargement parallèle de {len(rows)} page(s) avec {workers} worker(s).','cyan')
     def worker(item):
-        row=item;clean_url=unwrap_url(row['url']);row['url']=clean_url;txt,html,final_url=page(clean_url,row.get('snippet',''));row['_fetch_meta']=dict(getattr(_HTTP_LOCAL,'last_fetch_meta',{'status':'unknown'}));return row,txt,html,final_url
+        row=item;clean_url=unwrap_url(row['url']);row['url']=clean_url
+        if row.get('_site_fields'):
+            try:
+                html,final_url=fetch_preview(clean_url)
+                txt=norm(extract(html,include_links=True,include_tables=True) or BeautifulSoup(html,'html.parser').get_text(' ',strip=True))[:40000]
+                row['_fetch_meta']={'status':'ok'}
+            except Exception as error:
+                txt,html,final_url=row.get('snippet',''),'',clean_url
+                row['_fetch_meta']={'status':'network_error','error':short_text(error,240)}
+        else:
+            txt,html,final_url=page(clean_url,row.get('snippet',''))
+            row['_fetch_meta']=dict(getattr(_HTTP_LOCAL,'last_fetch_meta',{'status':'unknown'}))
+        return row,txt,html,final_url
     batch_span=max(workers,min(safe_int(os.getenv('MAX_IN_FLIGHT_PAGES'),workers*2),workers*4))
     for start in range(0,len(rows),batch_span):
         if scan_budget_exhausted():
@@ -896,7 +910,12 @@ def configured_search_backends():
     legacy_upgrade=[fold_text(value) for value in raw]==['duckduckgo','brave']
     if legacy_upgrade:raw=['duckduckgo','yahoo']
     resolved,ignored,migrated=normalize_search_backends(raw)
-    return resolved or ['duckduckgo','yahoo'],ignored,migrated,legacy_upgrade
+    resolved=resolved or ['duckduckgo','yahoo']
+    if os.getenv('BRAVE_SEARCH_API_KEY'):
+        resolved.append('brave_api')
+    if os.getenv('SEARXNG_BASE_URL'):
+        resolved.append('searxng')
+    return resolved,ignored,migrated,legacy_upgrade
 
 def search_backend_primary_index(index,backend_count,observed_weights=None):
     """Prefer the best recent backend while probing alternatives every fourth query."""
@@ -919,6 +938,33 @@ def search_result_filter_status(raw_url,canonical_url='',seen=None):
 def search_backend_once(query,backend,limit,region,timeout):
     """Run one DDGS backend and retain the evidence normally hidden by DDGS."""
     started=time.perf_counter();trace={'backend':backend,'status':'empty','raw_count':0,'elapsed_ms':0,'error_type':'','error_message':''}
+    if backend in ('brave_api','searxng'):
+        try:
+            if backend=='brave_api':
+                response=requests.get('https://api.search.brave.com/res/v1/web/search',
+                    params={'q':query,'count':min(max(1,limit),20)},
+                    headers={'X-Subscription-Token':os.environ['BRAVE_SEARCH_API_KEY'],
+                             'Accept':'application/json'},timeout=timeout)
+                response.raise_for_status()
+                entries=(response.json().get('web') or {}).get('results') or []
+                results=[{'href':row.get('url',''),'title':row.get('title',''),
+                          'body':row.get('description','')} for row in entries]
+            else:
+                base=os.environ['SEARXNG_BASE_URL'].rstrip('/')
+                if not base.startswith(('https://','http://')):raise ValueError('Adresse SearXNG invalide')
+                response=requests.get(base+'/search',params={'q':query,'format':'json'},timeout=timeout)
+                response.raise_for_status()
+                entries=response.json().get('results') or []
+                results=[{'href':row.get('url',''),'title':row.get('title',''),
+                          'body':row.get('content','')} for row in entries]
+            trace['raw_count']=len(results);trace['status']='results' if results else 'empty'
+            return results,trace
+        except Exception as error:
+            trace['status']='error';trace['error_type']=type(error).__name__
+            trace['error_message']=norm(str(error))[:180]
+            return [],trace
+        finally:
+            trace['elapsed_ms']=round((time.perf_counter()-started)*1000)
     resolved,ignored,migrated=normalize_search_backends([backend])
     if not resolved:
         trace.update(status='invalid_backend',error_type='InvalidBackend',error_message=f'Moteur DDGS non pris en charge : {backend}')
@@ -1276,6 +1322,8 @@ def page_audit_record(row,title,reason,page_type='',text='',html='',structured=N
     return {
         'title':norm(title),'url':row.get('url',''),'official_url':row.get('url',''),
         'original_url':row.get('_original_url') or row.get('url',''),
+        'company':norm((structured or {}).get('company') or row.get('company') or
+                       guess_company(title,text or '',row.get('url',''))),
         'source':row.get('source') or dom(row.get('url','')),'origin':row.get('origin',''),
         'depth':row.get('_depth',0),'reason':reason,'page_type':page_type,
         'contract_state':contract_state,'contract_hint':bool(row.get('_contract_hint')),
@@ -1616,7 +1664,7 @@ def fixed_site_candidates(profile,c=None):
     max_sites=max(0,min(safe_int(os.getenv('FIXED_SITE_LIMIT'),len(urls) or 0),30))
     urls=rank_fixed_urls(c,urls)[:max_sites]
     SCAN_METRICS['fixed_sites_visited']=0
-    if not urls:
+    if not urls and not (profile.get('sources') or {}).get('sites'):
         log_event('SITES FIXES — aucune page configurée pour ce profil.','dim');return []
     rows=[{'url':u,'title':'','snippet':'','source':dom(u),'origin':'fixed_site'} for u in urls]
     candidates=[];seen=set();title_only=0;raw_leads=0;visited_sites=0
@@ -1648,7 +1696,47 @@ def fixed_site_candidates(profile,c=None):
     SCAN_METRICS['fixed_sites_visited']=visited_sites
     SCAN_METRICS['phases']['fixed_sites_seconds']=round(time.perf_counter()-fixed_started,2)
     log_event(f'SITES FIXES — {len(candidates)} lien(s) individuel(s) extrait(s) sur {raw_leads} piste(s) · {title_only} titre(s) sans lien ignoré(s).','green' if candidates else 'yellow')
+    for raw_site in (profile.get('sources') or {}).get('sites',[]) or []:
+        try:
+            site=validate_site(raw_site)
+            if site['enabled']:
+                candidates.extend(configured_site_candidates(profile,site))
+        except (ValueError,TypeError) as error:
+            log_event(f'SITE CONFIGURÉ IGNORÉ — {short_text(error,120)}','yellow')
     return candidates
+
+
+def configured_site_candidates(profile,site):
+    """Extract configured cards; the existing offer analysis still fetches details."""
+    site=validate_site(site)
+    if not site['enabled']:return []
+    report=crawl_site(site,profile,fetch_preview,with_details=False)
+    rows=[]
+    for offer in report['offers']:
+        url=offer['detail_link']
+        if not url or not safe_public_url(url):continue
+        rows.append({'url':url,'title':offer['title'],'company':offer['company'],
+                     'location':offer['location'],'snippet':offer['description'][:700],
+                     'source':dom(url),'origin':'configured_site','_depth':1,
+                     '_listing_url':report['listing_url'],
+                     '_site_details':site['detail_selectors'],
+                     '_site_fields':offer})
+    log_event(f'SITE CONFIGURÉ · {site["name"]} · {report["pages"]} page(s) · {len(rows)} offre(s)','green' if rows else 'yellow')
+    return rows
+
+
+def configured_detail_data(row,html,url,structured):
+    """Merge recipe fields with schema.org data for configured detail pages."""
+    if not row.get('_site_fields'):return structured
+    details={}
+    if html and row.get('_site_details'):
+        details=extract_detail(html,url,{'detail_selectors':row['_site_details']})
+    values={**row['_site_fields'],**{key:value for key,value in details.items() if value}}
+    mapping={'title':'title','company':'company','location':'location',
+             'contract':'employment_type','date':'date_posted',
+             'description':'description','application_link':'application_url'}
+    return {**structured,**{target:value for key,target in mapping.items()
+                           if (value:=values.get(key))}}
 
 def profile_date(profile,key):
     raw=(profile.get('student') or {}).get(key)
@@ -2152,9 +2240,12 @@ def find_duplicate(c,cu,title,company,location=''):
             if old_city and new_city and old_city!=new_city:
                 continue
             return row[:8]
-    for row in c.execute("SELECT id,url,title,company,source,body,score,status FROM offers WHERE status NOT IN ('deleted','closed') ORDER BY id DESC LIMIT 1500"):
-        _,_,old_title,old_company,_,_,_,_=row
-        if offers_match(title,company,old_title,old_company):return row
+    for row in c.execute("SELECT id,url,title,company,source,body,score,status,location FROM offers WHERE status NOT IN ('deleted','closed') ORDER BY id DESC"):
+        _,_,old_title,old_company,_,_,_,_,old_location=row
+        old_city=fold_text((old_location or '').split(',')[0])
+        new_city=fold_text((location or '').split(',')[0])
+        if old_city and new_city and old_city!=new_city:continue
+        if offers_match(title,company,old_title,old_company):return row[:8]
     return None
 
 def deduplicate_existing_offers(c):
@@ -2324,7 +2415,7 @@ def ingest(c,rows,profile):
         r.setdefault('_original_url',r['url'])
         item_started=time.perf_counter()
         log_event(f'ANALYSE {index}/{pending_count} · {r.get("source") or dom(r["url"])} · {short_text(r.get("title") or r["url"])}')
-        final_url=canon(fetched_url or r['url']); structured=extract_job_posting(html,final_url)
+        final_url=canon(fetched_url or r['url']); structured=configured_detail_data(r,html,final_url,extract_job_posting(html,final_url))
         effective_title=structured.get('title') or r.get('title','')
         effective_text=job_relevant_text(txt,html,structured)
         r['_fetch_meta']=r.get('_fetch_meta') or dict(getattr(_HTTP_LOCAL,'last_fetch_meta',{'status':'unknown'}))
@@ -2405,7 +2496,7 @@ def ingest(c,rows,profile):
     for row,txt,html,final_url in iter_parallel_pages(detail_pending,'HTTP DÉTAILS'):
         detail_downloads+=1
         downloaded_sources[dom(final_url or row['url'])]+=1
-        row.setdefault('_original_url',row['url']);row['url']=canon(final_url or row['url']);row['_fetch_meta']=row.get('_fetch_meta') or {'status':'unknown'};structured=extract_job_posting(html,row['url']);effective_text=job_relevant_text(txt,html,structured)
+        row.setdefault('_original_url',row['url']);row['url']=canon(final_url or row['url']);row['_fetch_meta']=row.get('_fetch_meta') or {'status':'unknown'};structured=configured_detail_data(row,html,row['url'],extract_job_posting(html,row['url']));effective_text=job_relevant_text(txt,html,structured)
         pt,class_reason=classify_with_reason(row['url'],structured.get('title') or row.get('title',''),effective_text,html,profile,candidate_hint=True);classification_reasons[class_reason]+=1
         row['_html']='';row['_had_html']=bool(html);row['_pt']=pt;row['_class_reason']=class_reason
         if pt=='listing':row['_listing_leads']=discover_listing_leads(row['url'],html)
@@ -2484,7 +2575,7 @@ def ingest(c,rows,profile):
         for row,txt,html,final_url in iter_parallel_pages(new_rows,f'LISTINGS NIVEAU {depth_round+2}'):
             detail_downloads+=1;downloaded_new.add(id(row))
             downloaded_sources[dom(final_url or row['url'])]+=1
-            row['url']=canon(final_url or row['url']);row['_fetch_meta']=row.get('_fetch_meta') or {'status':'unknown'};structured=extract_job_posting(html,row['url']);effective_text=job_relevant_text(txt,html,structured)
+            row['url']=canon(final_url or row['url']);row['_fetch_meta']=row.get('_fetch_meta') or {'status':'unknown'};structured=configured_detail_data(row,html,row['url'],extract_job_posting(html,row['url']));effective_text=job_relevant_text(txt,html,structured)
             pt,class_reason=classify_with_reason(row['url'],structured.get('title') or row.get('title',''),effective_text,html,profile,candidate_hint=True);classification_reasons[class_reason]+=1
             row['_html']='';row['_had_html']=bool(html);row['_pt']=pt;row['_class_reason']=class_reason
             if pt=='listing':row['_listing_leads']=discover_listing_leads(row['url'],html)
@@ -2621,6 +2712,9 @@ def ingest(c,rows,profile):
                 best_sc=max(0,min(100,round(best_sc+best_adjustment,1)));best_reasons.extend(best_learned_reasons)
                 best_loc,best_canton,best_lang,best_duration,best_start,best_cat,best_skills=best_meta
                 c.execute('''UPDATE offers SET url=?,canonical_url=?,title=?,company=?,location=?,canton=?,source=?,snippet=?,body=?,language=?,duration=?,start_date=?,domain_category=?,skills_found=?,confidence=?,page_type=?,score=?,reasons=?,gmail_seen=?,availability_status=?,availability_reason=?,last_checked_at=?,learned_adjustment=?,fingerprint=? WHERE id=?''',(best_url,canon(best_url),best_title,best_company,best_loc,best_canton,best_source,r.get('snippet','') if best_text==txt else '',best_text,best_lang,best_duration,best_start,best_cat,', '.join(best_skills),best_conf,pt,best_sc,'\n'.join(best_reasons),1 if r.get('origin')=='gmail' else 0,availability,closed_reason,datetime.now(timezone.utc).isoformat(),best_adjustment,offer_fingerprint(best_title,best_company,best_loc),old_id))
+                if any(structured.get(key) for key in ('application_url','employment_type','date_posted')):
+                    c.execute('UPDATE offers SET application_url=COALESCE(NULLIF(?,\'\'),application_url),contract_type=COALESCE(NULLIF(?,\'\'),contract_type),posting_date=COALESCE(NULLIF(?,\'\'),posting_date) WHERE id=?',
+                              (structured.get('application_url',''),structured.get('employment_type',''),structured.get('date_posted',''),old_id))
                 if better_source:stats['preferred_duplicate']+=1
                 if retained_sources[dom(old_url)]>0:retained_sources[dom(old_url)]-=1
                 retained_sources[dom(best_url)]+=1
@@ -2634,6 +2728,9 @@ def ingest(c,rows,profile):
             continue
         if availability=='unknown':conf=max(0,conf-8);reasons.append('Disponibilité à confirmer : aucun signal fiable de fermeture')
         c.execute('''INSERT INTO offers(url,canonical_url,title,company,location,canton,source,snippet,body,language,duration,start_date,domain_category,skills_found,confidence,page_type,discovered_at,score,status,reasons,gmail_seen,review_decision,sheet_synced,availability_status,availability_reason,last_checked_at,learned_adjustment,fingerprint) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',(r['url'],cu,title,company,loc,canton,r.get('source') or dom(r['url']),r.get('snippet',''),txt,lang,duration,start,cat,', '.join(skills),conf,pt,datetime.now(timezone.utc).isoformat(),sc,'new','\n'.join(reasons),1 if r.get('origin')=='gmail' else 0,'pending',0,availability,closed_reason,datetime.now(timezone.utc).isoformat(),learned_adjustment,fingerprint))
+        if any(structured.get(key) for key in ('application_url','employment_type','date_posted')):
+            c.execute('UPDATE offers SET application_url=?,contract_type=?,posting_date=? WHERE id=?',
+                      (structured.get('application_url',''),structured.get('employment_type',''),structured.get('date_posted',''),c.execute('SELECT last_insert_rowid()').fetchone()[0]))
         inserted+=1;retained_sources[dom(r['url'])]+=1;retained_examples.append({'title':title,'company':company,'url':r['url'],'source':dom(r['url']),'score':sc,'confidence':conf,'contract_state':contract_state,'kind':'new'});audit_decision(r,'retained','Offre retenue au-dessus du seuil',title,pt,txt,html,structured,contract_state,availability,sc,conf,reasons);log_event(f'→ RETENUE · {sc}/100 · confiance {conf}/100 · contrat {contract_state} · {source_quality_label(r["url"])} · {short_text(company,24)} · {short_text(title,55)}','bold green')
         if inserted%25==0:c.commit();log_event(f'CHECKPOINT — {inserted} offre(s) nouvelles enregistrée(s) durablement.','dim')
     c.commit()
