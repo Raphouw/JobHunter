@@ -1747,6 +1747,74 @@ a {
   line-height: 1.5;
 }
 
+/* Compact City & Radius Controls */
+.sh-city-radius-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sh-city-radius-row .sh-city-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.sh-radius-compact {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  height: 41px;
+  border: 1.5px solid var(--border-light, #e2e8f0);
+  border-radius: var(--radius-sm, 8px);
+  background: #ffffff;
+  flex-shrink: 0;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.sh-radius-compact:focus-within {
+  border-color: var(--salmon, #fb7185);
+  box-shadow: 0 0 0 3.5px rgba(251, 113, 133, 0.16);
+}
+
+.sh-radius-prefix {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-light, #64748b);
+  white-space: nowrap;
+}
+
+.sh-radius-compact input.sh-radius-num {
+  width: 50px;
+  padding: 0 2px;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  font-size: 13.5px;
+  font-weight: 700;
+  text-align: center;
+  color: var(--text-main, #0f172a);
+  outline: none !important;
+}
+
+.sh-radius-suffix {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-light, #64748b);
+}
+
+.sh-city-restrict-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-light, #475569);
+  cursor: pointer;
+  user-select: none;
+}
+
 .sh-form-save-bar {
   display: flex;
   align-items: center;

@@ -84,7 +84,7 @@ export function ProfileView({ profile = {}, onSave, onResetProfile, busy = false
       location: {
         ...(form.location || {}),
         search_city: searchCity,
-        radius_km: searchCity ? (Number.isFinite(radius) && radius > 0 ? Math.min(radius, 1000) : 50) : null,
+        radius_km: Number.isFinite(radius) && radius > 0 ? Math.min(radius, 1000) : 50,
         restrict_to_priority_locations: form.location?.restrict_to_priority_locations ??
           Boolean((form.location?.priority_locations || form.location?.priority_cantons || []).length),
       },
@@ -411,17 +411,6 @@ export function ProfileView({ profile = {}, onSave, onResetProfile, busy = false
                 }}
                 placeholder="ex: Auvergne-Rhône-Alpes, Île-de-France, GE, VD, 74, 69, Lyon, Paris, Zurich..."
               />
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5,
-                fontSize: 12, fontWeight: 600, color: 'var(--text-light)' }}>
-                <input
-                  type="checkbox"
-                  style={{ width: 16, height: 16, flex: 'none', padding: 0, accentColor: 'var(--salmon)' }}
-                  checked={form.location?.restrict_to_priority_locations ??
-                    Boolean((form.location?.priority_locations || form.location?.priority_cantons || []).length)}
-                  onChange={(e) => patch('location', 'restrict_to_priority_locations', e.target.checked)}
-                />
-                Limiter les résultats à ces zones quand le lieu de l’offre est connu
-              </label>
             </div>
 
             <div className="sh-field">
@@ -433,27 +422,46 @@ export function ProfileView({ profile = {}, onSave, onResetProfile, busy = false
                 placeholder="fr, en"
               />
             </div>
+
             <div className="sh-field">
-              <label>Ville de référence (facultatif)</label>
-              <input
-                type="text"
-                value={form.location?.search_city || ''}
-                onChange={(e) => patch('location', 'search_city', e.target.value)}
-                placeholder="ex: Toulouse"
-              />
-              <span className="sh-label-hint">Laisse vide pour chercher dans toute la région.</span>
-            </div>
-            <div className="sh-field">
-              <label>Rayon maximal autour de cette ville (km)</label>
-              <input
-                type="number"
-                min="1"
-                max="1000"
-                value={form.location?.radius_km ?? 50}
-                onChange={(e) => patch('location', 'radius_km', e.target.value)}
-                disabled={!String(form.location?.search_city || '').trim()}
-              />
-              <span className="sh-label-hint">Distance à vol d’oiseau. Le score perd progressivement jusqu’à 25 points au bord du rayon ; au-delà, l’offre est écartée si sa ville est connue.</span>
+              <label>
+                Ville de référence & Rayon (facultatif)
+                <span className="sh-label-hint">Laisse vide pour chercher dans toute la région.</span>
+              </label>
+              <div className="sh-city-radius-row">
+                <input
+                  type="text"
+                  value={form.location?.search_city || ''}
+                  onChange={(e) => patch('location', 'search_city', e.target.value)}
+                  placeholder="ex: Toulouse"
+                  className="sh-city-input"
+                />
+                <div className="sh-radius-compact" title="Rayon maximal autour de cette ville en km">
+                  <span className="sh-radius-prefix">Rayon</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max="1000"
+                    value={form.location?.radius_km ?? 50}
+                    onChange={(e) => patch('location', 'radius_km', e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value, 10) || 50))}
+                    onBlur={() => {
+                      if (!form.location?.radius_km) patch('location', 'radius_km', 50);
+                    }}
+                    className="sh-radius-num"
+                  />
+                  <span className="sh-radius-suffix">km</span>
+                </div>
+              </div>
+              <label className="sh-city-restrict-checkbox">
+                <input
+                  type="checkbox"
+                  style={{ width: 16, height: 16, flex: 'none', padding: 0, accentColor: 'var(--salmon)' }}
+                  checked={form.location?.restrict_to_priority_locations ??
+                    Boolean((form.location?.priority_locations || form.location?.priority_cantons || []).length)}
+                  onChange={(e) => patch('location', 'restrict_to_priority_locations', e.target.checked)}
+                />
+                <span>Limiter les résultats à ces zones quand le lieu de l’offre est connu</span>
+              </label>
             </div>
           </div>
         </section>
