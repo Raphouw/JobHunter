@@ -27,3 +27,27 @@
 .atlas-detail{position:relative;background:#fff;border:1px solid #e8e3ef;border-radius:16px;box-shadow:0 28px 80px #11142d59;overflow:hidden;color:var(--text-main)}.atlas-detail .sh-modal-header{position:relative;padding-right:65px;background:linear-gradient(135deg,#fff,#f6f1ff)}.atlas-detail .sh-modal-close{position:absolute;top:20px;right:22px;display:grid;place-items:center;width:34px;height:34px;font-size:24px;color:var(--text-main)}.atlas-detail-body{background:#fff;color:var(--text-main)}.atlas-detail-body>.atlas-progress{margin:26px 0 20px}.atlas-detail section{border-color:#e6e3ed}.atlas-detail section p{color:#4b4b5f}.atlas-detail-actions{align-items:center}.atlas-detail-actions select,.atlas-detail-actions button{min-height:40px}.atlas-detail-links a{overflow-wrap:anywhere}
 .atlas-catalog-main{position:relative}
 @media(max-width:760px){.atlas-carousel{padding:16px;scroll-padding-inline:16px}.atlas-catalog-card{flex-basis:min(82vw,310px)}.atlas-results-heading{align-items:flex-start}.atlas-results-heading p{max-width:230px}.atlas-carousel-controls{flex-wrap:wrap;justify-content:flex-end}.atlas-detail{border-radius:0}.atlas-detail .sh-modal-header{padding-right:62px}}
+
+/* A continuous timeline with filled milestones only. */
+.atlas-progress{position:relative}
+.atlas-progress::before{content:"";position:absolute;top:4px;left:5px;right:calc(25% - 5px);height:2px;background:#e4e5ef}
+.atlas-progress-step,.atlas-progress-step.done,.atlas-progress.is-refused .atlas-progress-step.current{border-top:0;padding-top:11px}
+.atlas-progress-step{color:#9494a6}
+.atlas-progress-step.done{color:#6647aa}
+.atlas-progress.is-refused .atlas-progress-step.current{color:#bd435f}
+.atlas-progress-dot{z-index:1;top:0}
+
+/* Portrait cards, centred in a gallery with neighbouring cards in view. */
+.atlas-carousel{position:relative;gap:0;align-items:center;min-height:455px;padding:28px max(24px,calc((100% - 286px)/2)) 35px;scroll-padding-inline:calc((100% - 286px)/2)}
+.atlas-catalog-card{position:relative;flex:0 0 286px;min-height:370px;margin-inline:-14px;display:flex;flex-direction:column;scroll-snap-align:center;border-radius:17px;box-shadow:0 18px 40px #23193719;transform:scale(.91);opacity:.78;transition:transform .25s,opacity .25s,border-color .25s;z-index:1}
+.atlas-catalog-card:hover{transform:scale(.96);opacity:1;z-index:2}
+.atlas-catalog-card.active{transform:scale(1.04);opacity:1;z-index:3;box-shadow:0 22px 48px #2918452b}
+.atlas-catalog-main{min-height:245px;padding:22px}
+.atlas-catalog-mark{width:46px;height:46px;margin-bottom:24px}
+.atlas-catalog-main strong{font-size:20px}
+.atlas-catalog-role{font-size:13px;margin-top:9px}
+.atlas-catalog-location{font-size:12px}
+.atlas-catalog-footer{margin-top:auto;padding:17px 21px}
+.atlas-catalog-card .atlas-progress{margin:10px 21px 22px}
+.atlas-point.selected{filter:drop-shadow(0 0 13px #fff9b0)}
+@media(max-width:760px){.atlas-carousel{min-height:420px;padding:24px max(18px,calc((100% - 250px)/2)) 30px;scroll-padding-inline:calc((100% - 250px)/2)}.atlas-catalog-card{flex-basis:250px;min-height:345px;margin-inline:-8px}.atlas-catalog-main{min-height:222px}}

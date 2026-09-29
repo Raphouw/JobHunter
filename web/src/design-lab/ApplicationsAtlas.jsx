@@ -129,12 +129,14 @@ export function ApplicationsAtlas({ candidatures = [], profileId, accessToken, b
 
   useEffect(() => {
     if (!selectedId) return;
-    const card = [...(carouselRef.current?.children || [])].find((element) => element.dataset.id === String(selectedId));
-    card?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    const carousel = carouselRef.current;
+    const card = [...(carousel?.children || [])].find((element) => element.dataset.id === String(selectedId));
+    if (carousel && card) carousel.scrollTo({ left: card.offsetLeft - (carousel.clientWidth - card.clientWidth) / 2, behavior: 'smooth' });
   }, [selectedId, filtered]);
 
   useEffect(() => { if (selectedId && !filtered.some((item) => item.id === selectedId)) setSelectedId(null); }, [filtered, selectedId]);
   useEffect(() => { setGroupIds(null); setSelectedId(null); }, [country, region, status, query]);
+  useEffect(() => { if (!selectedId && filtered.length) setSelectedId(filtered[0].id); }, [filtered, selectedId]);
   useEffect(() => {
     if (!detailOpen) return undefined;
     const previous = document.activeElement;
@@ -175,6 +177,12 @@ export function ApplicationsAtlas({ candidatures = [], profileId, accessToken, b
   const selectCard = (item) => {
     setSelectedId(item.id);
     if (item.geo.located) setView({ x: item.geo.x, y: item.geo.y, scale: Math.max(view.scale, 5) });
+  };
+  const moveCatalogue = (direction) => {
+    if (!filtered.length) return;
+    const current = filtered.findIndex((item) => item.id === selectedId);
+    const next = clamp((current < 0 ? 0 : current) + direction, 0, filtered.length - 1);
+    selectCard(filtered[next]);
   };
   const focusItem = (item) => {
     returnFocusRef.current = document.activeElement;
@@ -292,14 +300,14 @@ export function ApplicationsAtlas({ candidatures = [], profileId, accessToken, b
             const city = group.items.map((entry) => entry.location).filter(Boolean)[0] || group.items[0].regionCode || 'Zone non précisée';
             const item = group.items[0]; const isSelected = group.items.some((entry) => entry.id === selectedId); const radius = (aggregate ? 15 : 7) / view.scale;
             const activate = () => { if (blockDragClick()) return; if (aggregate) focusGroup(group); else selectCard(item); };
-            return <g key={index} data-point="true" role="button" tabIndex="0" aria-label={aggregate ? `Voir ${group.items.length} candidatures à ${city}` : `Sélectionner ${item.company} à ${city}`} className={`atlas-point ${isSelected ? 'selected' : ''}`} transform={`translate(${group.x} ${group.y})`} onClick={activate} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activate(); } }}><circle r={24 / view.scale} fill="transparent" /><circle r={radius + 4 / view.scale} fill={isSelected ? '#ffffff' : '#0d1424'} /><circle r={radius} fill={aggregate ? '#8856ff' : item.urgent ? '#ff5b78' : '#3e9bff'} /><title>{aggregate ? `${city} · ${group.items.length} candidatures` : `${city} · ${item.company}`}</title>{aggregate && <text textAnchor="middle" dominantBaseline="central" fontSize={12 / view.scale} fill="white" fontWeight="700">{group.items.length}</text>}</g>;
+            return <g key={index} data-point="true" role="button" tabIndex="0" aria-label={aggregate ? `Voir ${group.items.length} candidatures à ${city}` : `Sélectionner ${item.company} à ${city}`} className={`atlas-point ${isSelected ? 'selected' : ''}`} transform={`translate(${group.x} ${group.y})`} onClick={activate} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activate(); } }}><circle r={28 / view.scale} fill="transparent" />{isSelected && <><circle r={27 / view.scale} fill="#facc15" opacity=".28" /><circle r={19 / view.scale} fill="none" stroke="#fff" strokeWidth={3 / view.scale} /></>}<circle r={radius + 4 / view.scale} fill={isSelected ? '#fff' : '#0d1424'} /><circle r={radius} fill={isSelected ? '#facc15' : aggregate ? '#8856ff' : item.urgent ? '#ff5b78' : '#3e9bff'} /><title>{aggregate ? `${city} · ${group.items.length} candidatures` : `${city} · ${item.company}`}</title>{aggregate && <text textAnchor="middle" dominantBaseline="central" fontSize={12 / view.scale} fill={isSelected ? '#172033' : 'white'} fontWeight="700">{group.items.length}</text>}</g>;
           })}
         </svg>
         <div className="atlas-map-foot"><span><i /> Candidature <i className="urgent" /> À relancer <i className="cluster" /> Groupe</span><small>Glisser pour explorer · cliquer sur la mer pour dézoomer</small></div>
         {groupIds && <div className="atlas-map-selection"><div><strong>{filtered.length} candidatures dans cette zone</strong><span>Choisissez une carte ci-dessous pour la localiser.</span></div><button onClick={() => setMobileTab('details')}>Voir les cartes →</button></div>}
       </section>
       <section className="atlas-results" aria-label="Liste des candidatures">
-        <div className="atlas-results-heading"><div><span className="sh-eyebrow">SUIVI DES DÉMARCHES</span><h2>{filtered.length} candidature{filtered.length !== 1 ? 's' : ''}</h2><p>Choisissez une carte pour la localiser, puis ouvrez sa fiche.</p></div><div className="atlas-carousel-controls">{groupIds && <button className="atlas-clear-group" onClick={() => setGroupIds(null)}>Afficher toutes ×</button>}<button aria-label="Cartes précédentes" onClick={() => carouselRef.current?.scrollBy({ left: -340, behavior: 'smooth' })}>←</button><button aria-label="Cartes suivantes" onClick={() => carouselRef.current?.scrollBy({ left: 340, behavior: 'smooth' })}>→</button></div></div>
+        <div className="atlas-results-heading"><div><span className="sh-eyebrow">SUIVI DES DÉMARCHES</span><h2>{filtered.length} candidature{filtered.length !== 1 ? 's' : ''}</h2><p>Choisissez une carte pour la localiser, puis ouvrez sa fiche.</p></div><div className="atlas-carousel-controls">{groupIds && <button className="atlas-clear-group" onClick={() => setGroupIds(null)}>Afficher toutes ×</button>}<button aria-label="Carte précédente" onClick={() => moveCatalogue(-1)}>←</button><button aria-label="Carte suivante" onClick={() => moveCatalogue(1)}>→</button></div></div>
         {filtered.length ? <div className="atlas-carousel" ref={carouselRef}>{filtered.map((item) => <article key={item.id} data-id={item.id} className={`atlas-catalog-card ${selectedId === item.id ? 'active' : ''}`}>
           <button className="atlas-catalog-main" onClick={() => selectCard(item)} aria-label={`Localiser la candidature ${item.company}`}><span className="atlas-catalog-mark">{String(item.company || '?').slice(0, 1).toUpperCase()}</span><span className={`atlas-phase phase-${item.phase}`}>{STATUS_LABELS[item.phase]}</span><strong>{item.company}</strong><span className="atlas-catalog-role">{item.job_title || item.title || item.demarche || item.sector || 'Candidature spontanée'}</span><span className="atlas-catalog-location">⌖ {item.location || item.regionCode || item.countryCode}{!item.geo.located ? ' · Position non localisée' : ''}</span></button>
           <ApplicationProgress phase={item.phase} />
