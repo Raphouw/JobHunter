@@ -401,27 +401,28 @@ def discover(store, job, engine, profile):
     query_limit, site_limit, _, _ = MODE_LIMITS[job["mode"]]
     generic_urls = engine.targeted_fixed_urls(profile)
     direct_urls = []
-    configured_sites = (profile.get('sources') or {}).get('sites', []) or []
     from site_configs import validate_site
-    for raw_site in configured_sites:
-        try:
-            site = validate_site(raw_site)
-            if site['enabled']:
-                direct_urls.append(site)
-        except (ValueError, TypeError):
-            continue
-    personal_urls = {site['listing_url'] for site in direct_urls}
     shared = store.rows("hunter_site_recipes",
                         "status=eq.published&select=config&order=updated_at.desc&limit=100")
+    configured_urls = set()
     for row in shared:
         try:
             site = validate_site(row['config'])
-            if site['enabled'] and site['listing_url'] not in personal_urls:
+            if site['enabled'] and site['listing_url'] not in configured_urls:
                 direct_urls.append(site)
-                personal_urls.add(site['listing_url'])
+                configured_urls.add(site['listing_url'])
         except (ValueError, TypeError, KeyError):
             continue
-    direct_urls.extend(url for url in generic_urls if url not in personal_urls)
+    configured_sites = (profile.get('sources') or {}).get('sites', []) or []
+    for raw_site in configured_sites:
+        try:
+            site = validate_site(raw_site)
+            if site['enabled'] and site['listing_url'] not in configured_urls:
+                direct_urls.append(site)
+                configured_urls.add(site['listing_url'])
+        except (ValueError, TypeError):
+            continue
+    direct_urls.extend(url for url in generic_urls if url not in configured_urls)
     direct_urls = direct_urls[:site_limit]
     queries = engine.build_search_queries(profile, emit_log=False)[:query_limit]
     direct_cursor = engine.safe_int(checkpoint.get("direct_cursor"), 0)

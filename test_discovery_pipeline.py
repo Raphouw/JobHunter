@@ -50,7 +50,7 @@ class DiscoveryPipelineTests(unittest.TestCase):
             def safe_int(value, default=0): return int(value or default)
             @classmethod
             def configured_site_candidates(cls, profile, site):
-                cls.visited.append(site['listing_url'])
+                cls.visited.append((site['listing_url'], site['name']))
                 return [{'url': 'https://example.org/jobs/1'}]
             @staticmethod
             def fixed_site_candidates(profile): raise AssertionError('Generic site was not prioritized')
@@ -66,8 +66,10 @@ class DiscoveryPipelineTests(unittest.TestCase):
              patch.object(worker, 'candidate_rows', return_value=1), \
              patch.object(worker, 'still_owned', return_value=True), \
              patch.object(worker, 'release'):
-            worker.discover(store, job, SharedEngine, {})
-        self.assertEqual(SharedEngine.visited, ['https://example.org/jobs'])
+            worker.discover(store, job, SharedEngine,
+                            {'sources': {'sites': [{**sample_site(), 'enabled': True,
+                                                   'name': 'Old personal version'}]}})
+        self.assertEqual(SharedEngine.visited, [('https://example.org/jobs', 'Exemple')])
 
     def test_independent_search_apis_normalize_results(self):
         class Response:
