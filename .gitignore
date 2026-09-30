@@ -14,3 +14,4 @@ web/.npm-cache/
 supabase/.temp/
 .test_temp/
 web/dist-cloud/
+web/dist-cv-*/

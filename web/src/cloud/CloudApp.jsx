@@ -12,6 +12,8 @@ import { SiteConfigEditor } from './SiteConfigEditor';
 import { DeleteProfileDialog, ProfileSwitcher } from './ProfileSwitcher';
 import { supabase, unwrap } from './client';
 
+const CVsView = React.lazy(() => import('../components/CVs/CVsView').then(module => ({ default:module.CVsView })));
+
 const EMPTY_CONFIG = {
   student: { stage_type: 'stage / internship', contract_types: ['Internship'], min_weeks: 20 },
   target: { job_titles: [], sectors: [], red_flags: [] },
@@ -27,6 +29,7 @@ const NAV_ITEMS = [
   ['swipe', 'Swiper les offres', 'heart'],
   ['results', 'Mes offres', 'briefcase'],
   ['candidatures', 'Candidatures & Carte', 'map'],
+  ['cvs', 'Mes CV', 'briefcase'],
   ['profile', 'Mon profil', 'building'],
   ['search', 'Recherche & Scan', 'search'],
   ['candidates', 'Candidats bruts', 'layers'],
@@ -146,6 +149,7 @@ export function CloudApp() {
       ['swipe', 'Swiper les offres', 'heart'],
       ['results', 'Mes offres', 'briefcase'],
       ['candidatures', 'Candidatures & Carte', 'map'],
+      ['cvs', 'Mes CV', 'briefcase'],
       ['profile', 'Mon profil', 'building'],
       ['search', 'Recherche & Scan', 'search'],
       ['candidates', 'Candidats bruts', 'layers'],
@@ -747,6 +751,7 @@ export function CloudApp() {
                   prefillFromOffer={prefillCandidature}
                   onClearPrefill={() => setPrefillCandidature(null)}
                 />}
+                {page === 'cvs' && <React.Suspense fallback={<p>Chargement de l’éditeur…</p>}><CVsView key={`${session.user.id}:${profileId}`} profileId={profileId} userId={session.user.id} supabase={supabase} /></React.Suspense>}
                 {page === 'profile' && <div className="sh-view"><ProfileView profile={profile} onSave={saveProfile} busy={busy} />
                   <section className="sh-form-section"><div className="sh-section-header"><div>
                     <h2>Mes profils de recherche</h2><p>Chaque profil possède ses critères et ses offres.</p>

@@ -12,6 +12,7 @@ import { ConnectionsView } from './components/Connections/ConnectionsView';
 import { AutomationView } from './components/Automation/AutomationView';
 import { DiagnosticView } from './components/Diagnostic/DiagnosticView';
 import { ApplicationsAtlas } from './design-lab/ApplicationsAtlas';
+const CVsView = React.lazy(() => import('./components/CVs/CVsView').then(module => ({ default:module.CVsView })));
 
 const CloudApp = React.lazy(() => import('./cloud/CloudApp'));
 const SwiperDesignLab = React.lazy(() => import('./design-lab/SwiperDesignLab'));
@@ -29,6 +30,7 @@ const NAV_ITEMS = [
   { id: 'swipe', icon: 'heart', label: 'Swiper les offres' },
   { id: 'results', icon: 'briefcase', label: 'Mes offres' },
   { id: 'candidatures', icon: 'map', label: 'Candidatures & Carte' },
+  { id: 'cvs', icon: 'briefcase', label: 'Mes CV' },
   { id: 'profile', icon: 'building', label: 'Mon profil' },
   { id: 'search', icon: 'search', label: 'Recherche & Scan' },
   { id: 'diagnostic', icon: 'layers', label: 'Diagnostic' },
@@ -540,7 +542,7 @@ function App() {
 
         {/* Dynamic Page Content */}
         <main className="sh-content">
-          {!state && page !== 'candidatures' ? (
+          {!state && page !== 'candidatures' && page !== 'cvs' ? (
             <div className="sh-loading-screen">
               <div className="sh-loading-spinner" />
               <p>Chargement de ton espace Stage Hunter...</p>
@@ -596,6 +598,7 @@ function App() {
                 />
               )}
 
+              {page === 'cvs' && <React.Suspense fallback={<p>Chargement de l’éditeur…</p>}><CVsView key={profileId} profileId={profileId} /></React.Suspense>}
               {page === 'profile' && (
                 <ProfileView
                   profile={profile}

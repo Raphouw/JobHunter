@@ -26,6 +26,8 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import yaml
+
+from cv_store import cv_request
 from dotenv import load_dotenv
 
 import psutil
@@ -638,6 +640,10 @@ class Handler(BaseHTTPRequestHandler):
             if parsed.path == "/api/profiles":
                 PROFILES.mkdir(parents=True, exist_ok=True)
                 return self.send_json([{"id": p.stem, "name": (yaml.safe_load(p.read_text(encoding="utf-8")) or {}).get("name", p.stem)} for p in sorted(PROFILES.glob("*.yaml"))])
+            if parsed.path == "/api/cvs":
+                identifier = query.get("profile", [""])[0]
+                profile_path(identifier)
+                return self.send_json(cv_request(database(identifier), "list"))
             if parsed.path == "/api/state":
                 return self.send_json(snapshot(query.get("profile", [""])[0]))
             if parsed.path == "/api/export-csv":
@@ -689,6 +695,8 @@ class Handler(BaseHTTPRequestHandler):
             data = json.loads(self.rfile.read(length) or b"{}")
             identifier = data.get("profile", "")
             profile_path(identifier)
+            if self.path == "/api/cvs":
+                return self.send_json(cv_request(database(identifier), data.get("action", ""), data))
             if self.path == "/api/review":
                 review(identifier, int(data["offer_id"]), data["decision"])
                 return self.send_json({"ok": True})
