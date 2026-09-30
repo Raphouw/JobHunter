@@ -71,40 +71,89 @@ function matchesRejectedOffer(offer, rejected) {
 }
 
 function Login({ onError }) {
+  const [signup, setSignup] = useState(() => window.location.hash === '#signup');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmation, setConfirmation] = useState('');
+  const [message, setMessage] = useState('');
+  const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const sync = () => {
+      setSignup(window.location.hash === '#signup');
+      setPassword(''); setConfirmation(''); setMessage(''); setFormError('');
+      onError('');
+    };
+    window.addEventListener('hashchange', sync);
+    return () => window.removeEventListener('hashchange', sync);
+  }, [onError]);
 
   const submit = async (event) => {
     event.preventDefault();
+    if (busy) return;
+    setFormError(''); setMessage(''); onError('');
+    if (signup && password !== confirmation) {
+      setFormError('Les mots de passe ne correspondent pas.');
+      return;
+    }
     setBusy(true);
     try {
-      unwrap(await supabase.auth.signInWithPassword({ email: email.trim(), password }));
+      if (signup) {
+        const data = unwrap(await supabase.auth.signUp({ email: email.trim(), password }));
+        if (!data.session) {
+          setMessage('Vérifie ta boîte mail : si l’inscription est possible, tu recevras un lien pour confirmer ton adresse. Si tu as déjà un compte, connecte-toi.');
+          setPassword(''); setConfirmation('');
+        }
+      } else {
+        unwrap(await supabase.auth.signInWithPassword({ email: email.trim(), password }));
+      }
     } catch (error) {
-      onError(error.message);
+      const messages = {
+        signup_disabled: 'Les inscriptions sont actuellement désactivées.',
+        weak_password: 'Choisis un mot de passe plus fort.',
+        email_exists: 'Un compte existe déjà avec cette adresse. Connecte-toi.',
+        user_already_exists: 'Un compte existe déjà avec cette adresse. Connecte-toi.',
+        over_email_send_rate_limit: 'Trop de demandes. Patiente quelques minutes avant de réessayer.',
+        invalid_credentials: 'Adresse e-mail ou mot de passe incorrect.',
+        email_not_confirmed: 'Confirme ton adresse e-mail avant de te connecter.',
+      };
+      setFormError(messages[error.code] || error.message || 'Une erreur est survenue. Réessaie.');
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <div className="cloud-login-shell">
+    <main className="cloud-login-shell">
       <form className="cloud-login-card" onSubmit={submit}>
         <span className="sh-eyebrow">JOB HUNTER</span>
-        <h1>Connexion à ton espace</h1>
-        <p>Chaque membre dispose de ses propres profils et de ses propres offres.</p>
+        <h1>{signup ? 'Crée ton espace Job Hunter' : 'Connexion à ton espace'}</h1>
+        <p>{signup ? 'Trouve les offres qui te correspondent et suis tes candidatures dans ton espace personnel.' : 'Chaque membre dispose de ses propres profils et de ses propres offres.'}</p>
+        {formError && <div className="cloud-auth-feedback error" role="alert">{formError}</div>}
+        {message && <div className="cloud-auth-feedback success" role="status">{message}</div>}
         <label htmlFor="cloud-email">Adresse e-mail</label>
-        <input id="cloud-email" type="email" autoComplete="username" required
+        <input id="cloud-email" type="email" autoComplete="username" required disabled={busy}
           value={email} onChange={(event) => setEmail(event.target.value)} />
         <label htmlFor="cloud-password">Mot de passe</label>
-        <input id="cloud-password" type="password" autoComplete="current-password" required
+        <input id="cloud-password" type="password" autoComplete={signup ? 'new-password' : 'current-password'} required disabled={busy}
+          minLength={signup ? 8 : undefined} aria-describedby={signup ? 'cloud-password-hint' : undefined}
           value={password} onChange={(event) => setPassword(event.target.value)} />
+        {signup && <>
+          <small id="cloud-password-hint">Au moins 8 caractères.</small>
+          <label htmlFor="cloud-password-confirmation">Confirme ton mot de passe</label>
+          <input id="cloud-password-confirmation" type="password" autoComplete="new-password" required disabled={busy}
+            minLength={8} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} />
+        </>}
         <button className="sh-btn-primary" disabled={busy} type="submit">
-          {busy ? 'Connexion…' : 'Se connecter'}
+          {busy ? (signup ? 'Création du compte…' : 'Connexion…') : (signup ? 'Créer mon compte' : 'Se connecter')}
         </button>
-        <small>Accès réservé aux comptes créés par l’administrateur.</small>
+        <p className="cloud-auth-switch">{signup ? 'Déjà un compte ?' : 'Pas encore de compte ?'}{' '}
+          {busy ? <span>{signup ? 'Se connecter' : 'Créer un compte'}</span> :
+            <a href={signup ? '#login' : '#signup'}>{signup ? 'Se connecter' : 'Créer un compte'}</a>}
+        </p>
       </form>
-    </div>
+    </main>
   );
 }
 

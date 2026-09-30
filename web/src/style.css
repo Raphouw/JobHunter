@@ -85,6 +85,11 @@
 }
 
 .cloud-login-card small { color: #777188; }
+.cloud-login-card .cloud-auth-switch { margin: 4px 0 0; text-align: center; font-size: 14px; }
+.cloud-auth-switch a { color: #6750a4; font-weight: 700; text-underline-offset: 3px; }
+.cloud-auth-feedback { padding: 12px 14px; border-radius: 10px; font-size: 14px; }
+.cloud-auth-feedback.error { color: #9f2936; background: #fff0f1; }
+.cloud-auth-feedback.success { color: #246149; background: #edf9f2; }
 .cloud-create-form { display: flex; gap: 12px; max-width: 550px; }
 .cloud-result-list {
   display: flex;
