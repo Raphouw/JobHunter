@@ -21,8 +21,9 @@ export function OfferDetailDrawer({
   onTransferCandidature,
   onRequeue,
   busy = false,
+  initialTab = 'recap',
 }) {
-  const [activeTab, setActiveTab] = useState('recap'); // 'recap' | 'description' | 'specs'
+  const [activeTab, setActiveTab] = useState(initialTab); // 'recap' | 'description' | 'specs'
 
   useEffect(() => {
     const handleKey = (e) => {
@@ -364,3 +365,4 @@ export function OfferDetailDrawer({
     </AnimatePresence>
   );
 }
+
