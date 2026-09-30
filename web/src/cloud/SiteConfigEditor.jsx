@@ -364,10 +364,13 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
               <div key={row.listing_url} className={`sh-reference-row ${row.enabled ? '' : 'is-disabled'}`}>
                 <label><input type="checkbox" checked={row.enabled} disabled={busy || working}
                   onChange={(event) => run('toggle', { listing_url: row.listing_url, enabled: event.target.checked })} />
-                  <span>{row.name}</span>
+                  <span title={row.name}>{row.name}</span>
                 </label>
-                {isAdmin && <button type="button" className="sh-btn-secondary sm" disabled={busy || working}
-                  onClick={() => edit({ ...empty(), name: row.name, listing_url: row.listing_url, countries: row.countries }, { name: row.name })}>Modifier pour tous</button>}
+                {isAdmin && <button type="button" className="sh-site-edit-icon" disabled={busy || working}
+                  title={`Modifier ${row.name} pour tous`} aria-label={`Modifier ${row.name} pour tous`}
+                  onClick={() => edit({ ...empty(), name: row.name, listing_url: row.listing_url, countries: row.countries }, { name: row.name })}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m16 3 5 5M3 21l5-1L21 7a2.1 2.1 0 0 0-4-4L4 16Z" /></svg>
+                </button>}
                 <a href={row.listing_url} target="_blank" rel="noreferrer" title={row.listing_url} aria-label={`Ouvrir ${row.name}`}><Icon name="external" size={14} /></a>
               </div>
             ))}
@@ -412,8 +415,11 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
                   <label><input type="checkbox" checked={Boolean(row.enabled)} disabled={busy || working || row.status !== 'published'}
                     onChange={(event) => run('toggle', { listing_url: row.listing_url, enabled: event.target.checked })} /> Activer pour moi</label>
                   <button type="button" className="sh-btn-secondary sm" onClick={() => edit({ ...row.config, id: '', enabled: false })}>Personnaliser une copie privée</button>
-                  {isAdmin && <button type="button" className="sh-btn-secondary sm" disabled={busy || working}
-                    onClick={() => edit({ ...row.config, enabled: false }, { id: row.id, name: row.name })}>Modifier pour tous</button>}
+                  {isAdmin && <button type="button" className="sh-site-edit-icon" disabled={busy || working}
+                    title={`Modifier ${row.name} pour tous`} aria-label={`Modifier ${row.name} pour tous`}
+                    onClick={() => edit({ ...row.config, enabled: false }, { id: row.id, name: row.name })}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m16 3 5 5M3 21l5-1L21 7a2.1 2.1 0 0 0-4-4L4 16Z" /></svg>
+                  </button>}
                   {isAdmin && row.status === 'published' && (
                     <button
                       type="button"
