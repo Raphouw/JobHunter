@@ -1,5 +1,5 @@
 """
-Regions Module for Job Hunter (Stage Hunter v6)
+Regions Module for Job Hunter (Job Hunter v6)
 Provides geographical region, canton, département and metropolitan hub detection
 adapted to the searched countries (Switzerland, France, Belgium, Germany, Canada, UK).
 """

@@ -110,7 +110,7 @@ export function TinderDeck({ offers = [], stats = {}, busy = false, onDecide, on
 
   return <main className={`match-experience ${selectedOffer ? 'details-open' : ''} tactile-intent-${intent || 'none'}`}>
     <div className="match-context">
-      <div className="match-context-title"><span>STAGEHUNTER / MATCHING</span><h1>Les opportunités</h1></div>
+      <div className="match-context-title"><span>JOBHUNTER / MATCHING</span><h1>Les opportunités</h1></div>
       <div className="match-context-tools"><span className="match-count" aria-live="polite"><strong>{queue.length}</strong> à parcourir</span><button type="button" className="match-filter-toggle" onClick={() => setFiltersOpen((open) => !open)} aria-expanded={filtersOpen} aria-controls="match-filters">Filtres {minScore > 0 || cantonFilter !== 'all' ? '· actifs' : ''} <span aria-hidden="true">{filtersOpen ? '−' : '+'}</span></button></div>
     </div>
     <div id="match-filters" className={`match-filters ${filtersOpen ? 'is-open' : ''}`}>

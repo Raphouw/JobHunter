@@ -109,7 +109,7 @@ function VariantD({ onPreview }) {
 export function SwiperDesignLab() {
   const [preview, setPreview] = useState('');
   const onPreview = (label) => { setPreview(`${label} · aperçu visuel uniquement`); window.setTimeout(() => setPreview(''), 2200); };
-  return <main className="swiper-lab"><header className="lab-header"><span>STAGEHUNTER / DESIGN LAB</span><h1>Quatre façons de ressentir la même offre.</h1><p>Un seul jeu de données réel. Quatre directions visuelles pour la carte et ses actions.</p></header>
+  return <main className="swiper-lab"><header className="lab-header"><span>JOBHUNTER / DESIGN LAB</span><h1>Quatre façons de ressentir la même offre.</h1><p>Un seul jeu de données réel. Quatre directions visuelles pour la carte et ses actions.</p></header>
     <div className="lab-gallery">
       <section className="lab-variant" id="soft-premium"><div className="lab-variant-title"><span>A</span><div><h2>Soft premium</h2><p>Douceur, équilibre, finition native.</p></div></div><VariantA onPreview={onPreview} /></section>
       <section className="lab-variant" id="tactile-deck"><div className="lab-variant-title"><span>B</span><div><h2>Tactile deck</h2><p>Profondeur, prise en main, présence physique.</p></div></div><VariantB onPreview={onPreview} /></section>

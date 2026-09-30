@@ -1,4 +1,4 @@
-"""Démarre l'interface React locale de Stage Hunter."""
+"""Démarre l'interface React locale de Job Hunter."""
 
 from stage_hunter_web import main
 

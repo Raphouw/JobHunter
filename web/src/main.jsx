@@ -441,7 +441,7 @@ function App() {
           </div>
           <div className="sh-brand-text">
             <strong>
-              stage<span>hunter</span>
+              job<span>hunter</span>
             </strong>
             <small>Ton prochain match pro</small>
           </div>
@@ -480,7 +480,7 @@ function App() {
             </button>
           </div>
           <div className="sh-sidebar-footer">
-            <span>STAGE HUNTER</span>
+            <span>JOB HUNTER</span>
             <span className="sh-version-tag">V6.2.7</span>
           </div>
         </div>
@@ -499,7 +499,7 @@ function App() {
           </button>
 
           <div className="sh-breadcrumbs">
-            <span>Stage Hunter</span>
+            <span>Job Hunter</span>
             <span className="sh-sep">/</span>
             <strong>{NAV_ITEMS.find((n) => n.id === page)?.label || 'Accueil'}</strong>
           </div>
@@ -545,7 +545,7 @@ function App() {
           {!state && page !== 'candidatures' && page !== 'cvs' ? (
             <div className="sh-loading-screen">
               <div className="sh-loading-spinner" />
-              <p>Chargement de ton espace Stage Hunter...</p>
+              <p>Chargement de ton espace Job Hunter...</p>
             </div>
           ) : (
             <>

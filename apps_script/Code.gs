@@ -185,7 +185,7 @@ function onEdit(e) {
   // 1. Sécurité : s'assurer qu'il y a bien un événement (modification manuelle)
   if (!e || !e.range) return;
 
-  // Stage Hunter est traité avant le suivi classique des candidatures.
+  // Job Hunter est traité avant le suivi classique des candidatures.
   if (handleStageHunterEdit_(e)) return;
   
   var sheet = e.range.getSheet();
@@ -488,7 +488,7 @@ function ouvrirSaisieDirecte() {
 
 
 // ══════════════════════════════════════════════════════════════
-// STAGE HUNTER — ACTIONS IMMÉDIATES + MISE EN FORME
+// JOB HUNTER — ACTIONS IMMÉDIATES + MISE EN FORME
 // ══════════════════════════════════════════════════════════════
 
 var STAGE_HUNTER_SHEET_ = 'Opportunités';
@@ -525,7 +525,7 @@ var STAGE_HUNTER_CANTONS_ = {
 
 function installStageHunterMenu_() {
   SpreadsheetApp.getUi()
-    .createMenu('🎯 Stage Hunter')
+    .createMenu('🎯 Job Hunter')
     .addItem('Configurer / remettre en forme', 'configurerStageHunter')
     .addItem('Activer les actions immédiates', 'installerActionsImmediatesStageHunter')
     .addItem('Traiter les actions déjà choisies', 'traiterActionsStageHunter')
@@ -576,7 +576,7 @@ function findHeaderColumn_(map, names) {
 function configurerStageHunter() {
   var sheet = getStageHunterSheet_();
   if (!sheet) {
-    SpreadsheetApp.getUi().alert("L'onglet 'Opportunités' n'existe pas encore. Lance d'abord Stage Hunter.");
+    SpreadsheetApp.getUi().alert("L'onglet 'Opportunités' n'existe pas encore. Lance d'abord Job Hunter.");
     return;
   }
 
@@ -593,7 +593,7 @@ function configurerStageHunter() {
   var confidenceCol = findHeaderColumn_(headers, ['Confiance']);
   var cantonCol = findHeaderColumn_(headers, ['Canton']);
   var dateCol = findHeaderColumn_(headers, ['Date découverte']);
-  var idCol = findHeaderColumn_(headers, ['ID Stage Hunter']);
+  var idCol = findHeaderColumn_(headers, ['ID Job Hunter', 'ID Stage Hunter']);
 
   sheet.setFrozenRows(1);
   sheet.setFrozenColumns(Math.min(4, lastCol));
@@ -704,7 +704,7 @@ function configurerStageHunter() {
   normaliserCantonsStageHunter_(sheet, cantonCol);
   sortStageHunterRows_(sheet, headers);
   ensureStageHunterEditTrigger_();
-  SpreadsheetApp.getActiveSpreadsheet().toast('Mise en forme appliquée et actions immédiates activées.', 'Stage Hunter', 5);
+  SpreadsheetApp.getActiveSpreadsheet().toast('Mise en forme appliquée et actions immédiates activées.', 'Job Hunter', 5);
 }
 
 function removeNativeTablesStageHunter_(sheet) {
@@ -743,7 +743,7 @@ function removeNativeTablesStageHunter_(sheet) {
     muteHttpExceptions: true
   });
   if (update.getResponseCode() < 200 || update.getResponseCode() >= 300) {
-    ss.toast('Le tableau natif n\'a pas pu être retiré automatiquement. La mise en forme claire sera quand même appliquée.', 'Stage Hunter', 7);
+    ss.toast('Le tableau natif n\'a pas pu être retiré automatiquement. La mise en forme claire sera quand même appliquée.', 'Job Hunter', 7);
     return 0;
   }
   SpreadsheetApp.flush();
@@ -780,7 +780,7 @@ function normaliserCantonsStageHunter() {
   if (!sheet) return;
   var headers = getHeaderMap_(sheet, 1);
   normaliserCantonsStageHunter_(sheet, findHeaderColumn_(headers, ['Canton']));
-  SpreadsheetApp.getActiveSpreadsheet().toast('Cantons normalisés.', 'Stage Hunter', 3);
+  SpreadsheetApp.getActiveSpreadsheet().toast('Cantons normalisés.', 'Job Hunter', 3);
 }
 
 function normaliserCantonsStageHunter_(sheet, cantonCol) {
@@ -848,14 +848,14 @@ function handleStageHunterEdit_(e) {
 
   var lock = LockService.getDocumentLock();
   if (!lock.tryLock(5000)) {
-    SpreadsheetApp.getActiveSpreadsheet().toast('Une autre action est déjà en cours. Réessaie dans quelques secondes.', 'Stage Hunter', 5);
+    SpreadsheetApp.getActiveSpreadsheet().toast('Une autre action est déjà en cours. Réessaie dans quelques secondes.', 'Job Hunter', 5);
     return true;
   }
   try {
     executeStageHunterAction_(sheet, e.range.getRow(), action, headers);
   } catch (error) {
-    e.range.setNote('Erreur Stage Hunter : ' + error.message).setBackground('#f4cccc');
-    SpreadsheetApp.getActiveSpreadsheet().toast(error.message, 'Erreur Stage Hunter', 8);
+    e.range.setNote('Erreur Job Hunter : ' + error.message).setBackground('#f4cccc');
+    SpreadsheetApp.getActiveSpreadsheet().toast(error.message, 'Erreur Job Hunter', 8);
   } finally {
     lock.releaseLock();
   }
@@ -872,7 +872,7 @@ function executeStageHunterAction_(sheet, row, action, headers) {
   }
 
   var actionCol = findHeaderColumn_(headers, ['Action']);
-  var id = value(['ID Stage Hunter']);
+  var id = value(['ID Job Hunter', 'ID Stage Hunter']);
   var linkCol = findHeaderColumn_(headers, ['Lien']);
   var link = linkCol > 0 ? getCellLink_(sheet.getRange(row, linkCol)) : '';
 
@@ -881,7 +881,7 @@ function executeStageHunterAction_(sheet, row, action, headers) {
     sheet.getRange(row, 1, 1, lastCol).setBackground('#d9ead3');
     sheet.getRange(row, actionCol).setNote('Offre gardée le ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm'));
     sortStageHunterRows_(sheet, headers);
-    SpreadsheetApp.getActiveSpreadsheet().toast('Offre conservée dans Opportunités.', 'Stage Hunter', 3);
+    SpreadsheetApp.getActiveSpreadsheet().toast('Offre conservée dans Opportunités.', 'Job Hunter', 3);
     return;
   }
 
@@ -893,7 +893,7 @@ function executeStageHunterAction_(sheet, row, action, headers) {
   if (action === 'SUPPRIMER') {
     logStageHunterAction_(id, action, link);
     sheet.deleteRow(row);
-    SpreadsheetApp.getActiveSpreadsheet().toast('Offre supprimée et mémorisée comme ignorée.', 'Stage Hunter', 3);
+    SpreadsheetApp.getActiveSpreadsheet().toast('Offre supprimée et mémorisée comme ignorée.', 'Job Hunter', 3);
   }
 }
 
@@ -933,14 +933,14 @@ function stageHunterInstallableOnEdit(e) {
 
   var lock = LockService.getDocumentLock();
   if (!lock.tryLock(5000)) {
-    SpreadsheetApp.getActiveSpreadsheet().toast('Une autre action est déjà en cours.', 'Stage Hunter', 5);
+    SpreadsheetApp.getActiveSpreadsheet().toast('Une autre action est déjà en cours.', 'Job Hunter', 5);
     return;
   }
   try {
     openStageHunterTransferForm_(sheet, e.range.getRow(), headers);
   } catch (error) {
-    e.range.setNote('Erreur Stage Hunter : ' + error.message).setBackground('#f4cccc');
-    SpreadsheetApp.getActiveSpreadsheet().toast(error.message, 'Erreur Stage Hunter', 8);
+    e.range.setNote('Erreur Job Hunter : ' + error.message).setBackground('#f4cccc');
+    SpreadsheetApp.getActiveSpreadsheet().toast(error.message, 'Erreur Job Hunter', 8);
   } finally {
     lock.releaseLock();
   }
@@ -968,13 +968,13 @@ function buildStageHunterTransferData_(sheet, row, headers) {
     lien1: link,
     lien2: '',
     lien3: '',
-    statutDemarche: 'Offre transférée depuis Stage Hunter — à vérifier avant candidature. Score : ' + Math.round(score) + '/100' + (reason ? ' — ' + reason : ''),
+    statutDemarche: 'Offre transférée depuis Job Hunter — à vérifier avant candidature. Score : ' + Math.round(score) + '/100' + (reason ? ' — ' + reason : ''),
     note: score ? String(Math.max(1, Math.min(10, Math.round(score / 10)))) : '',
     statutActuel: 'Demande initiale',
     stageHunterMeta: {
       sheetName: sheet.getName(),
       row: row,
-      id: value(['ID Stage Hunter']),
+      id: value(['ID Job Hunter', 'ID Stage Hunter']),
       link: link
     }
   };
@@ -1004,7 +1004,7 @@ function finalizeStageHunterTransfer_(meta) {
   if (!sheet || sheet.getLastRow() < 2) return;
 
   var headers = getHeaderMap_(sheet, 1);
-  var idCol = findHeaderColumn_(headers, ['ID Stage Hunter']);
+  var idCol = findHeaderColumn_(headers, ['ID Job Hunter', 'ID Stage Hunter']);
   var targetRow = Number(meta.row) || -1;
   var wantedId = String(meta.id || '').trim();
 
@@ -1024,7 +1024,7 @@ function finalizeStageHunterTransfer_(meta) {
 
   logStageHunterAction_(wantedId, 'TRANSFERER', meta.link || '');
   if (targetRow >= 2 && targetRow <= sheet.getLastRow()) sheet.deleteRow(targetRow);
-  ss.toast('Candidature ajoutée dans Réponses et retirée des opportunités.', 'Stage Hunter', 4);
+  ss.toast('Candidature ajoutée dans Réponses et retirée des opportunités.', 'Job Hunter', 4);
 }
 
 function getCellLink_(cell) {
@@ -1046,7 +1046,7 @@ function logStageHunterAction_(id, action, link) {
   var log = ss.getSheetByName(STAGE_HUNTER_LOG_SHEET_);
   if (!log) {
     log = ss.insertSheet(STAGE_HUNTER_LOG_SHEET_);
-    log.getRange(1, 1, 1, 5).setValues([['ID Stage Hunter', 'Action', 'Lien', 'Date Apps Script', 'Traité par Python']]);
+    log.getRange(1, 1, 1, 5).setValues([['ID Job Hunter', 'Action', 'Lien', 'Date Apps Script', 'Traité par Python']]);
     log.hideSheet();
   }
   log.appendRow([id, action, link, new Date(), '']);
@@ -1066,5 +1066,5 @@ function traiterActionsStageHunter() {
       count++;
     }
   }
-  SpreadsheetApp.getUi().alert(count + ' action(s) Stage Hunter traitée(s).');
+  SpreadsheetApp.getUi().alert(count + ' action(s) Job Hunter traitée(s).');
 }

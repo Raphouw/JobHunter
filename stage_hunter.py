@@ -85,7 +85,7 @@ HEADERS={
 }
 _HTTP_LOCAL=threading.local()
 SCOPES=['https://www.googleapis.com/auth/spreadsheets','https://www.googleapis.com/auth/gmail.readonly']
-OP_HEADERS=['Action','Score /100','Confiance','Entreprise','Offre','Ville / lieu','Canton','Langue','Durée','Début','Domaine','Compétences détectées','Pourquoi','Source','Lien','Date découverte','ID Stage Hunter']
+OP_HEADERS=['Action','Score /100','Confiance','Entreprise','Offre','Ville / lieu','Canton','Langue','Durée','Début','Domaine','Compétences détectées','Pourquoi','Source','Lien','Date découverte','ID Job Hunter']
 RESPONSE_HEADERS=['Canton','Nom Entreprise',"Ville de l'Entreprise","Secteur d'activité","Activité détaillée (l'entreprise)",'Lien 1','Lien 2','Lien 3','Statut de la démarche effectuée',"Note /10 (A combien ça m'intéresse)",'Statut actuel','Email de contact','Retours']
 ACTION_LOG_TAB='_StageHunter_Actions'
 CANTONS={
@@ -3122,7 +3122,7 @@ def import_opportunities(c,svc,sid,tab):
         'canton':col('Canton','Région'),'language':col('Langue'),'duration':col('Durée'),
         'start':col('Début'),'category':col('Domaine'),'skills':col('Compétences détectées','Compétences'),
         'reasons':col('Pourquoi','Raisons'),'source':col('Source'),'url':col('Lien','URL'),
-        'date':col('Date découverte'),'id':col('ID Stage Hunter','ID'),
+        'date':col('Date découverte'),'id':col('ID Job Hunter','ID Stage Hunter','ID'),
     }
     imported=linked=actions=0;updates=[];data_rows=0
     def value(row,key,default=''):
@@ -3243,7 +3243,7 @@ def process_actions(c,svc,sid,response_tab,opp_tab):
     ensure_opp(svc,sid,opp_tab); vals=svc.spreadsheets().values().get(spreadsheetId=sid,range=f"'{opp_tab}'!A1:Q10000").execute().get('values',[])
     if not vals:return 0,0
     opp_hi=detect_header_row(vals,('action',));opp_heads=vals[opp_hi]
-    action_col=find_header_column(opp_heads,'Action');id_col=find_header_column(opp_heads,'ID Stage Hunter','ID');url_col=find_header_column(opp_heads,'Lien','URL')
+    action_col=find_header_column(opp_heads,'Action');id_col=find_header_column(opp_heads,'ID Job Hunter','ID Stage Hunter','ID');url_col=find_header_column(opp_heads,'Lien','URL')
     rv=response_values(svc,sid,response_tab); hi=detect_header_row(rv,('entreprise',)) if rv else 0; heads=rv[hi] if rv else [];transfer=[];delete_rows=[];kept=0;unresolved=0
     response_columns={
         'company':find_header_column(heads,'Nom Entreprise','Entreprise'),

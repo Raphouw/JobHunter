@@ -45,7 +45,7 @@
 
 - test isolé d’une requête depuis l’interface, sans lancer un scan complet ;
 - comparaison multi-moteurs avec résultats bruts et exceptions exactes ;
-- simulation optionnelle des filtres Stage Hunter sur six pages maximum ;
+- simulation optionnelle des filtres Job Hunter sur six pages maximum ;
 - rapport JSON conservé dans `output/<profil>/debug/` ;
 - traces web détaillées dans les journaux normaux ;
 - rotation DuckDuckGo/Brave dès la première tentative afin que la sonde teste réellement les deux moteurs sans requêtes supplémentaires.
@@ -95,7 +95,7 @@ Conclusion : le contrat était mieux filtré, mais les packs géographiques, les
 - Contrats structurés contrôlés selon le profil et intitulés incompatibles mieux rejetés.
 - Empreinte de dédoublonnage entreprise + titre + lieu.
 - Apprentissage local à partir des décisions Tinder, avec activation et remise à zéro.
-- Synchronisation Google Sheets idempotente par identifiant Stage Hunter.
+- Synchronisation Google Sheets idempotente par identifiant Job Hunter.
 - Diagnostic UI : tunnel, motifs, rendement par source, historique et recommandations.
 - Planification Windows facultative et scripts d'installation/mise à jour vérifiés.
 

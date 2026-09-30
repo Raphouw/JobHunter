@@ -5,7 +5,7 @@ set "PYTHONUTF8=1"
 set "PYTHONIOENCODING=utf-8"
 set "NO_COLOR=1"
 echo ========================================
-echo   STAGE HUNTER V6.2.7 - MISE A JOUR
+echo   JOB HUNTER V6.2.7 - MISE A JOUR
 echo ========================================
 if not exist ".venv\Scripts\python.exe" (
   echo [INFO] Installation absente. Lancement de install.bat...

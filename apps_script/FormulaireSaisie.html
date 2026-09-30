@@ -151,7 +151,7 @@
   </div>
 
   <script>
-    // Code.gs fournit cet objet uniquement lors d'un transfert depuis Stage Hunter.
+    // Code.gs fournit cet objet uniquement lors d'un transfert depuis Job Hunter.
     // Lors d'une saisie manuelle, sa valeur est null et le formulaire reste vide.
     const STAGE_HUNTER_PREFILL = <?!= stageHunterPrefillJson ?>;
 
@@ -227,7 +227,7 @@
       btn.disabled = true;
 
       // addNewJob ajoute la ligne dans Réponses. En mode transfert, Code.gs
-      // finalise ensuite l'offre Stage Hunter uniquement si l'ajout a réussi.
+      // finalise ensuite l'offre Job Hunter uniquement si l'ajout a réussi.
       google.script.run
         .withSuccessHandler(() => {
           google.script.host.close();

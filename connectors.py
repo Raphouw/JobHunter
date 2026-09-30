@@ -1,5 +1,5 @@
 """
-Connectors Module for Job Hunter (Stage Hunter v6)
+Connectors Module for Job Hunter (Job Hunter v6)
 Provides specialized parsing and card discovery for major job boards:
 - LinkedIn
 - jobs.ch / jobup.ch / jobscout24.ch

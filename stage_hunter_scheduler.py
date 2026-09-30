@@ -78,7 +78,7 @@ def install(profile: str, at: str, frequency: str) -> str:
     if len(command) > 261:
         raise RuntimeError(
             "Le chemin d'installation reste trop long pour le Planificateur Windows. "
-            "Déplace Stage Hunter dans un dossier plus court, par exemple C:\\StageHunter."
+            "Déplace Job Hunter dans un dossier plus court, par exemple C:\\JobHunter."
         )
     schedule = {"daily": "DAILY", "weekdays": "WEEKLY", "weekly": "WEEKLY"}[frequency]
     args = ["/Create", "/TN", task_name(profile), "/TR", command, "/SC", schedule, "/ST", at, "/F"]

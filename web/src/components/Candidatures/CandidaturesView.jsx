@@ -1081,7 +1081,7 @@ export function CandidaturesView({
   );
 }
 
-// ── NATIVE STAGE HUNTER CANDIDATURE CARD COMPONENT ──
+// ── NATIVE JOB HUNTER CANDIDATURE CARD COMPONENT ──
 function CandidatureCardNative({ candidature, onEdit, onStatusChange, onAddNote, onDelete }) {
   const [showDrawer, setShowDrawer] = useState(false);
   const [copied, setCopied] = useState(false);

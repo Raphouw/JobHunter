@@ -1,4 +1,4 @@
-"""Local HTTP API and React frontend for Stage Hunter.
+"""Local HTTP API and React frontend for Job Hunter.
 
 Run with ``python stage_hunter_web.py``. The server binds to loopback only.
 """
@@ -804,7 +804,7 @@ def main():
     server.web_username = username
     server.web_password = password
     url = f"http://localhost:{server.server_port}"
-    print(f"Stage Hunter React : {url}", flush=True)
+    print(f"Job Hunter React : {url}", flush=True)
     if is_loopback_host(host) and os.getenv("STAGE_HUNTER_NO_BROWSER") != "1":
         threading.Timer(0.7, lambda: webbrowser.open(url)).start()
     try:

@@ -5,7 +5,7 @@ set "PYTHONUTF8=1"
 set "PYTHONIOENCODING=utf-8"
 set "NO_COLOR=1"
 echo ========================================
-echo    STAGE HUNTER V6.2.7 - INSTALLATION
+echo    JOB HUNTER V6.2.7 - INSTALLATION
 echo ========================================
 where py >nul 2>nul
 if errorlevel 1 (

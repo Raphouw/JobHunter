@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0"
 if not exist ".venv\Scripts\python.exe" (
-  echo [ERREUR] Stage Hunter n est pas installe.
+  echo [ERREUR] Job Hunter n est pas installe.
   echo Lance d abord install.bat
   pause
   exit /b 1

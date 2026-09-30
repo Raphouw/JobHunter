@@ -680,7 +680,7 @@ export function CloudApp() {
         <div className="sh-app">
           <aside className={`sh-sidebar ${mobileMenuOpen ? 'open' : ''}`}>
             <div className="sh-sidebar-brand"><div className="sh-brand-badge"><Icon name="spark" size={22} /></div>
-              <div className="sh-brand-text"><strong>stage<span>hunter</span></strong><small>Ton prochain match pro</small></div>
+              <div className="sh-brand-text"><strong>job<span>hunter</span></strong><small>Ton prochain match pro</small></div>
             </div>
             <nav className="sh-sidebar-nav" aria-label="Menu principal">
               <span className="sh-nav-group-label">NAVIGATION</span>
@@ -698,14 +698,14 @@ export function CloudApp() {
                 <button className="sh-promo-btn" onClick={() => goToPage('swipe')}>
                   <span>Ouvrir le Swiper</span><Icon name="arrow" size={14} /></button>
               </div>
-              <div className="sh-sidebar-footer"><span>STAGE HUNTER</span><span className="sh-version-tag">WEB</span></div>
+              <div className="sh-sidebar-footer"><span>JOB HUNTER</span><span className="sh-version-tag">WEB</span></div>
             </div>
           </aside>
           <div className="sh-main-wrapper">
             <header className="sh-topbar">
               <button className="sh-mobile-toggle" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 aria-label="Ouvrir le menu"><Icon name="menu" size={22} /></button>
-              <div className="sh-breadcrumbs"><span>Stage Hunter</span><span className="sh-sep">/</span>
+              <div className="sh-breadcrumbs"><span>Job Hunter</span><span className="sh-sep">/</span>
                 <strong>{navItems.find(([id]) => id === page)?.[1] || 'Accueil'}</strong></div>
               <div className="sh-topbar-actions">
                 {scan.running && (

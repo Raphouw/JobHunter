@@ -282,7 +282,7 @@ export default async function handler(request, response) {
       let sheetId = String(google.sheet_id || '').trim();
       if (action === 'create-sheet') {
         const created = await googleApi('spreadsheets', token, { method: 'POST',
-          body: JSON.stringify({ properties: { title: `Stage Hunter — ${profile.name}` } }) });
+          body: JSON.stringify({ properties: { title: `Job Hunter — ${profile.name}` } }) });
         sheetId = created.spreadsheetId;
         const config = { ...profile.config, integrations: { ...profile.config?.integrations,
           google: { ...google, sheet_id: sheetId, sheets_enabled: true } } };
@@ -407,7 +407,7 @@ export default async function handler(request, response) {
       // Sync both tabs:
       // Tab 1: Opportunités
       const offers = await database(`hunter_offers?profile_id=eq.${encodeURIComponent(profile.id)}&user_id=eq.${encodeURIComponent(user.id)}&review_decision=eq.keep&select=id,score,confidence,company,title,location,canton,language,duration,start_date,domain_category,skills_found,reasons,source,url,discovered_at&order=score.desc&limit=1000`, settings);
-      const valuesOpp = [['Action', 'Score /100', 'Confiance', 'Entreprise', 'Offre', 'Ville / lieu', 'Canton', 'Langue', 'Durée', 'Début', 'Domaine', 'Compétences détectées', 'Pourquoi', 'Source', 'Lien', 'Date découverte', 'ID Stage Hunter'],
+      const valuesOpp = [['Action', 'Score /100', 'Confiance', 'Entreprise', 'Offre', 'Ville / lieu', 'Canton', 'Langue', 'Durée', 'Début', 'Domaine', 'Compétences détectées', 'Pourquoi', 'Source', 'Lien', 'Date découverte', 'ID Job Hunter'],
         ...offers.map((item) => ['GARDER', item.score, item.confidence, item.company, item.title, item.location,
           item.canton, item.language, item.duration, item.start_date, item.domain_category,
           item.skills_found, item.reasons, item.source, item.url, item.discovered_at, item.id])];
