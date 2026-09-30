@@ -5,6 +5,8 @@ import re
 import sys
 import types
 import unittest
+import io
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
@@ -50,6 +52,38 @@ class FakeCandidateStore:
 
 
 class WorkerTests(unittest.TestCase):
+    def test_offer_payload_replaces_sqlite_nulls_with_cloud_defaults(self):
+        offer = dict.fromkeys(worker.OFFER_COLUMNS)
+        offer.update(url="https://www.adzuna.fr/occitanie/chef-comptable",
+                     canonical_url="https://www.adzuna.fr/occitanie/chef-comptable")
+        payload = worker.offer_payload(offer, {"user_id": "user-1", "profile_id": "profile-1"})
+        self.assertEqual([key for key, value in payload.items() if value is None], ["reviewed_at"])
+        for key in ("application_url", "contract_type", "posting_date", "title"):
+            self.assertEqual(payload[key], "")
+        self.assertEqual(payload["score"], 0)
+        self.assertEqual(payload["confidence"], 0)
+        self.assertEqual(payload["availability_status"], "unknown")
+        self.assertEqual(payload["review_decision"], "pending")
+        datetime.fromisoformat(payload["discovered_at"])
+
+    def test_offer_payload_preserves_extracted_data(self):
+        offer = {column: "value" for column in worker.OFFER_COLUMNS}
+        offer.update(score=0, confidence=83.5, reviewed_at=None,
+                     discovered_at="2026-09-30T10:59:00+00:00")
+        payload = worker.offer_payload(offer, {"user_id": "user-1", "profile_id": "profile-1"})
+        self.assertEqual({column: payload[column] for column in worker.OFFER_COLUMNS}, offer)
+
+    def test_supabase_error_message_precedes_long_failing_row(self):
+        failure = {"code": "23502", "details": "Failing row contains " + "x" * 1000,
+                   "message": 'null value in column "application_url" violates not-null constraint'}
+        error = worker.urllib.error.HTTPError("https://example.com", 400, "Bad Request", {},
+                                              io.BytesIO(json.dumps(failure).encode()))
+        with patch.dict(os.environ, {"SUPABASE_URL": "https://example.com", "SUPABASE_SERVICE_ROLE_KEY": "test"}), \
+             patch.object(worker.urllib.request, "urlopen", side_effect=error):
+            with self.assertRaisesRegex(RuntimeError, '23502: null value in column "application_url"') as raised:
+                worker.Store().request("hunter_offers", "POST", [])
+        self.assertLess(len(str(raised.exception)), 220)
+
     def test_page_budget_and_time_never_reject_unexamined(self):
         for cause in ("budget_skip", "time_deferred"):
             decision = {}

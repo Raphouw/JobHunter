@@ -126,7 +126,13 @@ class Store:
                 self.bytes_received += len(raw)
                 return json.loads(raw) if raw else None
         except urllib.error.HTTPError as error:
-            details = error.read(400).decode("utf-8", errors="replace")
+            details = error.read(65536).decode("utf-8", errors="replace")
+            try:
+                failure = json.loads(details)
+                # Put the actionable message before potentially very long row details.
+                details = f"{failure.get('code', '')}: {failure.get('message', '')}"
+            except (ValueError, AttributeError):
+                details = details[:400]
             raise RuntimeError(f"Supabase HTTP {error.code}: {details}") from error
         finally:
             self.seconds += time.perf_counter() - started
@@ -509,6 +515,17 @@ OFFER_COLUMNS = ("url", "canonical_url", "application_url", "contract_type", "po
 EXISTING_COLUMNS = OFFER_COLUMNS
 
 
+def offer_payload(offer, job):
+    """Translate nullable SQLite fields to the cloud table's required defaults."""
+    defaults = {column: "" for column in OFFER_COLUMNS
+                if column not in ("url", "canonical_url", "reviewed_at")}
+    defaults.update(score=0, confidence=0, availability_status="unknown",
+                    review_decision="pending", discovered_at=utc_now())
+    return {"user_id": job["user_id"], "profile_id": job["profile_id"],
+            **{column: offer.get(column) if offer.get(column) is not None
+               else defaults.get(column) for column in OFFER_COLUMNS}}
+
+
 def candidate_outcome(decision, previous=None):
     """A missing examination can never become a rejection."""
     previous = previous or {}
@@ -745,8 +762,7 @@ def analyze(store, job, engine, profile):
             continue
         if offer.get("canonical_url") in existing_urls:
             continue
-        fresh.append({"user_id": job["user_id"], "profile_id": job["profile_id"],
-                      **{column: offer.get(column) for column in OFFER_COLUMNS}})
+        fresh.append(offer_payload(offer, job))
     for start in range(0, len(fresh), 100):
         batch = fresh[start:start + 100]
         try:
