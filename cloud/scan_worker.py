@@ -411,12 +411,12 @@ def discover(store, job, engine, profile):
     query_limit, site_limit, _, _ = MODE_LIMITS[job["mode"]]
     generic_urls = engine.targeted_fixed_urls(profile)
     direct_urls = []
-    from site_configs import scan_sites, source_key
+    from site_configs import scan_sites, source_host
     shared = store.rows("hunter_site_recipes",
                         "status=eq.published&select=config&order=updated_at.desc&limit=100")
     direct_urls = scan_sites(profile, shared)
-    configured_urls = {source_key(site['listing_url']) for site in direct_urls}
-    direct_urls.extend(url for url in generic_urls if source_key(url) not in configured_urls)
+    configured_urls = {source_host(site['listing_url']) for site in direct_urls}
+    direct_urls.extend(url for url in generic_urls if source_host(url) not in configured_urls)
     direct_urls = direct_urls[:site_limit]
     queries = engine.build_search_queries(profile, emit_log=False)[:query_limit]
     direct_cursor = engine.safe_int(checkpoint.get("direct_cursor"), 0)

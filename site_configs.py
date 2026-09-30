@@ -62,7 +62,11 @@ def source_disabled(url, profile):
     return host in {(urlsplit(u).hostname or '').lower().removeprefix('www.') for u in disabled}
 
 
-def reference_sites(profile):
+def source_host(url):
+    return (urlsplit(url).hostname or '').lower().removeprefix('www.')
+
+
+def reference_sites(profile, shared=()):
     import yaml
     catalog = yaml.safe_load((Path(__file__).parent / 'config' / 'sources.yaml').read_text(encoding='utf-8')) or {}
     selected = (profile.get('sources') or {}).get('packs') or []
@@ -76,7 +80,8 @@ def reference_sites(profile):
             result.setdefault(url, {'name': urlsplit(url).netloc.removeprefix('www.'),
                               'listing_url': url, 'countries': pack.get('countries') or [],
                               'enabled': not source_disabled(url, profile)})
-    return list(result.values())
+    configured = {source_host(row['config']['listing_url']) for row in shared if row.get('status') == 'published'}
+    return [row for row in result.values() if source_host(row['listing_url']) not in configured]
 
 
 def scan_sites(profile, shared):

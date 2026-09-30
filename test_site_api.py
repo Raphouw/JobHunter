@@ -116,5 +116,29 @@ class SharedSiteApiTests(unittest.TestCase):
         self.assertIn('class="job"', payload['html'])
         self.assertNotIn('onclick', payload['html'])
 
+    def test_admin_edits_shared_recipe_by_id_when_url_changes(self):
+        site = validate_site(sample_site())
+        site['listing_url'] = 'https://example.org/new-listing'
+        stamp = int(time.time())
+        with patch.dict(os.environ, {'SUPABASE_SERVICE_ROLE_KEY': 'test-key'}):
+            token = f'{stamp}.{signature(site, PROFILE, USER, stamp)}'
+        body = {'action': 'publish', 'site': site, 'preview_token': token,
+                'recipe_id': PROFILE}
+        status, _ = post(body)
+        self.assertEqual(status, 403)
+        self.assertEqual(FakeStore.writes, [])
+        status, _ = post(body, admin=True)
+        self.assertEqual(status, 200)
+        self.assertEqual(FakeStore.writes[0][:2], ('hunter_site_recipes', 'PATCH'))
+        self.assertEqual(FakeStore.writes[0][2]['listing_url'], site['listing_url'])
+
+    def test_published_recipe_replaces_default_reference_by_domain(self):
+        from site_configs import reference_sites
+        profile = {'location': {'countries': ['CH']}}
+        shared = [{'status': 'published', 'config': {'listing_url': 'https://jobs.ch/fr/emplois/'}}]
+        references = reference_sites(profile, shared)
+        self.assertFalse(any('jobs.ch' in row['listing_url'] for row in references))
+        self.assertTrue(any('iagora.com' in row['listing_url'] for row in references))
+
 
 if __name__ == '__main__': unittest.main()

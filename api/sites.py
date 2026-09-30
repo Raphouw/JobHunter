@@ -91,7 +91,7 @@ class handler(BaseHTTPRequestHandler):
                 recipes = [{**row, 'enabled': row['status'] == 'published' and not source_disabled(row['config']['listing_url'], current_config)}
                            for row in recipes if country_matches(row['config'], current_config)]
                 return self.respond(200, {'is_admin': admin, 'recipes': recipes,
-                                          'references': reference_sites(current_config)})
+                                          'references': reference_sites(current_config, recipes)})
             if action == 'toggle':
                 url = str(body.get('listing_url') or '')
                 from site_network import public_http_url
@@ -161,6 +161,17 @@ class handler(BaseHTTPRequestHandler):
                 if not valid_preview_token(body.get('preview_token'), site, profile_id, user_id):
                     raise ValueError('Tester cette configuration avant activation')
             if action == 'publish':
+                recipe_id = body.get('recipe_id')
+                if recipe_id:
+                    recipe_id = str(uuid.UUID(str(recipe_id)))
+                    if not store.rows('hunter_site_recipes', f'id=eq.{recipe_id}&select=id&limit=1'):
+                        return self.respond(404, {'error': 'Recette introuvable'})
+                    store.patch('hunter_site_recipes', f'id=eq.{recipe_id}',
+                                {'name': site['name'], 'listing_url': site['listing_url'],
+                                 'config': site, 'status': 'published',
+                                 'updated_at': __import__('datetime').datetime.now(
+                                     __import__('datetime').timezone.utc).isoformat()})
+                    return self.respond(200, {'site': site, 'published': True})
                 store.request('hunter_site_recipes?on_conflict=listing_url', 'POST',
                               {'name': site['name'], 'listing_url': site['listing_url'],
                                'config': site, 'status': 'published', 'created_by': user_id,

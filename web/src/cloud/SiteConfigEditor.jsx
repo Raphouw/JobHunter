@@ -50,6 +50,7 @@ function SelectorControl({ section, fieldKey, label, site, change, markAbsent, e
 
 export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
   const [site, setSite] = useState(empty);
+  const [editingShared, setEditingShared] = useState(null);
   const [preview, setPreview] = useState(null);
   const [token, setToken] = useState('');
   const [working, setWorking] = useState(false);
@@ -90,6 +91,7 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
 
   useEffect(() => {
     setSite(empty());
+    setEditingShared(null);
     setPreview(null);
     setToken('');
     setInspection(null);
@@ -129,7 +131,9 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
     return () => { active = false; };
   }, [profile?.id, accessToken, JSON.stringify(profile?.location?.countries), JSON.stringify(profile?.sources), catalogVersion]);
 
-  const edit = (entry) => {
+  const edit = (entry, shared = null) => {
+    setEditingShared(shared);
+    setDetailUrl('');
     const defaults = empty();
     setSite({ ...defaults, ...structuredClone(entry), query: { ...defaults.query, ...entry.query },
       selectors: { ...defaults.selectors, ...entry.selectors }, detail_selectors: { ...defaults.detail_selectors, ...entry.detail_selectors } });
@@ -184,6 +188,7 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
           listing_url: nextSite?.listing_url,
           enabled: nextSite?.enabled,
           preview_token: token,
+          recipe_id: action === 'publish' ? editingShared?.id : undefined,
         }),
       });
       const result = await response.json();
@@ -361,6 +366,8 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
                   onChange={(event) => run('toggle', { listing_url: row.listing_url, enabled: event.target.checked })} />
                   <span>{row.name}</span>
                 </label>
+                {isAdmin && <button type="button" className="sh-btn-secondary sm" disabled={busy || working}
+                  onClick={() => edit({ ...empty(), name: row.name, listing_url: row.listing_url, countries: row.countries }, { name: row.name })}>Modifier pour tous</button>}
                 <a href={row.listing_url} target="_blank" rel="noreferrer" title={row.listing_url} aria-label={`Ouvrir ${row.name}`}><Icon name="external" size={14} /></a>
               </div>
             ))}
@@ -405,6 +412,8 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
                   <label><input type="checkbox" checked={Boolean(row.enabled)} disabled={busy || working || row.status !== 'published'}
                     onChange={(event) => run('toggle', { listing_url: row.listing_url, enabled: event.target.checked })} /> Activer pour moi</label>
                   <button type="button" className="sh-btn-secondary sm" onClick={() => edit({ ...row.config, id: '', enabled: false })}>Personnaliser une copie privée</button>
+                  {isAdmin && <button type="button" className="sh-btn-secondary sm" disabled={busy || working}
+                    onClick={() => edit({ ...row.config, enabled: false }, { id: row.id, name: row.name })}>Modifier pour tous</button>}
                   {isAdmin && row.status === 'published' && (
                     <button
                       type="button"
@@ -426,6 +435,7 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
       </section>
 
       {/* Formulaire de configuration */}
+      {editingShared && <div className="sh-toast" role="status">Modification du site par défaut : {editingShared.name}. Teste l’extraction puis enregistre pour tous les profils.</div>}
       <section className="sh-form-section">
         <div className="sh-section-header">
           <div>
@@ -670,10 +680,10 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
           <button
             type="button"
             className="sh-btn-secondary"
-            disabled={busy || working}
+            disabled={busy || working || Boolean(editingShared)}
             onClick={() => run('save', { ...site, enabled: false })}
           >
-            Enregistrer le brouillon
+            Enregistrer le brouillon privé
           </button>
           <button
             type="button"
@@ -687,7 +697,7 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
           <button
             type="button"
             className="sh-btn-primary"
-            disabled={busy || working || !token}
+            disabled={busy || working || !token || Boolean(editingShared)}
             onClick={() => run('save', { ...site, enabled: true })}
           >
             <Icon name="check" size={16} />
@@ -700,7 +710,7 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
               disabled={busy || working || !token}
               onClick={() => run('publish', { ...site, enabled: true })}
             >
-              Publier pour tous les profils
+              {editingShared ? 'Enregistrer pour tous les profils' : 'Publier pour tous les profils'}
             </button>
           )}
           {site.enabled && (
