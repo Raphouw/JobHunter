@@ -11,12 +11,17 @@ const LISTING_FIELDS = [
   { id: 'date', label: 'Date', required: false, hint: 'Clique sur la date de publication si visible.' },
   { id: 'description', label: 'Description', required: false, hint: 'Clique sur le résumé ou extrait de description.' },
   { id: 'application_link', label: 'Lien postuler', required: false, hint: 'Clique sur le bouton postuler direct si distinct du lien de détail.' },
+  { id: 'salary', label: 'Rémunération', hint: 'Clique sur le salaire ou la fourchette de rémunération.' },
+  { id: 'work_time', label: 'Temps de travail', hint: 'Clique sur temps plein, temps partiel ou le taux d’activité.' },
+  { id: 'experience', label: 'Expérience demandée', hint: 'Clique sur le niveau ou le nombre d’années d’expérience.' },
+  { id: 'sector', label: 'Secteur d’activité', hint: 'Clique sur le secteur d’activité de l’offre.' },
+  { id: 'education', label: 'Diplôme demandé', hint: 'Clique sur le diplôme ou le niveau de formation requis.' },
   { id: 'next', label: 'Page suivante', required: false, hint: 'Clique sur le bouton ou lien "Page suivante" de la pagination.' },
 ];
 
 const DETAIL_FIELDS = LISTING_FIELDS.filter((f) => !['card', 'detail_link', 'next'].includes(f.id));
 
-const SEQUENCE = ['card', 'title', 'company', 'location', 'detail_link', 'contract', 'date', 'description', 'application_link'];
+const SEQUENCE = LISTING_FIELDS.filter((item) => item.id !== 'next').map((item) => item.id);
 
 function cleanClass(name) {
   if (!name || typeof name !== 'string') return '';
@@ -78,13 +83,34 @@ function selectorFor(node, root) {
     } catch (_) {}
     current = current.parentElement;
   }
-  const first = cleanPart(node);
-  const siblings = Array.from(node.parentElement?.children || []).filter((item) => item.tagName === node.tagName);
-  return siblings.length > 1 ? `${first}:nth-of-type(${siblings.indexOf(node) + 1})` : first;
+  // Build a complete positional path when semantic selectors are ambiguous.
+  const path = [];
+  for (let item = node; item && item !== root; item = item.parentElement) {
+    const siblings = Array.from(item.parentElement?.children || []).filter((child) => child.tagName === item.tagName);
+    path.unshift(`${item.tagName.toLowerCase()}:nth-of-type(${siblings.indexOf(item) + 1})`);
+  }
+  return path.join(' > ');
+}
+
+function targetAtPoint(doc, event) {
+  // Ignore stretched links and overlapping boxes when the pointer is on text.
+  const stack = doc.elementsFromPoint(event.clientX, event.clientY);
+  for (const element of stack) {
+    for (const child of element.childNodes) {
+      if (child.nodeType !== 3 || !child.textContent.trim()) continue;
+      const range = doc.createRange();
+      range.selectNodeContents(child);
+      const hit = Array.from(range.getClientRects()).some((rect) =>
+        event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom);
+      if (hit) return element;
+    }
+  }
+  return stack[0] || event.target;
 }
 
 const frameStyle = `
-  * { cursor: crosshair !important; }
+  * { cursor: crosshair !important; pointer-events: auto !important; }
+  *::before, *::after { pointer-events: none !important; }
   .jobhunter-hover {
     outline: 2.5px solid #fb7185 !important;
     background: rgba(251, 113, 133, 0.15) !important;
@@ -148,7 +174,7 @@ export function VisualSitePicker({
         const firstCard = cards[0];
         if (firstCard) {
           // Highlight configured fields inside first card
-          const configuredKeys = ['title', 'company', 'location', 'detail_link', 'contract', 'date', 'description', 'application_link'];
+          const configuredKeys = DETAIL_FIELDS.map((item) => item.id);
           configuredKeys.forEach((key) => {
             const selector = site?.selectors?.[key];
             if (selector) {
@@ -180,7 +206,7 @@ export function VisualSitePicker({
       if (highlighted) {
         highlighted.classList.remove('jobhunter-hover');
       }
-      highlighted = event.target;
+      highlighted = targetAtPoint(doc, event);
       if (highlighted && highlighted !== doc.body) {
         highlighted.classList.add('jobhunter-hover');
       }
@@ -189,7 +215,7 @@ export function VisualSitePicker({
     const click = (event) => {
       event.preventDefault();
       event.stopPropagation();
-      let target = event.target;
+      let target = targetAtPoint(doc, event);
       if (!target || target === doc.body) return;
 
       if (field === 'card') {
@@ -275,7 +301,7 @@ export function VisualSitePicker({
       let relSelector = '';
       if (field === 'detail_link') {
         if (target === cardRoot || target.contains(cardRoot) || (cardRoot && cardRoot.tagName.toLowerCase() === 'a')) {
-          relSelector = 'a';
+          relSelector = 'self';
         } else {
           relSelector = selectorFor(target, root);
         }
@@ -476,7 +502,7 @@ export function VisualSitePicker({
           title="Aperçu sélectionnable du site"
           sandbox="allow-same-origin"
           referrerPolicy="no-referrer"
-          srcDoc={`<!doctype html><html><head><meta charset="utf-8"><base href="${inspection.url}"><style>${frameStyle}</style></head><body>${inspection.html}</body></html>`}
+          srcDoc={`<!doctype html><html><head><meta charset="utf-8"><base href="${inspection.url.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}"></head><body>${inspection.html}<style>${frameStyle}</style></body></html>`}
           onLoad={() => setVersion((v) => v + 1)}
         />
       </div>

@@ -1,4 +1,25 @@
 packs:
+  spain:
+    label: "Espagne — plateformes principales"
+    countries: [Spain]
+    domains: [linkedin.com]
+    fixed_urls:
+      - "https://www.linkedin.com/jobs/search/?location=Spain"
+
+  italy:
+    label: "Italie — plateformes principales"
+    countries: [Italy]
+    domains: [linkedin.com]
+    fixed_urls:
+      - "https://www.linkedin.com/jobs/search/?location=Italy"
+
+  luxembourg:
+    label: "Luxembourg — plateformes principales"
+    countries: [Luxembourg]
+    domains: [linkedin.com]
+    fixed_urls:
+      - "https://www.linkedin.com/jobs/search/?location=Luxembourg"
+
   switzerland:
     label: "Suisse — plateformes principales"
     countries: [Switzerland]

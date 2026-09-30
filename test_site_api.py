@@ -58,6 +58,15 @@ def post(body, admin=False):
 class SharedSiteApiTests(unittest.TestCase):
     def setUp(self): FakeStore.writes = []
 
+    def test_personal_toggle_writes_only_owned_profile(self):
+        status, payload = post({'action': 'toggle', 'listing_url': 'https://example.org/jobs', 'enabled': False})
+        self.assertEqual(status, 200)
+        self.assertFalse(payload['enabled'])
+        self.assertEqual(FakeStore.writes[0][0], 'hunter_profiles')
+        self.assertEqual(FakeStore.writes[0][2]['config']['sources']['disabled_sites'], ['https://example.org/jobs'])
+        status, _ = post({'action': 'toggle', 'listing_url': 'http://localhost', 'enabled': False})
+        self.assertEqual(status, 400)
+
     def test_catalog_is_readable_to_non_admin_but_publish_is_denied(self):
         status, payload = post({'action': 'catalog'})
         self.assertEqual(status, 200)

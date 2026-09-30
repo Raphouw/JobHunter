@@ -25,7 +25,7 @@ from trafilatura import extract
 from urllib3.util import Retry
 import connectors
 import regions
-from site_configs import crawl_site, extract_detail, validate_site
+from site_configs import crawl_site, extract_detail, validate_site, reference_sites, source_disabled, country_matches
 from site_network import fetch_preview
 
 import sys
@@ -250,7 +250,8 @@ def load_profile(profile_ref=None):
         return folded
     wanted_countries={canonical_country(value) for value in configured_countries}
     pack_queries=[];pack_domains=[];pack_urls=[]
-    for pack_name in sources.get('packs',[]) or []:
+    automatic_packs=[key for key, pack in catalog.items() if pack.get('countries') and country_matches(pack, profile)]
+    for pack_name in dict.fromkeys([*(sources.get('packs',[]) or []), *automatic_packs]):
         pack=catalog.get(str(pack_name),{}) or {}
         pack_countries={canonical_country(value) for value in pack.get('countries',[]) or []}
         if pack_countries and wanted_countries and not (pack_countries & wanted_countries):
@@ -1353,7 +1354,7 @@ def page_audit_record(row,title,reason,page_type='',text='',html='',structured=N
         'structured_jobposting':bool(structured),'source_quality':source_quality_label(row.get('url','')),
         'fetch':row.get('_fetch_meta') or {},
         'evidence_sample':norm(text)[:1200],
-        'structured_fields':{key:structured.get(key,'') for key in ('employment_type','location','date_posted','valid_through') if structured.get(key)},
+        'structured_fields':{key:structured.get(key,'') for key in ('employment_type','location','date_posted','valid_through','salary','work_time','experience','sector','education') if structured.get(key)},
     }
 
 def audit_decision(row,decision,reason,title='',page_type='',text='',html='',structured=None,
@@ -1683,7 +1684,7 @@ def listing_lead_priority(lead,profile,components=None,contract_terms=None):
 
 def targeted_fixed_urls(profile):
     """Turn generic pack URLs into profile-aware listing searches."""
-    base_urls=[u for u in (profile.get('_source_pack_urls',[]) or []) if safe_public_url(u)]
+    base_urls=[u for u in (profile.get('_source_pack_urls',[]) or []) if safe_public_url(u) and not source_disabled(u, profile)]
     components=profile_search_components(profile);countries=components['countries'] or ['']
     anchors=_unique_terms([components['roles'],components['themes']],6)
     if not anchors:anchors=['engineering']
@@ -1769,7 +1770,7 @@ def fixed_site_candidates(profile,c=None):
 def configured_site_candidates(profile,site):
     """Extract configured cards; the existing offer analysis still fetches details."""
     site=validate_site(site)
-    if not site['enabled']:return []
+    if not site['enabled'] or not country_matches(site, profile) or source_disabled(site['listing_url'], profile):return []
     report=crawl_site(site,profile,fetch_preview,with_details=False)
     rows=[]
     for offer in report['offers']:
@@ -1794,7 +1795,9 @@ def configured_detail_data(row,html,url,structured):
     values={**row['_site_fields'],**{key:value for key,value in details.items() if value}}
     mapping={'title':'title','company':'company','location':'location',
              'contract':'employment_type','date':'date_posted',
-             'description':'description','application_link':'application_url'}
+             'description':'description','application_link':'application_url',
+             'salary':'salary', 'work_time':'work_time', 'experience':'experience',
+             'sector':'sector', 'education':'education'}
     return {**structured,**{target:value for key,target in mapping.items()
                            if (value:=values.get(key))}}
 
@@ -2410,6 +2413,7 @@ def deduplicate_candidate_rows(rows):
     return unique,len(rows)-len(unique)
 
 def ingest(c,rows,profile):
+    rows=[row for row in rows if not source_disabled(row.get('url',''),profile)]
     global DECISION_AUDIT_PATH,_DECISION_AUDIT_HANDLE,_DECISION_AUDIT_COUNT
     close_decision_audit()
     run_stamp=RUN_STARTED_AT.strftime('%Y%m%d_%H%M%S_%f')

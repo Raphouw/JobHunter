@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from api.sites import merge_site, signature, valid_preview_token
 from site_configs import (crawl_site, extract_cards, extract_detail, inspection_html, missing_fields,
-                          profile_listing_url, validate_site)
+                          profile_listing_url, validate_site, country_matches, reference_sites, scan_sites, source_disabled)
 from site_network import _resolved_ip, public_http_url
 
 
@@ -25,6 +25,46 @@ def sample_site():
 
 
 class SiteConfigTests(unittest.TestCase):
+    def test_country_catalog_and_private_precedence(self):
+        profile = {'location': {'countries': ['France']}}
+        site = validate_site({**sample_site(), 'countries': ['France'], 'enabled': True})
+        self.assertEqual(site['countries'], ['FR'])
+        self.assertTrue(country_matches(site, profile))
+        self.assertFalse(country_matches(site, {'location': {'countries': ['Suisse']}}))
+        refs = reference_sites(profile)
+        self.assertTrue(any('hellowork.com' in row['listing_url'] for row in refs))
+        self.assertFalse(any('jobs.ch' in row['listing_url'] for row in refs))
+        self.assertEqual(scan_sites(profile, [{'config': site}]), [site])
+        private = {**site, 'name': 'Privé'}
+        profile['sources'] = {'sites': [private]}
+        self.assertEqual(scan_sites(profile, [{'config': site}]), [private])
+        profile['sources']['disabled_sites'] = ['https://example.org/jobs']
+        self.assertEqual(scan_sites(profile, [{'config': site}]), [])
+        self.assertTrue(source_disabled('https://www.example.org/jobs/123?q=x', profile))
+        self.assertFalse(source_disabled('https://another.org/jobs', profile))
+
+    def test_all_metrics_survive_listing_and_detail_extraction(self):
+        keys = ['salary', 'work_time', 'experience', 'sector', 'education']
+        raw = sample_site()
+        raw['selectors'].update({key: f'.{key}' for key in keys})
+        raw['detail_selectors'].update({key: f'.{key}' for key in keys})
+        site = validate_site(raw)
+        metrics = ''.join(f'<span class="{key}">{key} annoncé</span>' for key in keys)
+        html = f'<article class="job"><a class="title" href="/1">Commercial</a>{metrics}</article>'
+        offers, _ = extract_cards(html, 'https://example.org/jobs', site)
+        details = extract_detail(metrics, 'https://example.org/1', site)
+        for key in keys:
+            self.assertEqual(offers[0][key], f'{key} annoncé')
+            self.assertEqual(details[key], f'{key} annoncé')
+
+    def test_snapshot_preserves_body_layout_and_form_content(self):
+        html = '<body class="careers"><form><h2>Commercial</h2></form><img width="260" height="200"></body>'
+        snapshot = inspection_html(html, 'https://example.org')
+        self.assertIn('class="careers"', snapshot)
+        self.assertIn('<h2>Commercial</h2>', snapshot)
+        self.assertIn('width="260"', snapshot)
+        self.assertNotIn('<form', snapshot)
+
     def test_extraction_pagination_details_and_missing(self):
         site = validate_site(sample_site())
         profile = {'target': {'job_titles': ['Ingénieur capteurs']},

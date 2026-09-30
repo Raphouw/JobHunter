@@ -2,13 +2,20 @@ import React, { useEffect, useState } from 'react';
 import { VisualSitePicker } from './VisualSitePicker';
 import { Icon } from '../components/Common/Icons';
 
-const fields = ['detail_link', 'title', 'company', 'location', 'contract', 'date', 'description', 'application_link'];
-const labels = ['Lien de détail *', 'Titre *', 'Entreprise', 'Lieu', 'Contrat', 'Date', 'Description', 'Lien de candidature'];
+const fields = ['detail_link', 'title', 'company', 'location', 'contract', 'date', 'description', 'application_link', 'salary', 'work_time', 'experience', 'sector', 'education'];
+const labels = ['Lien de détail *', 'Titre *', 'Entreprise', 'Lieu', 'Contrat', 'Date', 'Description', 'Lien de candidature', 'Rémunération', 'Temps partiel / temps plein', 'Expérience demandée', 'Secteur d’activité', 'Diplôme demandé'];
+const countryOptions = [['FR', 'France'], ['CH', 'Suisse'], ['BE', 'Belgique'], ['DE', 'Allemagne'], ['ES', 'Espagne'], ['IT', 'Italie'], ['LU', 'Luxembourg']];
+const countryAliases = { FR: ['france'], CH: ['suisse', 'switzerland', 'schweiz', 'svizzera'], BE: ['belgique', 'belgium'], DE: ['allemagne', 'germany', 'deutschland'], ES: ['espagne', 'spain', 'espana'], IT: ['italie', 'italy', 'italia'], LU: ['luxembourg'] };
+const countryCode = (value) => {
+  const normalized = String(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  return Object.keys(countryAliases).find((code) => normalized === code.toLowerCase() || countryAliases[code].includes(normalized)) || value;
+};
 
 const empty = () => ({
   name: '',
   listing_url: '',
   enabled: false,
+  countries: [],
   query: { keyword_param: '', location_param: '' },
   selectors: { card: '', ...Object.fromEntries(fields.map((key) => [key, ''])) },
   detail_selectors: Object.fromEntries(fields.slice(1).map((key) => [key, ''])),
@@ -25,11 +32,14 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
   const [notice, setNotice] = useState('');
   const [inspection, setInspection] = useState(null);
   const [catalog, setCatalog] = useState([]);
+  const [references, setReferences] = useState([]);
+  const [catalogVersion, setCatalogVersion] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
   const [detailUrl, setDetailUrl] = useState('');
 
   const profileKeywords = profile?.target?.job_titles?.[0] || 'Ingénieur / Développeur';
-  const profileLocation = profile?.location?.countries?.[0] || profile?.location?.cities?.[0] || 'Suisse';
+  const profileCountries = profile?.location?.countries || [];
+  const profileLocation = (site.countries?.length ? profileCountries.find((country) => site.countries.includes(countryCode(country))) : profileCountries[0]) || '';
 
   const evaluatedUrl = React.useMemo(() => {
     if (!site.listing_url) return '';
@@ -56,28 +66,43 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
     setToken('');
     setInspection(null);
     setDetailUrl('');
+    setCatalog([]);
+    setReferences([]);
+    setIsAdmin(false);
   }, [profile?.id]);
 
   useEffect(() => {
     if (!profile?.id || !accessToken) return;
+    let active = true;
     fetch('/api/sites', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
       body: JSON.stringify({ action: 'catalog', profile_id: profile.id }),
     })
-      .then((res) => res.json())
+      .then(async (res) => {
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error || 'Catalogue indisponible');
+        return result;
+      })
       .then((result) => {
+        if (!active) return;
         setCatalog(result.recipes || []);
+        setReferences(result.references || []);
         setIsAdmin(Boolean(result.is_admin));
       })
       .catch(() => {
+        if (!active) return;
         setCatalog([]);
+        setReferences([]);
         setIsAdmin(false);
       });
-  }, [profile?.id, accessToken]);
+    return () => { active = false; };
+  }, [profile?.id, accessToken, JSON.stringify(profile?.location?.countries), JSON.stringify(profile?.sources), catalogVersion]);
 
   const edit = (entry) => {
-    setSite(structuredClone(entry));
+    const defaults = empty();
+    setSite({ ...defaults, ...structuredClone(entry), query: { ...defaults.query, ...entry.query },
+      selectors: { ...defaults.selectors, ...entry.selectors }, detail_selectors: { ...defaults.detail_selectors, ...entry.detail_selectors } });
     setPreview(null);
     setToken('');
     setInspection(null);
@@ -108,6 +133,7 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
           profile_id: profile.id,
           site: nextSite,
           listing_url: nextSite?.listing_url,
+          enabled: nextSite?.enabled,
           preview_token: token,
         }),
       });
@@ -129,6 +155,10 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
       } else if (action === 'save') {
         setNotice(result.site.enabled ? '✓ Site validé et activé pour les scans.' : 'Brouillon enregistré.');
         await onSaved();
+      } else if (action === 'toggle') {
+        setNotice(nextSite.enabled ? 'Site réactivé pour ce profil.' : 'Site désactivé pour ce profil.');
+        await onSaved();
+        setCatalogVersion((value) => value + 1);
       } else {
         setNotice(action === 'publish' ? 'Recette publiée pour tous les utilisateurs.' : 'Recette désactivée.');
         const refreshRes = await fetch('/api/sites', {
@@ -138,6 +168,7 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
         });
         const refreshed = await refreshRes.json();
         setCatalog(refreshed.recipes || []);
+        setReferences(refreshed.references || []);
       }
     } catch (failure) {
       setError(failure.message);
@@ -170,6 +201,12 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
   };
 
   const mySites = profile?.sources?.sites || [];
+  const isDisabled = (url) => {
+    try {
+      const host = new URL(url).hostname.replace(/^www\./, '');
+      return (profile?.sources?.disabled_sites || []).some((entry) => new URL(entry).hostname.replace(/^www\./, '') === host);
+    } catch (_) { return false; }
+  };
 
   const handleUrlChange = (newUrl) => {
     let nextQuery = { ...site.query };
@@ -248,16 +285,34 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
           </button>
         </div>
 
+        <div className="sh-catalog-box">
+          <h4>Sites de référence pour les pays du profil</h4>
+          <p>{(profile?.location?.countries || []).join(', ') || 'Configure les pays de recherche dans ton profil.'} · Chaque activation est propre à ce profil.</p>
+          <div className="sh-site-recipe-cards">
+            {references.map((row) => (
+              <div key={row.listing_url} className="sh-recipe-card">
+                <strong>{row.name}</strong>
+                <span className="sh-recipe-card-url">{row.listing_url}</span>
+                <label><input type="checkbox" checked={row.enabled} disabled={busy || working}
+                  onChange={(event) => run('toggle', { listing_url: row.listing_url, enabled: event.target.checked })} /> Activer pour moi</label>
+              </div>
+            ))}
+          </div>
+        </div>
+
         <div className="sh-site-recipe-cards">
           {mySites.map((item) => (
-            <div key={item.id} className={`sh-recipe-card ${site.id === item.id ? 'active' : ''}`} onClick={() => edit(item)}>
+            <div key={item.id} className={`sh-recipe-card ${site.id === item.id ? 'active' : ''}`}>
               <div className="sh-recipe-card-top">
                 <strong>{item.name || 'Site sans nom'}</strong>
                 <span className={`sh-status-tag ${item.enabled ? 'success' : 'queued'}`}>
-                  {item.enabled ? 'Actif' : 'Brouillon'}
+                  {item.enabled ? (isDisabled(item.listing_url) ? 'Désactivé pour moi' : 'Publié pour moi') : 'Brouillon'}
                 </span>
               </div>
               <span className="sh-recipe-card-url">{item.listing_url}</span>
+              {item.enabled && <label><input type="checkbox" checked={!isDisabled(item.listing_url)} disabled={busy || working}
+                onChange={(event) => run('toggle', { listing_url: item.listing_url, enabled: event.target.checked })} /> Activer pour moi</label>}
+              <button type="button" className="sh-btn-secondary sm" onClick={() => edit(item)}>Modifier</button>
             </div>
           ))}
           {mySites.length === 0 && (
@@ -270,7 +325,7 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
             <h4>Recettes communes du catalogue</h4>
             <div className="sh-site-recipe-cards">
               {catalog.map((row) => (
-                <div key={row.id} className="sh-recipe-card" onClick={() => edit(row.config)}>
+                <div key={row.id} className="sh-recipe-card">
                   <div className="sh-recipe-card-top">
                     <strong>{row.name}</strong>
                     <span className={`sh-status-tag ${row.status === 'published' ? 'success' : 'queued'}`}>
@@ -278,6 +333,9 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
                     </span>
                   </div>
                   <span className="sh-recipe-card-url">{row.listing_url}</span>
+                  <label><input type="checkbox" checked={Boolean(row.enabled)} disabled={busy || working || row.status !== 'published'}
+                    onChange={(event) => run('toggle', { listing_url: row.listing_url, enabled: event.target.checked })} /> Activer pour moi</label>
+                  <button type="button" className="sh-btn-secondary sm" onClick={() => edit({ ...row.config, id: '', enabled: false })}>Personnaliser une copie privée</button>
                   {isAdmin && row.status === 'published' && (
                     <button
                       type="button"
@@ -308,6 +366,16 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
         </div>
 
         <div className="sh-form-grid">
+          <div className="sh-field">
+            <label>Pays couverts par ce site</label>
+            <div className="sh-param-chips">
+              {countryOptions.map(([code, name]) => (
+                <label key={code}><input type="checkbox" checked={(site.countries || []).includes(code)}
+                  onChange={(event) => change(null, 'countries', event.target.checked ? [...(site.countries || []), code] : site.countries.filter((country) => country !== code))} /> {name}</label>
+              ))}
+            </div>
+            <span className="sh-label-hint">Aucun pays coché : tous les pays. Le catalogue et les scans suivent les pays du profil.</span>
+          </div>
           <div className="sh-field">
             <label>Nom du site</label>
             <input
@@ -576,7 +644,7 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
             onClick={() => run('save', { ...site, enabled: true })}
           >
             <Icon name="check" size={16} />
-            <span>Activer la recette après test</span>
+            <span>Publier pour moi uniquement</span>
           </button>
           {isAdmin && (
             <button

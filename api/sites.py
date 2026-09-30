@@ -15,7 +15,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from cloud.scan_worker import Store
-from site_configs import crawl_site, inspection_html, profile_listing_url, validate_site
+from site_configs import (crawl_site, inspection_html, profile_listing_url, validate_site,
+                          country_matches, reference_sites, source_key, source_disabled)
 from site_network import fetch_preview
 
 
@@ -66,7 +67,7 @@ class handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(int(length)))
             action = body.get('action')
             profile_id = str(uuid.UUID(str(body.get('profile_id'))))
-            if action not in ('inspect', 'preview', 'save', 'catalog', 'publish', 'unpublish'):
+            if action not in ('inspect', 'preview', 'save', 'catalog', 'publish', 'unpublish', 'toggle'):
                 raise ValueError('Action invalide')
             publishable = os.getenv('SUPABASE_PUBLISHABLE_KEY') or os.getenv('SUPABASE_ANON_KEY') or 'sb_publishable_wQCX6LA7JVPRaL5cE-Lfsw_oUxISayf'
             request = urllib.request.Request(os.environ['SUPABASE_URL'].rstrip('/') + '/auth/v1/user',
@@ -86,8 +87,26 @@ class handler(BaseHTTPRequestHandler):
             if action == 'catalog':
                 query = ('select=id,name,listing_url,config,status&order=updated_at.desc&limit=100'
                          if admin else 'status=eq.published&select=id,name,listing_url,config,status&order=updated_at.desc&limit=100')
-                return self.respond(200, {'is_admin': admin,
-                                          'recipes': store.rows('hunter_site_recipes', query)})
+                recipes = store.rows('hunter_site_recipes', query)
+                recipes = [{**row, 'enabled': row['status'] == 'published' and not source_disabled(row['config']['listing_url'], current_config)}
+                           for row in recipes if country_matches(row['config'], current_config)]
+                return self.respond(200, {'is_admin': admin, 'recipes': recipes,
+                                          'references': reference_sites(current_config)})
+            if action == 'toggle':
+                url = str(body.get('listing_url') or '')
+                from site_network import public_http_url
+                if not public_http_url(url) or not isinstance(body.get('enabled'), bool):
+                    raise ValueError('Site ou activation invalide')
+                sources = current_config.get('sources') or {}
+                host = (urllib.parse.urlsplit(url).hostname or '').removeprefix('www.')
+                disabled = {source_key(u) for u in sources.get('disabled_sites') or []
+                            if (urllib.parse.urlsplit(u).hostname or '').removeprefix('www.') != host}
+                key = source_key(url)
+                if not body['enabled']: disabled.add(key)
+                if len(disabled) > 200: raise ValueError('Maximum de 200 sites désactivés')
+                new_config = {**current_config, 'sources': {**sources, 'disabled_sites': sorted(disabled)}}
+                store.patch('hunter_profiles', f'id=eq.{profile_id}&user_id=eq.{user_id}', {'config': new_config})
+                return self.respond(200, {'enabled': body['enabled']})
             if action == 'inspect':
                 from site_network import public_http_url
                 url = (profile_listing_url(body['site'], current_config)

@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import re
+import unicodedata
+from pathlib import Path
 from urllib.parse import parse_qsl, quote, urlencode, urljoin, urlsplit, urlunsplit
 
 from bs4 import BeautifulSoup
@@ -10,8 +12,77 @@ from soupsieve.util import SelectorSyntaxError
 from site_network import public_http_url
 
 FIELDS = ('detail_link', 'title', 'company', 'location', 'contract', 'date',
-          'description', 'application_link')
+          'description', 'application_link', 'salary', 'work_time', 'experience', 'sector', 'education')
 LINK_FIELDS = {'detail_link', 'application_link'}
+
+COUNTRIES = {
+    'FR': ('france',), 'CH': ('suisse', 'switzerland', 'schweiz'),
+    'BE': ('belgique', 'belgium'), 'DE': ('allemagne', 'germany', 'deutschland'),
+    'ES': ('espagne', 'spain', 'espana'), 'IT': ('italie', 'italy', 'italia'),
+    'LU': ('luxembourg',),
+}
+
+
+def country_code(value):
+    folded = ''.join(c for c in unicodedata.normalize('NFKD', str(value).strip())
+                     if not unicodedata.combining(c)).lower()
+    for code, aliases in COUNTRIES.items():
+        if folded == code.lower() or folded in aliases:
+            return code
+    return folded.upper()
+
+
+def country_matches(site, profile):
+    countries = site.get('countries') or []
+    wanted = (profile.get('location') or {}).get('countries') or []
+    if isinstance(wanted, str): wanted = [wanted]
+    return not countries or bool({country_code(c) for c in countries} & {country_code(c) for c in wanted})
+
+
+def source_key(url):
+    parts = urlsplit(url)
+    return urlunsplit((parts.scheme.lower(), parts.netloc.lower(), parts.path.rstrip('/'), '', ''))
+
+
+def source_disabled(url, profile):
+    disabled = (profile.get('sources') or {}).get('disabled_sites') or []
+    host = (urlsplit(url).hostname or '').lower().removeprefix('www.')
+    return host in {(urlsplit(u).hostname or '').lower().removeprefix('www.') for u in disabled}
+
+
+def reference_sites(profile):
+    import yaml
+    catalog = yaml.safe_load((Path(__file__).parent / 'config' / 'sources.yaml').read_text(encoding='utf-8')) or {}
+    selected = (profile.get('sources') or {}).get('packs') or []
+    result = {}
+    for key, pack in catalog.get('packs', {}).items():
+        if pack.get('countries'):
+            if not country_matches(pack, profile): continue
+        elif key not in selected:
+            continue
+        for url in pack.get('fixed_urls') or []:
+            result.setdefault(source_key(url), {'name': urlsplit(url).netloc.removeprefix('www.'),
+                              'listing_url': url, 'countries': pack.get('countries') or [],
+                              'enabled': not source_disabled(url, profile)})
+    return list(result.values())
+
+
+def scan_sites(profile, shared):
+    """Private recipes take precedence; disabled overrides also suppress shared recipes."""
+    result, seen = [], set()
+    private = (profile.get('sources') or {}).get('sites') or []
+    for raw in [*private, *(row.get('config') or {} for row in shared)]:
+        try:
+            site = validate_site(raw)
+        except (ValueError, TypeError):
+            continue
+        if not site['enabled'] or not country_matches(site, profile): continue
+        key = source_key(site['listing_url'])
+        if key in seen: continue
+        seen.add(key)
+        if site['enabled'] and country_matches(site, profile) and not source_disabled(site['listing_url'], profile):
+            result.append(site)
+    return result
 
 
 def validate_selector(value, label, required=False):
@@ -32,6 +103,10 @@ def validate_site(raw):
     if not isinstance(raw, dict):
         raise ValueError('Configuration de site invalide')
     name = str(raw.get('name') or '').strip()
+    countries = raw.get('countries') or []
+    if not isinstance(countries, list) or len(countries) > 20 or any(not isinstance(c, str) or len(c) > 60 for c in countries):
+        raise ValueError('Liste de pays invalide')
+    countries = list(dict.fromkeys(country_code(c) for c in countries if c.strip()))
     if not 1 <= len(name) <= 100:
         raise ValueError('Nom de site requis (100 caractères maximum)')
     url = str(raw.get('listing_url') or '').strip()
@@ -73,7 +148,7 @@ def validate_site(raw):
         return int(value)
     return {
         'id': str(raw.get('id') or '').strip()[:80], 'name': name, 'listing_url': url,
-        'enabled': bool(raw.get('enabled', False)),
+        'enabled': bool(raw.get('enabled', False)), 'countries': countries,
         'query': {'keyword_param': keyword, 'location_param': location},
         'selectors': {'card': card, **fields}, 'detail_selectors': details,
         'pagination': {'next_selector': next_selector, 'page_param': page_param,
@@ -94,6 +169,9 @@ def profile_listing_url(site, profile):
     country = (profile.get('location') or {}).get('countries') or []
     if isinstance(keyword, str): keyword = [keyword]
     if isinstance(country, str): country = [country]
+    if site.get('countries'):
+        covered = {country_code(c) for c in site['countries']}
+        country = [c for c in country if country_code(c) in covered]
     url = site['listing_url'].replace('{keywords}', quote(str(keyword[0]) if keyword else '', safe=''))
     url = url.replace('{location}', quote(str(country[0]) if country else '', safe=''))
     query = dict(parse_qsl(urlsplit(url).query, keep_blank_values=True))
@@ -200,8 +278,10 @@ def page_url(url, site, index):
 def inspection_html(html, base_url):
     """Return an inert, bounded listing snapshot with stylesheets for the visual selector."""
     soup = BeautifulSoup(html, 'html.parser')
-    for node in soup.select('script, noscript, iframe, object, embed, form, canvas, video, audio'):
+    for node in soup.select('script, noscript, iframe, object, embed, canvas, video, audio'):
         node.decompose()
+    for node in soup.select('form'):
+        node.unwrap()
 
     styles = []
     for link in soup.select('link[rel*="stylesheet"], link[as="style"]'):
@@ -221,7 +301,7 @@ def inspection_html(html, base_url):
         for key in list(node.attrs):
             if key.startswith('on') or key in ('srcset', 'ping'):
                 del node.attrs[key]
-            elif key not in ('id', 'class', 'href', 'data-url', 'title', 'alt', 'role', 'style') and not key.startswith('data-'):
+            elif key not in ('id', 'class', 'href', 'data-url', 'title', 'alt', 'role', 'style', 'width', 'height') and not key.startswith('data-'):
                 del node.attrs[key]
         for key in ('href', 'data-url'):
             if node.has_attr(key):
@@ -229,7 +309,7 @@ def inspection_html(html, base_url):
                 if public_http_url(target): node[key] = target
                 else: del node.attrs[key]
     root = soup.body or soup
-    body_content = ''.join(str(child) for child in root.children)
+    body_content = str(root) if soup.body else ''.join(str(child) for child in root.children)
     return (''.join(styles) + body_content)[:350_000]
 
 

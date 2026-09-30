@@ -37,7 +37,7 @@ class Store:
 
 
 class DiscoveryPipelineTests(unittest.TestCase):
-    def test_published_site_is_scanned_before_generic_site_at_mode_limit(self):
+    def test_private_customization_is_scanned_before_shared_and_generic_at_mode_limit(self):
         from test_site_configs import sample_site
         class SharedEngine:
             SCAN_METRICS = {}
@@ -68,8 +68,8 @@ class DiscoveryPipelineTests(unittest.TestCase):
              patch.object(worker, 'release'):
             worker.discover(store, job, SharedEngine,
                             {'sources': {'sites': [{**sample_site(), 'enabled': True,
-                                                   'name': 'Old personal version'}]}})
-        self.assertEqual(SharedEngine.visited, [('https://example.org/jobs', 'Exemple')])
+                                                   'name': 'Personal customization'}]}})
+        self.assertEqual(SharedEngine.visited, [('https://example.org/jobs', 'Personal customization')])
 
     def test_independent_search_apis_normalize_results(self):
         class Response:

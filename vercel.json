@@ -13,7 +13,7 @@
     },
     "api/sites.py": {
       "maxDuration": 60,
-      "includeFiles": "{cloud/scan_worker.py,cloud/offer_history.py,site_configs.py,site_network.py}"
+      "includeFiles": "{cloud/scan_worker.py,cloud/offer_history.py,site_configs.py,site_network.py,config/sources.yaml}"
     }
   },
   "crons": [

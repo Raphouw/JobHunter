@@ -334,6 +334,10 @@ def candidate_rows(store, job, rows, status="pending", profile=None):
                             "previous_decision": previous.get("decision")}
             if kind == "filtered" and effective_status == "filtered":
                 decision = {"decision": "prefilter", "reason": reason, "reviewable": True}
+            from site_configs import source_disabled
+            if profile and source_disabled(url, profile):
+                effective_status = 'filtered'
+                decision = {'decision': 'disabled_source', 'reason': 'Site désactivé dans ce profil', 'reviewable': True}
             prior = store.source_yield.get(row.get("source") or engine.dom(url), {})
             history_bonus = round(12 * prior.get("retained", 0) / max(1, prior.get("candidates", 0))) if prior.get("candidates", 0) >= 5 else 0
             unique[identity] = {"job_id": job["id"], "user_id": job["user_id"],
@@ -401,28 +405,12 @@ def discover(store, job, engine, profile):
     query_limit, site_limit, _, _ = MODE_LIMITS[job["mode"]]
     generic_urls = engine.targeted_fixed_urls(profile)
     direct_urls = []
-    from site_configs import validate_site
+    from site_configs import scan_sites, source_key
     shared = store.rows("hunter_site_recipes",
                         "status=eq.published&select=config&order=updated_at.desc&limit=100")
-    configured_urls = set()
-    for row in shared:
-        try:
-            site = validate_site(row['config'])
-            if site['enabled'] and site['listing_url'] not in configured_urls:
-                direct_urls.append(site)
-                configured_urls.add(site['listing_url'])
-        except (ValueError, TypeError, KeyError):
-            continue
-    configured_sites = (profile.get('sources') or {}).get('sites', []) or []
-    for raw_site in configured_sites:
-        try:
-            site = validate_site(raw_site)
-            if site['enabled'] and site['listing_url'] not in configured_urls:
-                direct_urls.append(site)
-                configured_urls.add(site['listing_url'])
-        except (ValueError, TypeError):
-            continue
-    direct_urls.extend(url for url in generic_urls if url not in configured_urls)
+    direct_urls = scan_sites(profile, shared)
+    configured_urls = {source_key(site['listing_url']) for site in direct_urls}
+    direct_urls.extend(url for url in generic_urls if source_key(url) not in configured_urls)
     direct_urls = direct_urls[:site_limit]
     queries = engine.build_search_queries(profile, emit_log=False)[:query_limit]
     direct_cursor = engine.safe_int(checkpoint.get("direct_cursor"), 0)
