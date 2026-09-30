@@ -93,7 +93,7 @@ class StageHunterV6Tests(unittest.TestCase):
         profile["search"] = dict(profile["search"], queries=[], auto_query_limit=6)
         profile["_source_pack_queries"] = []
         profile["sources"] = {"custom_queries": []}
-        with patch.dict(os.environ, {"AUTO_QUERY_LIMIT": "6"}, clear=False):
+        with patch.dict(os.environ, {"AUTO_QUERY_LIMIT": "6", "SEARCH_QUERY_BUDGET": "6"}, clear=False):
             queries = hunter.build_search_queries(profile)
         self.assertEqual(len(queries), 6)
         self.assertTrue(any("CDI" in query for query in queries))
@@ -593,7 +593,7 @@ class StageHunterV6Tests(unittest.TestCase):
 
         with patch.object(hunter, "page", fake_page), \
                 patch.object(hunter, "scan_budget_exhausted", side_effect=[False, True]), \
-                patch.dict(os.environ, {"SCAN_TIME_BUDGET_SECONDS": "3600", "SCRAPE_WORKERS": "1"}, clear=False):
+                patch.dict(os.environ, {"SCAN_TIME_BUDGET_SECONDS": "3600", "SCRAPE_WORKERS": "1", "MAX_IN_FLIGHT_PAGES": "2"}, clear=False):
             results = hunter.parallel_pages(rows, "TEST BUDGET")
         self.assertEqual(len(results), 2)
 

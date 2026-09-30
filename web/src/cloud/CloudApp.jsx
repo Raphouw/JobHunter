@@ -1,4 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { ScanController, browserTransport } from '../scan/ScanController.js';
+import { ScanPanel } from '../scan/ScanPanel.jsx';
 import { Icon } from '../components/Common/Icons';
 import { TinderDeck } from '../components/Swiper/TinderDeck';
 import { ProfileView } from '../components/Profile/ProfileView';
@@ -13,6 +15,9 @@ import { DeleteProfileDialog, ProfileSwitcher } from './ProfileSwitcher';
 import { supabase, unwrap } from './client';
 
 const CVsView = React.lazy(() => import('../components/CVs/CVsView').then(module => ({ default:module.CVsView })));
+const EMPTY_SCAN = { status: 'idle', job: null, metrics: {}, power: 'normal' };
+const noopSubscribe = () => () => {};
+const emptySnapshot = () => EMPTY_SCAN;
 
 const EMPTY_CONFIG = {
   student: { stage_type: 'stage / internship', contract_types: ['Internship'], min_weeks: 20 },
@@ -183,6 +188,23 @@ export function CloudApp() {
   const [scanJobs, setScanJobs] = useState([]);
   const [scanEvents, setScanEvents] = useState([]);
   const [workerReady, setWorkerReady] = useState(false);
+  const [browserReady, setBrowserReady] = useState(false);
+  const [useBrowser, setUseBrowser] = useState(true);
+  const scanController = useMemo(() => session?.user?.id ? new ScanController({
+    userId: session.user.id,
+    getSession: async () => {
+      const { session } = unwrap(await supabase.auth.getSession());
+      if (!session) throw new Error('Session expirée; reconnectez-vous pour reprendre');
+      return session;
+    }, transport: browserTransport,
+  }) : null, [session?.user?.id]);
+  const browserScan = useSyncExternalStore(scanController?.subscribe || noopSubscribe,
+    scanController?.getSnapshot || emptySnapshot);
+  useEffect(() => {
+    if (!scanController) return;
+    scanController.recover().catch(error => setError(error.message));
+    return () => scanController.dispose();
+  }, [scanController]);
   const [page, setPage] = useState(() => {
     if (window.location.pathname.replace(/\/$/, '') === '/design-lab/applications-map-v2') return 'candidatures';
     const hash = window.location.hash.slice(1);
@@ -292,7 +314,7 @@ export function CloudApp() {
 
   useEffect(() => {
     if (!session) return;
-    fetch('/api/scan').then((result) => result.json()).then((status) => setWorkerReady(!!status.ready))
+    fetch('/api/scan').then((result) => result.json()).then((status) => { setWorkerReady(!!status.ready); setBrowserReady(!!status.browser_ready); })
       .catch(() => setWorkerReady(false));
   }, [session?.user?.id]);
 
@@ -341,7 +363,7 @@ export function CloudApp() {
         supabase.from('hunter_offers').select('*').eq('profile_id', profileId)
           .order('score', { ascending: false }).limit(1000),
         supabase.from('hunter_scan_jobs')
-          .select('id,mode,status,phase,progress_percent,attempt_count,cancel_requested,created_at,finished_at,summary,error_message')
+          .select('id,mode,status,phase,progress_percent,attempt_count,cancel_requested,created_at,finished_at,summary,error_message,checkpoint')
           .eq('profile_id', profileId)
           .order('created_at', { ascending: false }).limit(10),
       ]);
@@ -359,13 +381,21 @@ export function CloudApp() {
   }, [profileId, loadCandidatures]);
 
   useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => {
+    if (scanController) scanController.onSettled = () => loadData();
+  }, [scanController, loadData]);
+  useEffect(() => {
+    const job = browserScan.job;
+    if (job?.profile_id === profileId) setScanJobs(current => [job, ...current.filter(item => item.id !== job.id)]);
+  }, [browserScan.job, profileId]);
 
   useEffect(() => {
     if (page !== 'search' || !profileId) return undefined;
+    if (browserScan.job?.profile_id === profileId && !['idle', 'completed', 'cancelled'].includes(browserScan.status)) return undefined;
     const isScanning = scanJobs.some((j) => ['queued', 'running'].includes(j.status));
     const timer = window.setInterval(loadData, isScanning ? 2500 : 15000);
     return () => window.clearInterval(timer);
-  }, [loadData, page, profileId, scanJobs]);
+  }, [loadData, page, profileId, scanJobs, browserScan.job?.profile_id, browserScan.status]);
 
   const run = async (operation, success) => {
     setBusy(true); setError('');
@@ -601,6 +631,10 @@ export function CloudApp() {
   };
 
   const startScan = (mode) => run(async () => {
+    if (browserReady && useBrowser && scanController) {
+      await scanController.start(profileId, mode);
+      return;
+    }
     if (!workerReady) throw new Error('Le worker Python doit être configuré avant le lancement.');
     if (scanJobs.some((job) => ['queued', 'running'].includes(job.status)))
       throw new Error('Un scan est déjà actif sur ce profil.');
@@ -613,9 +647,13 @@ export function CloudApp() {
         'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobs[0].id }) })
         .then(() => loadData()).catch(() => {});
     }
-  }, 'Scan ajouté à la file. Le traitement démarre et reprendra automatiquement.');
+  }, 'Scan lancé. La progression reste visible pendant la navigation.');
 
   const cancelScan = (jobId) => run(async () => {
+    if (scanController?.snapshot.job?.id === jobId) {
+      await scanController.cancel();
+      return;
+    }
     unwrap(await supabase.from('hunter_scan_jobs').update({ cancel_requested: true })
       .eq('id', jobId).eq('profile_id', profileId));
     await loadData();
@@ -678,7 +716,7 @@ export function CloudApp() {
     ? { ...EMPTY_CONFIG, ...activeProfile.config, id: activeProfile.id, name: activeProfile.name }
     : null, [activeProfile]);
   const latestScan = scanJobs[0];
-  const scan = { cloud: true, available: workerReady, running: ['queued', 'running'].includes(latestScan?.status) };
+  const scan = { cloud: true, available: workerReady || browserReady, running: ['queued', 'running'].includes(latestScan?.status) };
   const dashboardStats = { ...stats, ready: stats.keep };
   const latestCompleted = scanJobs.find((job) => job.status === 'completed' && job.summary?.metrics);
   const metrics = latestCompleted?.summary?.metrics;
@@ -770,6 +808,7 @@ export function CloudApp() {
                 <button className="sh-btn-secondary" onClick={() => supabase.auth.signOut()}>Déconnexion</button>
               </div>
             </header>
+            {scanController && <ScanPanel controller={scanController} snapshot={browserScan} onDetail={() => goToPage('search')} />}
             <main className="sh-content">
               {!profile ? <section className="sh-view">
                 <h1>Créer mon premier profil</h1>
@@ -815,8 +854,12 @@ export function CloudApp() {
                     </form>
                   </section>
                 </div>}
-                {page === 'search' && <CloudSearchView scanJobs={scanJobs} scanEvents={scanEvents}
-                  workerReady={workerReady} onRun={startScan} onCancel={cancelScan}
+                {page === 'search' && browserReady && <section className="sh-browser-scan">
+                  <label><input type="checkbox" checked={useBrowser} disabled={['running','starting','paused','recoverable'].includes(browserScan.status)} onChange={event => setUseBrowser(event.target.checked)} />Exécuter le scan sur cet appareil</label>
+                  <small>Parsing et scoring sur votre PC. L’onglet doit rester ouvert. Ce moteur Python fonctionne avec un Worker séquentiel.</small>
+                </section>}
+                {page === 'search' && <CloudSearchView scanJobs={scanJobs} scanEvents={browserScan.job?.profile_id === profileId ? browserScan.logs || scanEvents : scanEvents}
+                  workerReady={workerReady || (browserReady && useBrowser)} onRun={startScan} onCancel={cancelScan}
                   onRefresh={loadData} busy={busy} />}
                 {page === 'sites' && isOwner && <div className="sh-view">
                   <SiteConfigEditor profile={profile} accessToken={session.access_token}

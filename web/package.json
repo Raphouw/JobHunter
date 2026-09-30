@@ -4,6 +4,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "predev": "node ../scripts/build_scan_runtime.mjs",
+    "prebuild": "node ../scripts/build_scan_runtime.mjs",
+    "prebuild:cloud": "node ../scripts/build_scan_runtime.mjs",
     "dev": "vite --host 127.0.0.1 --port 5173",
     "build": "vite build",
     "build:cloud": "vite build --mode cloud --outDir dist-cloud"

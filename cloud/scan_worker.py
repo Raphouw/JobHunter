@@ -7,6 +7,8 @@ releasing it. The existing stage_hunter engine performs ranking and scoring.
 from __future__ import annotations
 
 import json
+import itertools
+import hashlib
 import os
 import re
 import shutil
@@ -55,6 +57,7 @@ TELEMETRY_NUMBERS = (
     "candidates_attempted", "pages_processed", "retained",
     "rejected_after_examination", "deferred", "temporarily_unavailable",
     "parsing_analysis_cpu_seconds", "filtered_non_public",
+    "retries",
 )
 _PROCESS_SCAN_LOCK = threading.Lock()
 _WORKER_LOCAL = threading.local()
@@ -420,6 +423,8 @@ def discover(store, job, engine, profile):
     direct_urls.extend(url for url in generic_urls if source_host(url) not in configured_urls)
     direct_urls = direct_urls[:site_limit]
     queries = engine.build_search_queries(profile, emit_log=False)[:query_limit]
+    checkpoint['planned_queries'] = len(queries)
+    checkpoint['planned_sites'] = len(direct_urls)
     direct_cursor = engine.safe_int(checkpoint.get("direct_cursor"), 0)
     web_cursor = engine.safe_int(checkpoint.get("web_cursor"), 0)
 
@@ -681,19 +686,31 @@ def analyze(store, job, engine, profile):
     if store.local_connection is None:
         store.local_connection = engine.init_db()
         _WORKER_LOCAL.connections = getattr(_WORKER_LOCAL, "connections", []) + [store.local_connection]
-        existing = []
-        for offset in range(0, 100000, 1000):
+        store.existing_urls = set()
+        store.saved_in_job_urls = set()
+        job_started = datetime.fromisoformat(job['created_at'].replace('Z', '+00:00'))
+        for offset in itertools.count(0, 1000):
             page = store.rows("hunter_offers", f"profile_id=eq.{job['profile_id']}&user_id=eq.{job['user_id']}&select=id,"
                               + ",".join(EXISTING_COLUMNS) + f"&order=id.asc&limit=1000&offset={offset}")
-            existing.extend(page)
+            for offer in page:
+                values = [offer.get(column) for column in EXISTING_COLUMNS]
+                if getattr(store, 'compact_bodies', False):
+                    values[EXISTING_COLUMNS.index('body')] = '\x01' * min(250, len(offer.get('body') or ''))
+                cursor = store.local_connection.execute(f"INSERT OR IGNORE INTO offers ({','.join(EXISTING_COLUMNS)}) VALUES ({','.join('?' for _ in values)})", values)
+                if cursor.rowcount:
+                    store.existing_local_ids[cursor.lastrowid] = offer['id']
+                    # SQLite owns the full text; the comparison cache keeps only
+                    # hashes of large strings, avoiding a second full copy.
+                    compact = {key: value for key, value in offer.items() if key not in ('body', 'snippet')}
+                    compact['_text_hashes'] = offer.get('_text_hashes') or {key: hashlib.sha256(str(offer.get(key) or '').encode()).hexdigest()
+                                                                          for key in ('body', 'snippet')}
+                    store.existing_remote_rows[cursor.lastrowid] = compact
+                store.existing_urls.add(offer['canonical_url'])
+                if offer.get('discovered_at') and datetime.fromisoformat(offer['discovered_at'].replace('Z', '+00:00')) >= job_started:
+                    store.saved_in_job_urls.add(offer['canonical_url'])
+            store.local_connection.commit()
             if len(page) < 1000:
                 break
-        for offer in existing:
-            values = [offer.get(column) for column in EXISTING_COLUMNS]
-            cursor = store.local_connection.execute(f"INSERT OR IGNORE INTO offers ({','.join(EXISTING_COLUMNS)}) VALUES ({','.join('?' for _ in values)})", values)
-            if cursor.rowcount:
-                store.existing_local_ids[cursor.lastrowid] = offer["id"]
-                store.existing_remote_rows[cursor.lastrowid] = offer
         # Rejected URLs remain outside the Swiper, but their extracted facts
         # participate in the second title/company/location duplicate check.
         last_history_id = None
@@ -723,13 +740,6 @@ def analyze(store, job, engine, profile):
                 break
             last_history_id = history[-1]["id"]
         store.local_connection.commit()
-        store.existing_urls = {offer["canonical_url"] for offer in existing}
-        job_started = datetime.fromisoformat(job["created_at"].replace("Z", "+00:00"))
-        store.saved_in_job_urls = {
-            offer["canonical_url"] for offer in existing
-            if offer.get("discovered_at") and
-            datetime.fromisoformat(offer["discovered_at"].replace("Z", "+00:00")) >= job_started
-        }
     connection = store.local_connection
     analysis_cpu_started = time.process_time()
     engine.ingest(connection, [candidate["payload"] for candidate in pending], profile)
@@ -751,7 +761,10 @@ def analyze(store, job, engine, profile):
                            "title", "company", "location", "canton", "source", "snippet",
                            "body", "language", "duration", "start_date", "domain_category",
                            "skills_found", "availability_status")
-                          if offer.get(key) is not None and offer.get(key) != previous.get(key)}
+                          if offer.get(key) is not None and
+                          not (key == 'body' and getattr(store, 'compact_bodies', False) and str(offer[key]).startswith('\x01')) and
+                          (hashlib.sha256(str(offer[key]).encode()).hexdigest() != previous.get('_text_hashes', {}).get(key)
+                           if key in previous.get('_text_hashes', {}) else offer.get(key) != previous.get(key))}
             if enrichment:
                 store.patch("hunter_offers",
                     f"id=eq.{remote_id}&profile_id=eq.{job['profile_id']}&user_id=eq.{job['user_id']}",
@@ -799,9 +812,12 @@ def analyze(store, job, engine, profile):
     fresh_urls = {row["canonical_url"] for row in fresh}
     for candidate in pending:
         candidate_url = engine.canon(candidate["payload"].get("url", ""))
+        store.phase_counts['retries'] = store.phase_counts.get('retries', 0) + int((candidate.get('decision') or {}).get('attempts', 0) > 0)
         matching = [row for row in audits if engine.canon(row.get("original_url", "")) == candidate_url]
         decision = matching[-1] if matching else {"decision": "retry", "reason": "Aucune décision enregistrée"}
         status, attempts, deferrals = candidate_outcome(decision, candidate.get("decision"))
+        if status == 'known' or decision.get('decision') in ('duplicate_merged', 'duplicate'):
+            checkpoint['duplicates'] = checkpoint.get('duplicates', 0) + 1
         domain = engine.dom(candidate_url)
         health = update_domain_health(health, domain, decision)
         official_url = engine.canon(decision.get("official_url") or "")
@@ -854,7 +870,7 @@ def analyze(store, job, engine, profile):
             checkpoint, max(job.get("progress_percent", 0), progress))
 
 
-def finalize_scored_offers(store, job, engine, profile):
+def finalize_scored_offers(store, job, engine, profile, checkpoint=None):
     """Score the merged pages once discovery and enrichment have ended."""
     threshold = engine.safe_float((profile.get("search") or {}).get("minimum_score"), 30)
     finalized = rejected = 0
@@ -888,30 +904,48 @@ def finalize_scored_offers(store, job, engine, profile):
                         {"score": score, "confidence": confidence, "reasons": "\n".join(reasons)})
             finalized += 1
 
+    checkpoint = checkpoint if checkpoint is not None else job.get('checkpoint') or {}
     columns = "id,url,canonical_url,title,company,location,body,review_decision"
-    last_id = 0
+    last_id = checkpoint.get('final_score_cursor', 0) if getattr(store, 'finalize_batch_limit', None) else 0
+    page_size = getattr(store, 'body_page_size', 1000)
+    store.finalization_pending = False
     while True:
         page = store.rows("hunter_offers", f"profile_id=eq.{job['profile_id']}&user_id=eq.{job['user_id']}"
                           f"&discovered_at=gte.{urllib.parse.quote(job['created_at'])}"
                           f"&id=gt.{last_id}"
                           f"&select={columns}"
-                          "&order=id.asc&limit=1000")
+                          f"&order=id.asc&limit={page_size}")
         if not page:
             break
         for offer in page:
             last_id = offer["id"]
             finalize(offer)
-        if len(page) < 1000:
+            if getattr(store, 'finalize_batch_limit', None):
+                checkpoint['final_score_cursor'] = last_id
+        if len(page) < page_size:
             break
+        if getattr(store, 'finalize_batch_limit', None) and finalized + rejected >= store.finalize_batch_limit:
+            store.finalization_pending = True
+            return finalized, rejected
     enriched_ids = list(dict.fromkeys((job.get("checkpoint") or {}).get("enriched_offer_ids") or []))
-    for start in range(0, len(enriched_ids), 40):
-        ids = [str(value) for value in enriched_ids[start:start + 40] if str(value).isdigit()]
+    enriched_batch = min(40, page_size)
+    enriched_start = checkpoint.get('final_enriched_cursor', 0) if getattr(store, 'finalize_batch_limit', None) else 0
+    for start in range(enriched_start, len(enriched_ids), enriched_batch):
+        if getattr(store, 'finalize_batch_limit', None) and finalized + rejected >= store.finalize_batch_limit:
+            store.finalization_pending = True
+            return finalized, rejected
+        ids = [str(value) for value in enriched_ids[start:start + enriched_batch] if str(value).isdigit()]
         if not ids:
             continue
         page = store.rows("hunter_offers", f"profile_id=eq.{job['profile_id']}&user_id=eq.{job['user_id']}"
-                          f"&id=in.({','.join(ids)})&select={columns}")
+                          f"&id=in.({','.join(ids)})&select={columns}&limit={enriched_batch}")
         for offer in page:
             finalize(offer)
+        if getattr(store, 'finalize_batch_limit', None):
+            checkpoint['final_enriched_cursor'] = start + enriched_batch
+            if finalized + rejected >= store.finalize_batch_limit and start + enriched_batch < len(enriched_ids):
+                store.finalization_pending = True
+                return finalized, rejected
     return finalized, rejected
 
 
@@ -922,10 +956,13 @@ def finish(store, job, engine=None, profile=None):
         raise RuntimeError("Bail expiré avant finalisation")
     checkpoint = dict(job.get("checkpoint") or {})
     if engine is not None and profile is not None:
-        _, final_rejected = finalize_scored_offers(store, job, engine, profile)
-        checkpoint["final_score_rejected"] = final_rejected
+        _, final_rejected = finalize_scored_offers(store, job, engine, profile, checkpoint)
+        checkpoint["final_score_rejected"] = checkpoint.get('final_score_rejected', 0) + final_rejected
+        if getattr(store, 'finalization_pending', False):
+            release(store, job, 'finish', checkpoint, max(job['progress_percent'], 96))
+            return
     discovered_count = 0
-    for offset in range(0, 100000, 1000):
+    for offset in itertools.count(0, 1000):
         page = store.rows("hunter_offers", f"profile_id=eq.{job['profile_id']}&user_id=eq.{job['user_id']}"
                           f"&discovered_at=gte.{urllib.parse.quote(job['created_at'])}&select=id&order=id.asc&limit=1000&offset={offset}")
         discovered_count += len(page)
@@ -935,12 +972,13 @@ def finish(store, job, engine=None, profile=None):
     source_counts = {}
     retry_causes = Counter()
     prefilter_reasons = Counter()
-    for offset in range(0, 100000, 1000):
+    for offset in itertools.count(0, 1000):
+        summary_columns = 'status,decision,source:payload->>source' if getattr(store, 'compact_summary', False) else 'status,decision,payload'
         page = store.rows("hunter_scan_candidates",
-                          f"job_id=eq.{job['id']}&user_id=eq.{job['user_id']}&select=status,decision,payload&order=id.asc&limit=1000&offset={offset}")
+                          f"job_id=eq.{job['id']}&user_id=eq.{job['user_id']}&select={summary_columns}&order=id.asc&limit=1000&offset={offset}")
         counts.update(row["status"] for row in page)
         for row in page:
-            domain = (row.get("payload") or {}).get("source") or "inconnu"
+            domain = row.get('source') or (row.get("payload") or {}).get("source") or "inconnu"
             source = source_counts.setdefault(domain[:100], {"candidates": 0, "retained": 0})
             source["candidates"] += 1
             source["retained"] += int(row["status"] == "accepted")
@@ -998,6 +1036,15 @@ def finish(store, job, engine=None, profile=None):
                "backends": backend_totals},
        "fixed_sites": {"visited": totals["sites"], "links": checkpoint.get("direct_candidates", 0)},
        "source_yield": source_counts, "recommendations": []}
+    if hasattr(store, 'browser_metrics'):
+        transport = store.browser_metrics()
+        summary['executor'] = 'browser'
+        summary['metrics']['browser'] = summary['metrics']['cloud']
+        summary['metrics']['cloud'] = {'totals': {
+            'cpu_seconds': transport.get('serverCpuMs', 0) / 1000,
+            'supabase_calls': transport.get('backendRequests', 0),
+            'supabase_bytes_received': transport.get('transferredBytes', 0)},
+            'phases': [], 'measurement_scope': 'transport before final writes; process CPU estimate'}
     store.patch("hunter_scan_jobs", f"id=eq.{job['id']}&lease_token=eq.{job['lease_token']}", {"summary": summary})
     completion = "Scan partiel terminé" if summary["partial_reason"] else "Scan terminé"
     store.event(job, f"{completion} · {summary['new']} offre(s) retenue(s), {summary['rejected']} rejetée(s) après examen, {summary['deferred']} non examinée(s), {summary['temporarily_unavailable']} inaccessible(s).")

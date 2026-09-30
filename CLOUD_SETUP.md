@@ -99,6 +99,15 @@ Cette dernière variable active le bouton sur le site. Vercel Hobby limite
 chaque tranche à 300 secondes ; le code réserve une marge avant ce délai.
 Tester la consommation réelle avant de multiplier les scans quotidiens.
 
+Le moteur navigateur expérimental se configure avec `BROWSER_SCAN_ENABLED=1`
+côté serveur (désactivé par défaut). Le build cloud génère ses assets publics
+par liste explicite. L'utilisateur choisit ensuite le moteur navigateur dans
+Recherche & Scan et garde son onglet ouvert pendant l'exécution. Le scan
+serveur et les scans programmés restent disponibles. Consulter
+[l'audit de migration](SCAN_BROWSER_MIGRATION.md) avant activation : cette
+version utilise un Worker séquentiel; le pool multi-CPU et les mesures mémoire/
+Fluid sur scans exhaustifs réels restent à compléter.
+
 ### Connexion Google
 
 Le client OAuth doit être de type **Application Web**. Son URI de redirection

@@ -25,7 +25,9 @@ class handler(BaseHTTPRequestHandler):
         # Configuration is intentionally coarse: no keys or project metadata.
         ready = bool(os.getenv("SUPABASE_SERVICE_ROLE_KEY") and os.getenv("CRON_SECRET")
                      and os.getenv("SUPABASE_URL") and os.getenv("SCAN_DISPATCHER_ENABLED", "1") == "1")
-        self.respond(200, {"ready": ready})
+        browser_ready = bool(os.getenv('BROWSER_SCAN_ENABLED', '0') == '1'
+                             and os.getenv('SUPABASE_SERVICE_ROLE_KEY') and os.getenv('SUPABASE_URL'))
+        self.respond(200, {"ready": ready, 'browser_ready': browser_ready})
 
     def do_POST(self):
         if not (os.getenv("SUPABASE_SERVICE_ROLE_KEY") and os.getenv("SUPABASE_URL")):
@@ -63,6 +65,23 @@ class handler(BaseHTTPRequestHandler):
                 return
         try:
             from cloud.scan_worker import run_slice
+            if job_id is None:
+                from cloud.scan_worker import Store
+                eligible = Store().rows('hunter_scan_jobs',
+                    'status=in.(queued,running)&or=(checkpoint->>executor.is.null,checkpoint->>executor.neq.browser)'
+                    '&select=id&order=created_at&limit=1')
+                if not eligible:
+                    self.respond(200, {'claimed': False})
+                    return
+                job_id = eligible[0]['id']
+            # Browser jobs are never dispatched to the server engine, including
+            # cron requests already scheduled by existing Supabase installations.
+            if job_id:
+                from cloud.scan_worker import Store
+                rows = Store().rows('hunter_scan_jobs', f'id=eq.{urllib.parse.quote(job_id)}&select=checkpoint')
+                if rows and (rows[0].get('checkpoint') or {}).get('executor') == 'browser':
+                    self.respond(200, {'claimed': False, 'executor': 'browser'})
+                    return
             result = run_slice(job_id)
             self.respond(200, result)
         except Exception as error:
