@@ -100,7 +100,10 @@ function Login({ onError }) {
     setBusy(true);
     try {
       if (signup) {
-        const data = unwrap(await supabase.auth.signUp({ email: email.trim(), password }));
+        const data = unwrap(await supabase.auth.signUp({
+          email: email.trim(), password,
+          options: { emailRedirectTo: `${window.location.origin}/` },
+        }));
         if (!data.session) {
           setMessage('Vérifie ta boîte mail : si l’inscription est possible, tu recevras un lien pour confirmer ton adresse. Si tu as déjà un compte, connecte-toi.');
           setPassword(''); setConfirmation('');

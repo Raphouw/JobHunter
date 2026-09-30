@@ -34,6 +34,11 @@ et de récupération, et activer la confirmation des adresses e-mail.
    des e-mails. Chaque personne crée son compte depuis `/#signup`.
    Le connecteur actuel n'expose pas ces paramètres Auth ; cette étape se fait
    dans le tableau de bord Supabase.
+   Dans **Authentication > URL Configuration**, définir **Site URL** sur
+   `https://job-hunter-three-chi.vercel.app/` et ajouter cette même URL aux
+   **Redirect URLs** autorisées. Ne pas conserver `http://localhost:3000` comme
+   URL principale. Le formulaire transmet explicitement l’origine du site via
+   `emailRedirectTo`, mais Supabase doit autoriser cette destination.
 3. Pour tester le mode cloud en local, copier `web/.env.cloud` vers
    `web/.env.local`. Ces deux valeurs sont destinées au navigateur.
    Ne jamais y mettre la clé `service_role`.
