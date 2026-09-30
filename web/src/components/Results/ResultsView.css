@@ -431,3 +431,21 @@
 @media(hover:none) { .so-hover-trash { opacity:1; transform:none; } }
 @media(max-width:700px) { .om-overlay { padding:12px; }.om-modal { max-height:calc(100dvh - 24px); border-radius:20px; }.om-header { padding:26px 44px 22px 20px; gap:12px; }.om-heading h2 { font-size:21px; }.om-score { width:76px; height:76px; }.om-body { padding:20px; }.om-columns { grid-template-columns:1fr; }.om-footer { padding:14px 20px; }.om-footer .om-site { font-size:11px; }.om-secondary-actions { flex-wrap:wrap; } }
 @media(prefers-reduced-motion:reduce) { .so-hover-trash,.so-footer button,.so-footer a { transition:none; } }
+/* Uniform cards: text scrolls while the actions stay in place. */
+.so-card { height:500px; box-sizing:border-box; overflow:hidden; }
+.so-card-top { height:140px; min-height:140px; flex-shrink:0; }
+.so-identity { position:relative; z-index:2; overflow-y:auto; overscroll-behavior:contain; padding-right:6px; cursor:pointer; }
+.so-domains { position:relative; z-index:2; height:52px; min-height:52px; box-sizing:border-box; overflow-y:auto; align-content:flex-start; flex-shrink:0; margin:16px 0; cursor:pointer; overscroll-behavior:contain; }
+.so-insights { position:relative; z-index:2; min-height:0; flex:1; overflow-y:auto; overscroll-behavior:contain; cursor:pointer; }
+.so-footer { flex-shrink:0; height:64px; margin-top:18px; align-content:center; gap:8px; }
+.so-identity,.so-domains,.so-insights { scrollbar-width:thin; scrollbar-color:#e7bed6 transparent; }
+.so-identity:focus-visible,.so-domains:focus-visible,.so-insights:focus-visible { outline:2px solid #eda4ce; outline-offset:-2px; border-radius:8px; }
+.so-score,.so-score.high { display:block; width:82px; height:82px; background:#fffafd; color:#b73580; }
+.so-score::before { display:none; }
+.so-score-gauge { position:absolute; top:7px; left:4px; width:calc(100% - 8px); height:auto; }
+.so-score strong { position:absolute; left:0; right:0; top:31px; text-align:center; font-size:23px; line-height:1; letter-spacing:-1px; }
+.so-score small { font-size:11px; }
+.so-score span { position:absolute; left:0; right:0; bottom:9px; text-align:center; font-size:8px; margin:0; }
+.om-score { width:98px; height:98px; }.om-score strong { top:38px; font-size:28px; }.om-score span { bottom:12px; font-size:9px; }
+@media(max-width:650px) { .so-card { height:500px; padding-top:34px; } }
+@media(max-width:700px) { .om-score { width:76px; height:76px; }.om-score strong { top:29px; font-size:22px; }.om-score span { bottom:7px; font-size:8px; } }

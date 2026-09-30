@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Icon } from '../Common/Icons';
+import { OfferScore } from './OfferScore';
 import { descriptionText } from '../Swiper/descriptionText';
 import { offerInsights, offerSkills } from '../Swiper/TinderCard';
 
@@ -50,7 +51,7 @@ export function OfferDetailDrawer({ offer, candidature, onClose, onDecide, onTra
     <motion.section ref={dialogRef} className="om-modal" role="dialog" aria-modal="true" aria-labelledby="om-title" onClick={(event) => event.stopPropagation()} initial={reducedMotion ? false : { opacity: 0, scale: .96, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ duration: .22 }}>
       <header className="om-header">
         <div className="om-heading"><span className="om-eyebrow">UNE NOUVELLE OPPORTUNITÉ</span><h2 id="om-title">{offer.title || 'Offre sans titre'}</h2><p>{offer.company || 'Entreprise non précisée'} <span>· {offer.location || offer.canton || 'Lieu à confirmer'}</span></p><span className={`om-status ${candidature ? 'applied' : ''}`}><Icon name={candidature ? 'check' : 'clock'} size={13} />{candidature ? 'Déjà postulé' : 'À postuler'}</span></div>
-        <div className="so-score om-score"><strong>{score}<small>%</small></strong><span>Match profil</span></div>
+        <OfferScore score={score} className="om-score" />
         <button ref={closeRef} className="om-close" onClick={onClose} aria-label="Fermer la description"><Icon name="x" size={20} /></button>
       </header>
       <div className="om-body">
@@ -68,3 +69,4 @@ export function OfferDetailDrawer({ offer, candidature, onClose, onDecide, onTra
     </motion.section>
   </div>, document.body);
 }
+

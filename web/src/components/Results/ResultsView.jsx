@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Icon } from '../Common/Icons';
 import { OfferDetailDrawer } from './OfferDetailDrawer';
+import { OfferScore } from './OfferScore';
 import { offerInsights, offerSkills } from '../Swiper/TinderCard';
 import './ResultsView.css';
 
@@ -79,11 +80,11 @@ export function ResultsView({ results = [], profileId, busy = false, onDecide, o
         return <article key={offer.id} className={`so-card ${offer._candidature ? 'is-applied' : ''}`}>
           <button className="so-card-toggle" aria-haspopup="dialog" aria-label={`Afficher la description de ${offer.title || 'cette offre'}`} onClick={() => setDrawerOffer(offer)} />
           <div className="so-card-top">
-            <div className="so-identity"><h2>{offer.title || 'Offre sans titre'}</h2><p className="so-company">{offer.company || 'Entreprise non précisée'} · {[offer.location || offer.canton, offer.country].filter(Boolean).join(' · ') || 'Lieu non précisé'}</p><p className="so-contract">{[offer.contract_type, offer.duration].filter(Boolean).join(' · ') || 'Contrat et durée à confirmer'}</p></div>
-            <div className={`so-score ${score >= 70 ? 'high' : ''}`}><strong>{score}<small>%</small></strong><span>Match profil</span></div>
+            <div className="so-identity" tabIndex={0} aria-label="Intitulé et conditions du poste" onClick={() => setDrawerOffer(offer)}><h2>{offer.title || 'Offre sans titre'}</h2><p className="so-company">{offer.company || 'Entreprise non précisée'} · {[offer.location || offer.canton, offer.country].filter(Boolean).join(' · ') || 'Lieu non précisé'}</p><p className="so-contract">{[offer.contract_type, offer.duration].filter(Boolean).join(' · ') || 'Contrat et durée à confirmer'}</p></div>
+            <OfferScore score={score} />
           </div>
-          <div className="so-domains">{skills.length ? skills.map((skill) => <span key={skill}>{skill}</span>) : <span>Domaine à préciser</span>}</div>
-          <div className="so-insights"><span className="so-section-label"><Icon name="spark" size={15} /> POINTS CLÉS AVEC TON PROFIL</span>
+          <div className="so-domains" tabIndex={0} aria-label="Domaines du poste" onClick={() => setDrawerOffer(offer)}>{skills.length ? skills.map((skill) => <span key={skill}>{skill}</span>) : <span>Domaine à préciser</span>}</div>
+          <div className="so-insights" tabIndex={0} aria-label="Points clés avec ton profil" onClick={() => setDrawerOffer(offer)}><span className="so-section-label"><Icon name="spark" size={15} /> POINTS CLÉS AVEC TON PROFIL</span>
             {strong.length ? <ul>{strong.slice(0, 3).map((line, index) => <li key={index}><Icon name="check" size={14} /><span>{line}</span></li>)}</ul> : <p>Les points de correspondance ne sont pas encore disponibles.</p>}
             {checks.length > 0 && <p className="so-check">À vérifier : {checks[0]}</p>}
           </div>
@@ -102,3 +103,4 @@ export function ResultsView({ results = [], profileId, busy = false, onDecide, o
   </div>;
 }
 export default ResultsView;
+
