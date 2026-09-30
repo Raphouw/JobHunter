@@ -71,6 +71,24 @@ def utc_now():
     return datetime.now(timezone.utc).isoformat()
 
 
+def postgres_json(value):
+    """Remove NUL and repair unpaired surrogates before PostgreSQL text/jsonb."""
+    if isinstance(value, str):
+        # UTF-16 roundtrip preserves valid pairs and replaces isolated halves.
+        return value.replace('\x00', '').encode('utf-16-le', errors='surrogatepass').decode('utf-16-le', errors='replace')
+    if isinstance(value, list):
+        return [postgres_json(item) for item in value]
+    if isinstance(value, dict):
+        result = {}
+        for key, item in value.items():
+            cleaned_key = postgres_json(key)
+            if cleaned_key in result:
+                raise ValueError('JSON keys collide after Unicode repair')
+            result[cleaned_key] = postgres_json(item)
+        return result
+    return value
+
+
 def payload_bytes(value):
     return len(json.dumps(value, ensure_ascii=False, default=str).encode("utf-8"))
 
@@ -113,7 +131,7 @@ class Store:
         self.source_yield = {}
 
     def request(self, path, method="GET", body=None, prefer=None):
-        data = None if body is None else json.dumps(body, ensure_ascii=False).encode("utf-8")
+        data = None if body is None else json.dumps(postgres_json(body), ensure_ascii=False).encode("utf-8")
         started = time.perf_counter()
         self.calls += 1
         self.bytes_sent += len(data or b"")
