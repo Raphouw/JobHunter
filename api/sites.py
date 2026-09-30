@@ -88,6 +88,16 @@ class handler(BaseHTTPRequestHandler):
                 query = ('select=id,name,listing_url,config,status&order=updated_at.desc&limit=100'
                          if admin else 'status=eq.published&select=id,name,listing_url,config,status&order=updated_at.desc&limit=100')
                 recipes = store.rows('hunter_site_recipes', query)
+                defaults = reference_sites(current_config)
+                for row in recipes:
+                    config = row['config']
+                    if not config.get('countries'):
+                        from site_configs import source_host
+                        inherited = [country for reference in defaults
+                                     if source_host(reference['listing_url']) == source_host(config['listing_url'])
+                                     for country in reference['countries']]
+                        if inherited:
+                            row['config'] = {**config, 'countries': sorted(set(inherited))}
                 recipes = [{**row, 'enabled': row['status'] == 'published' and not source_disabled(row['config']['listing_url'], current_config)}
                            for row in recipes if country_matches(row['config'], current_config)]
                 return self.respond(200, {'is_admin': admin, 'recipes': recipes,

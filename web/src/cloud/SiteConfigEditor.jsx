@@ -258,8 +258,9 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
   const mySites = profile?.sources?.sites || [];
   const referenceGroups = new Map();
   const selectedCountries = new Set(profileCountries.map(countryCode));
-  references.forEach((row) => {
-    const countries = row.countries?.length ? [...new Set(row.countries.map(countryCode))].filter((code) => selectedCountries.has(code)) : ['all'];
+  const countrySites = [...references, ...catalog.map((row) => ({ ...row, countries: row.config?.countries || [] }))];
+  countrySites.forEach((row) => {
+    const countries = row.countries?.length ? [...new Set(row.countries.map(countryCode))].filter((code) => selectedCountries.has(code)) : [...selectedCountries];
     countries.forEach((code) => {
       if (!referenceGroups.has(code)) referenceGroups.set(code, {
         code, label: code === 'all' ? 'Tous les pays' : countryOptions.find(([key]) => key === code)?.[1] || code, sites: [],
@@ -362,15 +363,21 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
               <div className="sh-reference-list">
             {group.sites.toSorted((a, b) => a.name.localeCompare(b.name, 'fr')).map((row) => (
               <div key={row.listing_url} className={`sh-reference-row ${row.enabled ? '' : 'is-disabled'}`}>
-                <label><input type="checkbox" checked={row.enabled} disabled={busy || working}
+                <label><input type="checkbox" checked={Boolean(row.enabled)} disabled={busy || working || (row.status && row.status !== 'published')}
                   onChange={(event) => run('toggle', { listing_url: row.listing_url, enabled: event.target.checked })} />
                   <span title={row.name}>{row.name}</span>
                 </label>
                 {isAdmin && <button type="button" className="sh-site-edit-icon" disabled={busy || working}
                   title={`Modifier ${row.name} pour tous`} aria-label={`Modifier ${row.name} pour tous`}
-                  onClick={() => edit({ ...empty(), name: row.name, listing_url: row.listing_url, countries: row.countries }, { name: row.name })}>
+                  onClick={() => edit({ ...empty(), ...row.config, name: row.name, listing_url: row.listing_url, countries: row.countries, enabled: false }, { id: row.id, name: row.name })}>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m16 3 5 5M3 21l5-1L21 7a2.1 2.1 0 0 0-4-4L4 16Z" /></svg>
                 </button>}
+                {row.config && !isAdmin && <button type="button" className="sh-site-edit-icon" disabled={busy || working}
+                  title={`Personnaliser ${row.name}`} aria-label={`Personnaliser ${row.name}`}
+                  onClick={() => edit({ ...row.config, id: '', enabled: false })}><Icon name="copy" size={14} /></button>}
+                {isAdmin && row.status === 'published' && <button type="button" className="sh-site-edit-icon" disabled={busy || working}
+                  title={`Désactiver ${row.name} pour tous`} aria-label={`Désactiver ${row.name} pour tous`}
+                  onClick={() => run('unpublish', { listing_url: row.listing_url })}><Icon name="x" size={14} /></button>}
                 <a href={row.listing_url} target="_blank" rel="noreferrer" title={row.listing_url} aria-label={`Ouvrir ${row.name}`}><Icon name="external" size={14} /></a>
               </div>
             ))}
@@ -399,45 +406,7 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
           )}
         </div>
 
-        {catalog.length > 0 && (
-          <div className="sh-catalog-box">
-            <h4>Recettes communes du catalogue</h4>
-            <div className="sh-site-recipe-cards">
-              {catalog.map((row) => (
-                <div key={row.id} className="sh-recipe-card">
-                  <div className="sh-recipe-card-top">
-                    <strong>{row.name}</strong>
-                    <span className={`sh-status-tag ${row.status === 'published' ? 'success' : 'queued'}`}>
-                      {row.status === 'published' ? 'Publiée' : 'Désactivée'}
-                    </span>
-                  </div>
-                  <span className="sh-recipe-card-url">{row.listing_url}</span>
-                  <label><input type="checkbox" checked={Boolean(row.enabled)} disabled={busy || working || row.status !== 'published'}
-                    onChange={(event) => run('toggle', { listing_url: row.listing_url, enabled: event.target.checked })} /> Activer pour moi</label>
-                  <button type="button" className="sh-btn-secondary sm" onClick={() => edit({ ...row.config, id: '', enabled: false })}>Personnaliser une copie privée</button>
-                  {isAdmin && <button type="button" className="sh-site-edit-icon" disabled={busy || working}
-                    title={`Modifier ${row.name} pour tous`} aria-label={`Modifier ${row.name} pour tous`}
-                    onClick={() => edit({ ...row.config, enabled: false }, { id: row.id, name: row.name })}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m16 3 5 5M3 21l5-1L21 7a2.1 2.1 0 0 0-4-4L4 16Z" /></svg>
-                  </button>}
-                  {isAdmin && row.status === 'published' && (
-                    <button
-                      type="button"
-                      className="sh-btn-secondary sm"
-                      disabled={working}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        run('unpublish', { listing_url: row.listing_url });
-                      }}
-                    >
-                      Désactiver pour tous
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+
       </section>
 
       {/* Formulaire de configuration */}
@@ -459,7 +428,7 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
                   onChange={(event) => change(null, 'countries', event.target.checked ? [...(site.countries || []), code] : site.countries.filter((country) => country !== code))} /> {name}</label>
               ))}
             </div>
-            <span className="sh-label-hint">Aucun pays coché : tous les pays. Le catalogue et les scans suivent les pays du profil.</span>
+            <span className="sh-label-hint">Aucun pays coché : le site apparaît dans chaque pays du profil. Le catalogue et les scans suivent les pays du profil.</span>
           </div>
           <div className="sh-field">
             <label>Nom du site</label>

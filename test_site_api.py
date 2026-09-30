@@ -140,5 +140,13 @@ class SharedSiteApiTests(unittest.TestCase):
         self.assertFalse(any('jobs.ch' in row['listing_url'] for row in references))
         self.assertTrue(any('iagora.com' in row['listing_url'] for row in references))
 
+    def test_catalog_inherits_country_for_existing_shared_reference(self):
+        defaults = [{'listing_url': 'https://example.org/original', 'countries': ['CH']}]
+        with patch('api.sites.reference_sites', return_value=defaults), \
+             patch('api.sites.country_matches', return_value=True):
+            status, payload = post({'action': 'catalog'})
+        self.assertEqual(status, 200)
+        self.assertEqual(payload['recipes'][0]['config']['countries'], ['CH'])
+
 
 if __name__ == '__main__': unittest.main()
