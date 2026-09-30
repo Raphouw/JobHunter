@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../Common/Icons';
 import { ResetProfileModal } from './ResetProfileModal';
+import { CountryMultiSelect } from './CountryMultiSelect';
 
 const linesToString = (arr) => (Array.isArray(arr) ? arr.join('\n') : String(arr || ''));
 const commaListToString = (arr) => (Array.isArray(arr) ? arr.join(', ') : String(arr || ''));
@@ -36,7 +37,6 @@ const profileDrafts = (profile) => ({
   strong_domains: linesToString(profile.skills?.strong_domains),
   red_flags: linesToString(profile.target?.red_flags || profile.search?.red_flags),
   soft_red_flags: linesToString(profile.target?.soft_red_flags || profile.search?.soft_red_flags),
-  countries: commaListToString(profile.location?.countries),
   priority_locations: commaListToString(profile.location?.priority_cantons || profile.location?.priority_locations),
   acceptable_language: commaListToString(profile.location?.acceptable_language),
 });
@@ -379,13 +379,10 @@ export function ProfileView({ profile = {}, onSave, onResetProfile, busy = false
 
           <div className="sh-form-grid">
             <div className="sh-field">
-              <label>Pays ciblés (séparés par virgules)</label>
-              <input
-                type="text"
-                value={drafts.countries}
-                onChange={(e) => patchList('location', 'countries', e.target.value)}
-                placeholder="Switzerland, France"
-              />
+              <label>Pays de recherche</label>
+              <CountryMultiSelect value={form.location?.countries} disabled={busy}
+                onChange={(countries) => patch('location', 'countries', countries)} />
+              <span id="profile-countries-help" className="sh-label-hint">Choisis plusieurs pays, puis enregistre le profil. Dans Sites & Sources, les liens proposés suivent ces pays et chaque recette peut être associée à un ou plusieurs pays.</span>
             </div>
 
             <div className="sh-field">
