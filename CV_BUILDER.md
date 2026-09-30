@@ -2,6 +2,7 @@
 
 L’onglet **Mes CV** intègre le générateur fourni (`CV_builder/cv-builder_test_save.html`, copie collée par l’utilisateur) dans la navigation React locale et cloud.
 
+- La page d’accueil affiche une galerie de tous les CV du profil. **Ajouter un CV** ouvre directement une page d’édition sur tout l’écran ; **Mes CV** permet de revenir à la galerie en conservant le brouillon.
 - Créer plusieurs CV par profil, choisir leur titre, les rouvrir, les dupliquer et les supprimer.
 - **Enregistrer** conserve le document complet en base : textes, mise en page, couleurs, photo, sections et graphiques. Une révision empêche l’écrasement silencieux par deux fenêtres.
 - **Télécharger PDF** exporte la version actuellement affichée au format A4 et utilise le titre comme nom du fichier. Il n’est pas nécessaire de sauvegarder pour télécharger.

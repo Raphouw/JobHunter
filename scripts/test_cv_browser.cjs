@@ -41,11 +41,12 @@ const server = http.createServer(async (req, res) => {
     page.on('dialog', dialog => { console.log('DIALOG', dialog.message()); dialog.dismiss(); });
     await page.goto(`http://127.0.0.1:${server.address().port}/#cvs`);
     await page.getByRole('heading', { name:'Mes CV', exact:true }).waitFor();
-    await page.getByRole('textbox', { name:'Titre du nouveau CV' }).fill('CV React France');
-    await page.getByRole('button', { name:'Créer un CV' }).click();
+    assert.equal(await page.locator('iframe[title="Éditeur de CV"]').count(), 0);
+    await page.getByRole('button', { name:'+ Ajouter un CV' }).click();
+    await page.getByRole('textbox', { name:'Titre du CV', exact:true }).fill('CV React France');
     const save = page.getByRole('button', { name:'Enregistrer', exact:true });
     await save.waitFor();
-    await page.waitForFunction(() => !document.querySelector('.cv-document-bar .sh-btn-primary')?.disabled);
+    await page.waitForFunction(() => !document.querySelector('.cv-editor-header .sh-btn-primary')?.disabled);
     const editor = page.frameLocator('iframe[title="Éditeur de CV"]');
     await editor.locator('#cv-name').fill('Camille Exemple');
     await editor.locator('#cv-title').fill('Développeuse React');
@@ -53,15 +54,17 @@ const server = http.createServer(async (req, res) => {
     await page.getByText('CV enregistré en base.', { exact:true }).waitFor();
     await page.reload();
     await page.getByRole('button', { name:/CV React France/ }).click();
-    await page.waitForFunction(() => !document.querySelector('.cv-document-bar .sh-btn-primary')?.disabled);
+    await page.waitForFunction(() => !document.querySelector('.cv-editor-header .sh-btn-primary')?.disabled);
     assert.equal(await editor.locator('#cv-name').innerText(), 'Camille Exemple');
     assert.equal(await editor.locator('#cv-title').innerText(), 'Développeuse React');
+    await page.getByRole('button', { name:'← Mes CV', exact:true }).click();
     // Saving and reopening the same document must recreate the iframe correctly.
     await page.getByRole('button', { name:/CV React France/ }).click();
-    await page.waitForFunction(() => !document.querySelector('.cv-document-bar .sh-btn-primary')?.disabled);
+    await page.waitForFunction(() => !document.querySelector('.cv-editor-header .sh-btn-primary')?.disabled);
+    await page.getByRole('button', { name:'← Mes CV', exact:true }).click();
     await page.getByRole('button', { name:'Dupliquer', exact:true }).click();
-    await page.getByRole('button', { name:/CV React France — copie/ }).waitFor();
-    await page.waitForFunction(() => !document.querySelector('.cv-document-bar .sh-btn-primary')?.disabled);
+    await page.getByRole('button', { name:/CV React France — copie/ }).click();
+    await page.waitForFunction(() => !document.querySelector('.cv-editor-header .sh-btn-primary')?.disabled);
     assert.equal(await editor.locator('#cv-name').innerText(), 'Camille Exemple');
     await page.getByRole('textbox', { name:'Titre du CV', exact:true }).fill('CV Suisse');
     await save.click();
@@ -77,9 +80,11 @@ const server = http.createServer(async (req, res) => {
     assert.ok(pdf.length > 10000, 'PDF must contain the rendered CV');
     await page.screenshot({ path:path.join(testRoot,'cv-library.png'), fullPage:true });
     await editor.locator('#cv-name').fill('Brouillon récupéré');
+    await page.getByRole('button', { name:'← Mes CV', exact:true }).click();
     await page.getByRole('button', { name:/CV React France/ }).click();
+    await page.getByRole('button', { name:'← Mes CV', exact:true }).click();
     await page.getByRole('button', { name:/CV Suisse/ }).click();
-    await page.waitForFunction(() => !document.querySelector('.cv-document-bar .sh-btn-primary')?.disabled);
+    await page.waitForFunction(() => !document.querySelector('.cv-editor-header .sh-btn-primary')?.disabled);
     assert.equal(await editor.locator('#cv-name').innerText(), 'Brouillon récupéré');
     await save.click();
     await page.getByText('CV enregistré en base.', { exact:true }).waitFor();
@@ -90,10 +95,13 @@ const server = http.createServer(async (req, res) => {
     await editor.locator('#cv-name').filter({ hasText:'Ancien CV importé' }).waitFor();
     await save.click();
     await page.getByText('CV enregistré en base.', { exact:true }).waitFor();
+    await page.getByRole('button', { name:'← Mes CV', exact:true }).click();
+    await page.locator('iframe[title="Éditeur de CV"]').waitFor({ state:'detached' });
+    await page.screenshot({ path:path.join(testRoot,'cv-gallery.png'), fullPage:true });
     await page.getByRole('button', { name:'Supprimer', exact:true }).last().click();
     await page.getByRole('dialog').getByRole('button', { name:'Supprimer', exact:true }).click();
     await page.waitForFunction(() => document.querySelectorAll('.cv-list-item').length === 1);
     assert.deepEqual(errors, []);
-    console.log(JSON.stringify({ result:'PASS', checks:'create, edit, SQLite save, reload, reopen, duplicate, rename, real PDF download, recover draft, JSON import, delete, no page errors', artifacts:testRoot }));
+    console.log(JSON.stringify({ result:'PASS', checks:'gallery, full-screen editor, create, edit, SQLite save, reload, reopen, duplicate, rename, real PDF download, recover draft, JSON import, delete, no page errors', artifacts:testRoot }));
   } finally { await browser.close(); server.close(); }
 })().catch(error => { console.error(error); server.close(); process.exitCode=1; });
