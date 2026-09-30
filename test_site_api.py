@@ -148,5 +148,36 @@ class SharedSiteApiTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(payload['recipes'][0]['config']['countries'], ['CH'])
 
+    def test_delete_default_requires_admin_and_prevents_reappearance(self):
+        body = {'action': 'delete', 'listing_url': 'https://jobs.ch/en/vacancies/', 'name': 'Jobs.ch'}
+        status, _ = post(body)
+        self.assertEqual(status, 403)
+        self.assertEqual(FakeStore.writes, [])
+        status, _ = post(body, admin=True)
+        self.assertEqual(status, 200)
+        tombstone = FakeStore.writes[0][2]
+        self.assertTrue(tombstone['config']['deleted'])
+        from site_configs import reference_sites
+        references = reference_sites({'location': {'countries': ['CH']}}, [tombstone])
+        self.assertFalse(any('jobs.ch' in row['listing_url'] for row in references))
+
+    def test_inspection_preserves_search_in_pasted_url(self):
+        site = sample_site()
+        site['listing_url'] = 'https://example.org/jobs?term=designer'
+        site['query'] = {'keyword_param': 'term', 'location_param': ''}
+        with patch('api.sites.fetch_preview', return_value=('<p>Designer</p>', site['listing_url'])) as fetch:
+            status, payload = post({'action': 'inspect', 'site': site})
+        self.assertEqual(status, 200)
+        fetch.assert_called_once_with(site['listing_url'])
+        self.assertIn('designer', payload['url'])
+
+    def test_preview_can_test_entered_url_without_profile_overrides(self):
+        result = {'listing_url': 'https://example.org/jobs?term=designer',
+                  'offers': [{'title': 'Designer', 'detail_link': 'https://example.org/1'}], 'pages': 1}
+        with patch('api.sites.crawl_site', return_value=result) as crawl:
+            status, _ = post({'action': 'preview', 'site': sample_site(), 'use_entered_url': True})
+        self.assertEqual(status, 200)
+        self.assertEqual(crawl.call_args.args[1], {})
+
 
 if __name__ == '__main__': unittest.main()

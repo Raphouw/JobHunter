@@ -189,6 +189,9 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
           enabled: nextSite?.enabled,
           preview_token: token,
           recipe_id: action === 'publish' ? editingShared?.id : undefined,
+          site_id: nextSite?.id,
+          name: nextSite?.name,
+          use_entered_url: action === 'preview' && !nextSite.listing_url.includes('{keywords}') && !nextSite.listing_url.includes('{location}'),
         }),
       });
       const result = await response.json();
@@ -210,6 +213,11 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
       } else if (action === 'save') {
         setNotice(result.site.enabled ? 'Site validé et activé pour les scans.' : 'Brouillon enregistré.');
         await onSaved();
+      } else if (action === 'delete' || action === 'delete_private') {
+        edit(empty());
+        setNotice('Site supprimé.');
+        await onSaved();
+        setCatalogVersion((value) => value + 1);
       } else if (action === 'toggle') {
         setNotice(nextSite.enabled ? 'Site réactivé pour ce profil.' : 'Site désactivé pour ce profil.');
         await onSaved();
@@ -278,6 +286,9 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
   };
 
   const handleUrlChange = (newUrl) => {
+    setInspection(null);
+    setDetailUrl('');
+    setDiagnostics({});
     let nextQuery = { ...site.query };
     let cleanedUrl = newUrl;
     try {
@@ -378,6 +389,9 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
                 {isAdmin && row.status === 'published' && <button type="button" className="sh-site-edit-icon" disabled={busy || working}
                   title={`Désactiver ${row.name} pour tous`} aria-label={`Désactiver ${row.name} pour tous`}
                   onClick={() => run('unpublish', { listing_url: row.listing_url })}><Icon name="x" size={14} /></button>}
+                {isAdmin && <button type="button" className="sh-site-edit-icon" disabled={busy || working}
+                  title={`Supprimer ${row.name} pour tous`} aria-label={`Supprimer ${row.name} pour tous`}
+                  onClick={() => { if (window.confirm(`Supprimer ${row.name} pour tous les profils ?`)) run('delete', row); }}><Icon name="trash" size={14} /></button>}
                 <a href={row.listing_url} target="_blank" rel="noreferrer" title={row.listing_url} aria-label={`Ouvrir ${row.name}`}><Icon name="external" size={14} /></a>
               </div>
             ))}
@@ -399,6 +413,8 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
               {item.enabled && <label><input type="checkbox" checked={!isDisabled(item.listing_url)} disabled={busy || working}
                 onChange={(event) => run('toggle', { listing_url: item.listing_url, enabled: event.target.checked })} /> Activer pour moi</label>}
               <button type="button" className="sh-btn-secondary sm" onClick={() => edit(item)}>Modifier</button>
+              <button type="button" className="sh-site-edit-icon" disabled={busy || working} title={`Supprimer ${item.name}`} aria-label={`Supprimer ${item.name}`}
+                onClick={() => { if (window.confirm(`Supprimer ${item.name} de ce profil ?`)) run('delete_private', item); }}><Icon name="trash" size={14} /></button>
             </div>
           ))}
           {mySites.length === 0 && (
@@ -549,7 +565,7 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
             onClick={() => inspectPage('listing')}
           >
             <Icon name="eye" size={16} />
-            <span>{working ? 'Chargement…' : 'Ouvrir la page de listing et sélectionner'}</span>
+            <span>{working ? 'Chargement…' : 'Prévisualiser le lien saisi et sélectionner'}</span>
           </button>
           {effectiveDetailLink && (
             <button

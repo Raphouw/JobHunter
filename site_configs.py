@@ -80,7 +80,7 @@ def reference_sites(profile, shared=()):
             result.setdefault(url, {'name': urlsplit(url).netloc.removeprefix('www.'),
                               'listing_url': url, 'countries': pack.get('countries') or [],
                               'enabled': not source_disabled(url, profile)})
-    configured = {source_host(row['config']['listing_url']) for row in shared if row.get('status') == 'published'}
+    configured = {source_host(row['config']['listing_url']) for row in shared if row.get('status') == 'published' or row.get('config', {}).get('deleted')}
     return [row for row in result.values() if source_host(row['listing_url']) not in configured]
 
 

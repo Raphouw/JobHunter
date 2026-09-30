@@ -67,7 +67,7 @@ class handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(int(length)))
             action = body.get('action')
             profile_id = str(uuid.UUID(str(body.get('profile_id'))))
-            if action not in ('inspect', 'preview', 'save', 'catalog', 'publish', 'unpublish', 'toggle'):
+            if action not in ('inspect', 'preview', 'save', 'catalog', 'publish', 'unpublish', 'toggle', 'delete', 'delete_private'):
                 raise ValueError('Action invalide')
             publishable = os.getenv('SUPABASE_PUBLISHABLE_KEY') or os.getenv('SUPABASE_ANON_KEY') or 'sb_publishable_wQCX6LA7JVPRaL5cE-Lfsw_oUxISayf'
             request = urllib.request.Request(os.environ['SUPABASE_URL'].rstrip('/') + '/auth/v1/user',
@@ -86,7 +86,7 @@ class handler(BaseHTTPRequestHandler):
                                     f'user_id=eq.{user_id}&select=user_id&limit=1'))
             if action == 'catalog':
                 query = ('select=id,name,listing_url,config,status&order=updated_at.desc&limit=100'
-                         if admin else 'status=eq.published&select=id,name,listing_url,config,status&order=updated_at.desc&limit=100')
+                         if admin else 'select=id,name,listing_url,config,status&order=updated_at.desc&limit=100')
                 recipes = store.rows('hunter_site_recipes', query)
                 defaults = reference_sites(current_config)
                 for row in recipes:
@@ -98,10 +98,35 @@ class handler(BaseHTTPRequestHandler):
                                      for country in reference['countries']]
                         if inherited:
                             row['config'] = {**config, 'countries': sorted(set(inherited))}
+                references = reference_sites(current_config, recipes)
                 recipes = [{**row, 'enabled': row['status'] == 'published' and not source_disabled(row['config']['listing_url'], current_config)}
-                           for row in recipes if country_matches(row['config'], current_config)]
+                           for row in recipes if not row['config'].get('deleted') and (admin or row['status'] == 'published') and country_matches(row['config'], current_config)]
                 return self.respond(200, {'is_admin': admin, 'recipes': recipes,
-                                          'references': reference_sites(current_config, recipes)})
+                                          'references': references})
+            if action == 'delete_private':
+                site_id = str(uuid.UUID(str(body.get('site_id'))))
+                sources = current_config.get('sources') or {}
+                sites = sources.get('sites') or []
+                if not any(row.get('id') == site_id for row in sites):
+                    return self.respond(404, {'error': 'Site introuvable'})
+                store.patch('hunter_profiles', f'id=eq.{profile_id}&user_id=eq.{user_id}',
+                            {'config': {**current_config, 'sources': {**sources, 'sites': [row for row in sites if row.get('id') != site_id]}}})
+                return self.respond(200, {'deleted': True})
+            if action == 'delete':
+                if not admin:
+                    return self.respond(403, {'error': 'Suppression réservée à l’administrateur'})
+                url = str(body.get('listing_url') or '')
+                from site_network import public_http_url
+                if not public_http_url(url):
+                    raise ValueError('Adresse publique HTTP(S) requise')
+                # Keep a tombstone so the bundled default cannot reappear.
+                store.request('hunter_site_recipes?on_conflict=listing_url', 'POST',
+                              {'name': str(body.get('name') or urllib.parse.urlsplit(url).hostname),
+                               'listing_url': url, 'config': {'listing_url': url, 'deleted': True},
+                               'status': 'disabled', 'created_by': user_id,
+                               'updated_at': __import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat()},
+                              'resolution=merge-duplicates,return=minimal')
+                return self.respond(200, {'deleted': True})
             if action == 'toggle':
                 url = str(body.get('listing_url') or '')
                 from site_network import public_http_url
@@ -119,8 +144,11 @@ class handler(BaseHTTPRequestHandler):
                 return self.respond(200, {'enabled': body['enabled']})
             if action == 'inspect':
                 from site_network import public_http_url
-                url = (profile_listing_url(body['site'], current_config)
-                       if isinstance(body.get('site'), dict) else str(body.get('url') or ''))
+                url = str(body.get('url') or '')
+                if not url and isinstance(body.get('site'), dict):
+                    url = body['site']['listing_url']
+                    if '{keywords}' in url or '{location}' in url:
+                        url = profile_listing_url(body['site'], current_config)
                 if not public_http_url(url):
                     raise ValueError('Adresse publique HTTP(S) requise')
                 html, final_url = fetch_preview(url)
@@ -142,7 +170,8 @@ class handler(BaseHTTPRequestHandler):
                                                  'max_offers': min(20, site['limits']['max_offers']),
                                                  'max_detail_pages': min(3, site['limits']['max_detail_pages'])}}
                 # 1. Try crawling with user's profile criteria
-                result = crawl_site(preview_site, current_config, fetch_preview, with_details=True)
+                preview_profile = {} if body.get('use_entered_url') else current_config
+                result = crawl_site(preview_site, preview_profile, fetch_preview, with_details=True)
                 sample_tested = False
                 if not result['offers']:
                     # 2. If profile criteria returned 0 offers, test the listing_url directly as entered in the form
