@@ -6,13 +6,14 @@ const blankMetrics = () => ({ backendRequests: 0, transferredBytes: 0, serverCpu
   pagesFetched: 0, errors: 0, retries: 0, peakJsHeapBytes: null });
 
 export class ScanController {
-  constructor({ userId, getSession, transport, checkpoints, poolFactory, onSettled = () => {} }) {
+  constructor({ userId, getSession, transport, checkpoints, poolFactory, initializationTimeout = 30000, onSettled = () => {} }) {
     this.userId = userId;
     this.getSession = getSession;
     this.transport = transport;
     this.checkpoints = checkpoints || new CheckpointManager();
     this.poolFactory = poolFactory || (options => new WorkerPool(options));
     this.onSettled = onSettled;
+    this.initializationTimeout = initializationTimeout;
     this.listeners = new Set();
     this.snapshot = { userId, status: 'idle', job: null, metrics: blankMetrics(), power: 'normal', logs: [], error: '' };
     this.generation = 0;
@@ -109,16 +110,42 @@ export class ScanController {
       } else if (event.type === 'event') {
         this.publish({ phaseLabel: event.message,
           logs: [...this.snapshot.logs.slice(-99), { message: event.message, created_at: new Date().toISOString() }] });
+      } else if (event.type === 'initialization') {
+        this.publish({ initializationStage: event.stage, phaseLabel: `Initialisation : ${event.stage}` });
       }
     } });
     const run = async () => {
-      const session = await this.getSession();
-      const job = await this.api({ action: 'state' }, this.abort.signal);
+      const signal = this.abort.signal;
+      const pool = this.pool;
+      let initTimer, abortInit;
+      const initialize = async () => {
+        console.info('[ScanController] loading session');
+        this.publish({ initializationStage: 'loading session', phaseLabel: 'Vérification de la session…' });
+        const session = await this.getSession();
+        if (signal.aborted || generation !== this.generation) return;
+        console.info('[ScanController] loading scan state');
+        this.publish({ initializationStage: 'loading scan state', phaseLabel: 'Chargement du scan…' });
+        const job = await this.api({ action: 'state' }, signal);
+        if (signal.aborted || generation !== this.generation) return;
+        this.publish({ initializationStage: 'creating worker', phaseLabel: 'Création du Worker…' });
+        await pool.execute('init', { config: { origin: location.origin,
+          accessToken: session.access_token, jobId: job.id, searchBackends: job.search_backends } }, this.initializationTimeout);
+      };
+      try {
+        await Promise.race([initialize(), new Promise((_, reject) => {
+          initTimer = setTimeout(() => reject(new Error(
+            `Initialisation du moteur navigateur interrompue après 30 secondes (étape : ${this.snapshot.initializationStage}). Vous pouvez réessayer.`
+          )), this.initializationTimeout);
+          abortInit = () => reject(new DOMException('Initialisation interrompue', 'AbortError'));
+          signal.addEventListener('abort', abortInit, { once: true });
+        })]);
+      } finally {
+        clearTimeout(initTimer);
+        signal.removeEventListener('abort', abortInit);
+      }
       if (generation !== this.generation) return;
-      await this.pool.execute('init', { config: { origin: location.origin,
-        accessToken: session.access_token, jobId: job.id, searchBackends: job.search_backends } }, 180000);
-      if (generation !== this.generation) return;
-      this.publish({ status: 'running', workers: 1 });
+      console.info('[ScanController] READY');
+      this.publish({ status: 'running', workers: 1, initializationStage: 'READY', phaseLabel: 'Moteur prêt' });
       while (generation === this.generation) {
         const session = await this.getSession();
         if (generation !== this.generation) return;
@@ -145,6 +172,8 @@ export class ScanController {
     };
     this.running = run().catch(async error => {
       if (generation !== this.generation) return;
+      console.error('[ScanController] scan failed', error);
+      this.abort.abort();
       this.pool?.terminate();
       this.publish({ status: 'recoverable', workers: 0, error: error.message,
         metrics: { ...this.snapshot.metrics, errors: this.snapshot.metrics.errors + 1 } });

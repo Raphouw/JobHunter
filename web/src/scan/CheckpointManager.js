@@ -4,16 +4,20 @@ export class CheckpointManager {
     if (!this.indexedDB) throw new Error('IndexedDB indisponible; reprise locale impossible');
     const database = await new Promise((resolve, reject) => {
       const request = this.indexedDB.open('jobhunter-browser-scans', 1);
+      let expired = false;
+      const timer = setTimeout(() => { expired = true; reject(new Error('Ouverture du checkpoint bloquée après 5 secondes. Fermez les autres onglets et réessayez.')); }, 5000);
       request.onupgradeneeded = () => request.result.createObjectStore('checkpoints', { keyPath: 'userId' });
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
+      request.onsuccess = () => { clearTimeout(timer); if (expired) request.result.close(); else resolve(request.result); };
+      request.onerror = () => { clearTimeout(timer); reject(request.error); };
+      request.onblocked = () => { clearTimeout(timer); expired = true; reject(new Error('Checkpoint bloqué par un autre onglet. Fermez-le et réessayez.')); };
     });
     try {
       return await new Promise((resolve, reject) => {
         const tx = database.transaction('checkpoints', mode);
+        const timer = setTimeout(() => { tx.abort(); reject(new Error('Enregistrement du checkpoint interrompu après 10 secondes.')); }, 10000);
         const request = operation(tx.objectStore('checkpoints'));
-        tx.oncomplete = () => resolve(request.result);
-        tx.onerror = tx.onabort = () => reject(tx.error || new Error('Checkpoint non enregistré'));
+        tx.oncomplete = () => { clearTimeout(timer); resolve(request.result); };
+        tx.onerror = tx.onabort = () => { clearTimeout(timer); reject(tx.error || new Error('Checkpoint non enregistré')); };
       });
     } finally { database.close(); }
   }

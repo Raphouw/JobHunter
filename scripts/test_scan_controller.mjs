@@ -116,3 +116,40 @@ for (const cores of [1, 2, 4, 8, 32, 128]) {
   assert.equal(pool.worker, null);
 }
 console.log('PASS: 5000 tasks, bounded logs, single scan, pause, cancel, recovery, backend failure and Worker cleanup.');
+
+for (const boundary of ['session', 'state', 'worker']) {
+  let stopped = false;
+  const controller = new ScanController({ userId: 'user', initializationTimeout: 25,
+    getSession: () => boundary === 'session' ? new Promise(() => {}) : getSession(),
+    transport: () => boundary === 'state' ? new Promise(() => {}) : Promise.resolve({ data: fixture() }),
+    checkpoints: new MemoryCheckpoints(),
+    poolFactory: () => ({ execute: () => new Promise(() => {}), terminate() { stopped = true; } }),
+  });
+  controller.publish({ job: fixture(), status: 'starting' });
+  controller.launch();
+  await controller.running;
+  assert.equal(controller.snapshot.status, 'recoverable');
+  assert.match(controller.snapshot.error, /Initialisation.*30 secondes/);
+  assert(stopped);
+  controller.dispose();
+}
+for (const failure of ['error', 'messageerror', 'send', 'reply']) {
+  let stopped = false;
+  const worker = { postMessage() { if (failure === 'send') throw new Error('Clone impossible'); }, terminate() { stopped = true; } };
+  const pool = new WorkerPool({ factory: () => worker });
+  const task = pool.execute('init', {}, 100);
+  if (failure === 'error') worker.onerror({ message: 'Worker HTTP 404' });
+  if (failure === 'messageerror') worker.onmessageerror({});
+  if (failure === 'reply') worker.onmessage({ data: { id: 1, error: 'Pyodide indisponible' } });
+  await assert.rejects(task);
+  assert(stopped);
+  assert.equal(pool.active, 0);
+  assert.equal(pool.worker, null);
+}
+{
+  let stopped = false;
+  const pool = new WorkerPool({ factory: () => ({ postMessage() {}, terminate() { stopped = true; } }) });
+  await assert.rejects(pool.execute('init', {}, 25), /READY non reçu/);
+  assert(stopped);
+}
+console.log('PASS: initialization deadline covers session, backend and Worker; error/messageerror/send/reply/timeout terminate and reject.');

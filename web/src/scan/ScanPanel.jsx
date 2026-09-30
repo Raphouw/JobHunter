@@ -25,8 +25,9 @@ export function ScanPanel({ controller, snapshot, onDetail }) {
     <p>{checkpoint.new_offers || 0} nouvelles · {checkpoint.accepted || 0} pertinentes · {checkpoint.rejected || 0} rejetées · {Math.round(processed * 60 / seconds)} pistes/min</p>
     <p>{snapshot.workers || 0} Worker actif · {Math.floor(seconds / 60)} min{eta !== null ? ` · ≈ ${Math.ceil(eta / 60)} min restantes` : ''}</p>
     {snapshot.error && <p role="alert">{snapshot.error}</p>}
+    {snapshot.status === 'starting' && <p role="status">{snapshot.phaseLabel || 'Initialisation du moteur navigateur…'}</p>}
     <div className="sh-browser-scan-actions">
-      {['paused', 'recoverable'].includes(snapshot.status) ? <button className="sh-btn-primary" onClick={() => invoke('resume')}>Reprendre</button> :
+      {['paused', 'recoverable'].includes(snapshot.status) ? <button className="sh-btn-primary" onClick={() => invoke('resume')}>{snapshot.error ? 'Réessayer' : 'Reprendre'}</button> :
         <button className="sh-btn-secondary" onClick={() => invoke('pause')}>Pause</button>}
       <button className="sh-btn-secondary" onClick={() => invoke('cancel')}>{snapshot.status === 'recoverable' ? 'Abandonner' : 'Arrêter'}</button>
     </div>

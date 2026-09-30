@@ -3,6 +3,16 @@ let runtime;
 let config;
 let busy = false;
 let leaseToken = null;
+function stage(name) {
+  console.info(`[ScanWorker] ${name}`);
+  self.postMessage({ type: 'initialization', stage: name });
+}
+stage('worker script loaded');
+async function asset(url) {
+  const response = await fetch(url, { signal: AbortSignal.timeout(15000) });
+  if (!response.ok) throw new Error(`Asset indisponible : HTTP ${response.status} (${url})`);
+  return response;
+}
 
 function transport(serialized) {
   const body = JSON.parse(serialized);
@@ -36,25 +46,34 @@ function transport(serialized) {
 
 async function init(input) {
   config = input;
+  stage('loading runtime');
   // No secrets sent to this CDN: assets are public packages only. Tokens are
   // passed exclusively to the same-origin transport above.
   const indexURL = 'https://cdn.jsdelivr.net/pyodide/v0.29.3/full/';
+  stage('loading pyodide');
   const { loadPyodide } = await import(/* @vite-ignore */ `${indexURL}pyodide.mjs`);
-  runtime = await loadPyodide({ indexURL, stdout: () => {}, stderr: () => {} });
+  runtime = await loadPyodide({ indexURL, stdout: () => {}, stderr: message => console.error('[ScanWorker] Python stderr', message) });
+  stage('pyodide loaded');
+  stage('loading packages');
   await runtime.loadPackage(['micropip', 'beautifulsoup4', 'pyyaml', 'requests', 'rich', 'lxml', 'regex', 'sqlite3']);
   await runtime.runPythonAsync(`import micropip
 await micropip.install(['python-dotenv==1.2.1', 'lxml_html_clean==0.4.3', 'trafilatura==2.0.0'])`);
-  const manifest = await fetch('/scan-runtime/manifest.json').then(response => {
-    if (!response.ok) throw new Error('Assets du moteur manquants');
-    return response.json();
-  });
+  stage('packages loaded');
+  const baseURL = new URL(import.meta.env.BASE_URL, config.origin);
+  const runtimeURL = new URL('scan-runtime/', baseURL);
+  stage('loading Python files');
+  const manifestResponse = await asset(new URL('manifest.json', runtimeURL));
+  if (!manifestResponse.headers.get('content-type')?.includes('application/json')) {
+    throw new Error('Le manifest du moteur ne renvoie pas du JSON. Vérifiez les assets, le routage et l’accès au Preview.');
+  }
+  const manifest = await manifestResponse.json();
+  if (!Array.isArray(manifest.files)) throw new Error('Manifest du moteur invalide');
   runtime.FS.mkdirTree('/app');
   // Bounded asset downloads rather than Promise.all over the entire manifest.
   for (let i = 0; i < manifest.files.length; i += 4) {
     await Promise.all(manifest.files.slice(i, i + 4).map(async name => {
       if (!/^[a-zA-Z0-9_./-]+$/.test(name) || name.includes('..')) throw new Error('Manifest invalide');
-      const response = await fetch(`/scan-runtime/${name}`);
-      if (!response.ok) throw new Error(`Asset indisponible : ${name}`);
+      const response = await asset(new URL(name, runtimeURL));
       const data = new Uint8Array(await response.arrayBuffer());
       const target = `/app/${name}`;
       runtime.FS.mkdirTree(target.slice(0, target.lastIndexOf('/')));
@@ -80,6 +99,8 @@ from browser_bridge_js import transport, event
 from cloud import browser_runtime
 browser_runtime.install(transport, event)
 browser_runtime.engine.configured_search_backends = lambda: (json.loads(browser_backends_json), [], [], False)`);
+  stage('engine initialized');
+  stage('READY');
 }
 
 self.onmessage = async ({ data }) => {
@@ -103,7 +124,8 @@ self.onmessage = async ({ data }) => {
     } else throw new Error('Commande Worker invalide');
     self.postMessage({ id: data.id, result: { ready: true } });
   } catch (error) {
-    self.postMessage({ id: data.id, error: String(error.message || error).slice(-1200), leaseToken });
+    console.error('[ScanWorker] initialization/task failed', error);
+    self.postMessage({ id: data.id, error: String(error.message || error).slice(-1200) });
   } finally {
     busy = false;
   }

@@ -189,6 +189,8 @@ export function CloudApp() {
   const [scanEvents, setScanEvents] = useState([]);
   const [workerReady, setWorkerReady] = useState(false);
   const [browserReady, setBrowserReady] = useState(false);
+  const [readinessLoading, setReadinessLoading] = useState(false);
+  const [readinessError, setReadinessError] = useState('');
   const [useBrowser, setUseBrowser] = useState(true);
   const scanController = useMemo(() => session?.user?.id ? new ScanController({
     userId: session.user.id,
@@ -314,8 +316,14 @@ export function CloudApp() {
 
   useEffect(() => {
     if (!session) return;
-    fetch('/api/scan').then((result) => result.json()).then((status) => { setWorkerReady(!!status.ready); setBrowserReady(!!status.browser_ready); })
-      .catch(() => setWorkerReady(false));
+    let active = true;
+    setReadinessLoading(true); setReadinessError('');
+    fetch('/api/scan', { signal: AbortSignal.timeout(10000), cache: 'no-store' })
+      .then(result => { if (!result.ok) throw new Error(`Disponibilité du moteur : HTTP ${result.status}`); return result.json(); })
+      .then(status => { if (active) { setWorkerReady(!!status.ready); setBrowserReady(!!status.browser_ready); } })
+      .catch(error => { if (active) { console.error('[ScanController] readiness failed', error); setWorkerReady(false); setBrowserReady(false); setReadinessError('Impossible de vérifier le moteur. Rechargez la page pour réessayer.'); } })
+      .finally(() => { if (active) setReadinessLoading(false); });
+    return () => { active = false; };
   }, [session?.user?.id]);
 
   useEffect(() => {
@@ -859,7 +867,7 @@ export function CloudApp() {
                   <small>Parsing et scoring sur votre PC. L’onglet doit rester ouvert. Ce moteur Python fonctionne avec un Worker séquentiel.</small>
                 </section>}
                 {page === 'search' && <CloudSearchView scanJobs={scanJobs} scanEvents={browserScan.job?.profile_id === profileId ? browserScan.logs || scanEvents : scanEvents}
-                  workerReady={workerReady || (browserReady && useBrowser)} onRun={startScan} onCancel={cancelScan}
+                  workerReady={browserReady && useBrowser ? true : workerReady} readinessLoading={readinessLoading} readinessError={readinessError} onRun={startScan} onCancel={cancelScan}
                   onRefresh={loadData} busy={busy} />}
                 {page === 'sites' && isOwner && <div className="sh-view">
                   <SiteConfigEditor profile={profile} accessToken={session.access_token}

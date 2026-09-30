@@ -17,33 +17,53 @@ export class WorkerPool {
     this.pending = null;
     this.sequence = 0;
   }
-  execute(type, payload = {}, timeout = 240000) {
+  execute(type, payload = {}, timeout = type === 'init' ? 30000 : 240000) {
     if (this.pending) return Promise.reject(new Error('File Worker occupée'));
     if (!this.worker) {
-      this.worker = this.factory();
+      console.info('[ScanWorker] creating worker');
+      try { this.worker = this.factory(); }
+      catch (error) { console.error('[ScanWorker] creation failed', error); return Promise.reject(error); }
+      console.info('[ScanWorker] worker created');
       this.worker.onmessage = ({ data }) => {
+        if (!data || typeof data !== 'object') {
+          this.fail(new Error('Message Worker invalide')); return;
+        }
+        if (data.type === 'initialization') console.info(`[ScanWorker] ${data.stage}`);
         if (data.type) { this.onEvent(data); return; }
         if (data.id !== this.pending?.id) return;
         const task = this.pending;
         clearTimeout(task.timer);
         this.pending = null;
-        data.error ? task.reject(new Error(data.error)) : task.resolve(data.result);
+        if (data.error || (task.type === 'init' && data.result?.ready !== true)) {
+          const error = new Error(data.error || 'Le Worker n’a pas confirmé READY');
+          console.error('[ScanWorker] task failed', error);
+          this.terminate(error);
+          task.reject(error);
+        } else task.resolve(data.result);
       };
-      this.worker.onerror = event => this.terminate(new Error(event.message || 'Worker interrompu'));
+      this.worker.onerror = event => this.fail(new Error(event.message || 'Impossible de charger le script Worker'));
+      this.worker.onmessageerror = () => this.fail(new Error('Impossible de décoder un message du Worker'));
     }
     return new Promise((resolve, reject) => {
       const id = ++this.sequence;
-      const timer = setTimeout(() => this.terminate(new Error('Délai Worker dépassé')), timeout);
-      this.pending = { id, resolve, reject, timer };
-      this.worker.postMessage({ id, type, ...payload });
+      const timer = setTimeout(() => this.fail(new Error(type === 'init'
+        ? 'Initialisation du moteur navigateur interrompue : READY non reçu après 30 secondes. Vous pouvez réessayer.'
+        : 'Délai Worker dépassé')), timeout);
+      this.pending = { id, type, resolve, reject, timer };
+      try { this.worker.postMessage({ id, type, ...payload }); }
+      catch (error) { this.fail(error); }
     });
   }
+  fail(error) { console.error('[ScanWorker] failed', error); this.terminate(error); }
   session(accessToken) { this.worker?.postMessage({ type: 'session', accessToken }); }
   terminate(error = new DOMException('Tâche interrompue', 'AbortError')) {
     const task = this.pending;
     this.pending = null;
     if (task) { clearTimeout(task.timer); task.reject(error); }
-    this.worker?.terminate();
+    if (this.worker) {
+      this.worker.onmessage = this.worker.onerror = this.worker.onmessageerror = null;
+      this.worker.terminate();
+    }
     this.worker = null;
   }
   get active() { return this.pending ? 1 : 0; }

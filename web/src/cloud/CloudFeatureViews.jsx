@@ -56,7 +56,7 @@ function formatDuration(totalSeconds = 0) {
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 }
 
-export function CloudSearchView({ scanJobs = [], scanEvents = [], workerReady = false, onRun, onCancel, onRefresh, busy = false }) {
+export function CloudSearchView({ scanJobs = [], scanEvents = [], workerReady = false, readinessLoading = false, readinessError = '', onRun, onCancel, onRefresh, busy = false }) {
   const [mode, setMode] = useState(() => {
     try {
       return localStorage.getItem('jobhunter_cloud_scan_mode') || 'Complet';
@@ -255,7 +255,7 @@ export function CloudSearchView({ scanJobs = [], scanEvents = [], workerReady = 
 
           {!workerReady && (
             <span className="sh-scan-meta-warning">
-              Worker Python en cours d’initialisation...
+              {readinessLoading ? 'Vérification de la disponibilité du moteur…' : readinessError || 'Le moteur sélectionné n’est pas disponible. Vérifiez sa configuration ou choisissez le moteur navigateur.'}
             </span>
           )}
         </div>

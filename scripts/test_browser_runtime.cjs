@@ -10,6 +10,10 @@ const { chromium } = runtimeRequire('playwright');
   const browser = await chromium.launch({ channel: 'msedge', headless: true });
   try {
     const page = await browser.newPage();
+    const startupLogs = [];
+    const workerURLs = [];
+    page.on('worker', worker => workerURLs.push(worker.url()));
+    page.on('console', message => { if (/\[ScanWorker\]|\[ScanController\]/.test(message.text())) startupLogs.push(message.text()); });
     page.on('requestfailed', request => console.log('Request failed:', request.url(), request.failure()?.errorText));
     page.on('console', message => { if (message.type() === 'error') console.log('Browser:', message.text()); });
     const profileId = '22222222-2222-4222-8222-222222222222';
@@ -36,7 +40,8 @@ const { chromium } = runtimeRequire('playwright');
       const body = route.request().postDataJSON();
       networkActions.push(body.action);
       let data;
-      if (body.action === 'mirror') data = [];
+      if (body.action === 'resume') { job = { ...job, checkpoint: { ...job.checkpoint, paused: false } }; data = job; }
+      else if (body.action === 'mirror') data = [];
       else if (body.action === 'state') data = { ...job, search_backends: ['duckduckgo', 'yahoo'] };
       else if (body.action === 'rpc') {
         if (body.name === 'hunter_claim_scan_job') {
@@ -152,7 +157,8 @@ print(json.dumps({'score':score,'confidence':confidence,'reasons':'\\n'.join(rea
     const user = { id: userId, email: 'fixture@example.org', app_metadata: {}, user_metadata: {} };
     await page.route('**/auth/v1/**', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify(user) }));
     await page.route('**/rest/v1/**', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify(route.request().url().includes('/hunter_profiles') ? [{ id: profileId, name: 'Profil test', config }] : []) }));
-    await page.route('**/api/scan', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ready: false, browser_ready: true }) }));
+    let browserReady = true;
+    await page.route('**/api/scan', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ready: false, browser_ready: browserReady }) }));
     await page.route('**/api/google**', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ connected: false }) }));
     await page.evaluate(async ({ job, jwt, expires, user }) => {
       localStorage.setItem('sb-seacseklrbucmgxaykgc-auth-token', JSON.stringify({ access_token: jwt, refresh_token: 'fixture-refresh', expires_at: expires, expires_in: 3600, token_type: 'bearer', user }));
@@ -171,5 +177,40 @@ print(json.dumps({'score':score,'confidence':confidence,'reasons':'\\n'.join(rea
     fs.mkdirSync(path.join(__dirname, '../.test_temp'), { recursive: true });
     await page.screenshot({ path: path.join(__dirname, '../.test_temp/browser-scan-panel.png'), fullPage: true });
     console.log('PASS: real CloudApp keeps recoverable scan panel across offers/dashboard navigation.');
+    await page.getByRole('button', { name: 'Recherche & Scan', exact: true }).click();
+    await page.getByLabel('Exécuter le scan sur cet appareil').waitFor();
+    assert.equal(await page.getByText('Worker Python en cours d’initialisation...', { exact: false }).count(), 0);
+    const before = workerURLs.length;
+    await page.getByRole('button', { name: 'Reprendre', exact: true }).click();
+    await page.waitForFunction(() => !document.querySelector('[aria-label="Scan global"]'), null, { timeout: 45000 });
+    assert(workerURLs.length > before, 'ScanController must actually create its Worker');
+    for (const stage of ['creating worker', 'worker created', 'loading runtime', 'loading pyodide', 'pyodide loaded', 'loading packages', 'loading Python files', 'engine initialized', 'READY']) {
+      assert(startupLogs.some(line => line.includes(`[ScanWorker] ${stage}`)), `Missing startup stage ${stage}`);
+    }
+    assert(startupLogs.includes('[ScanController] READY'));
+    assert.equal(await page.getByRole('alert').count(), 0);
+    console.log('PASS: production CloudApp → ScanController → WorkerPool → real Worker → Pyodide → engine → READY.');
+    browserReady = false;
+    const idleWorkers = workerURLs.length;
+    await page.reload();
+    await page.getByText('Le moteur sélectionné n’est pas disponible.', { exact: false }).waitFor();
+    assert.equal(workerURLs.length, idleWorkers, 'Opening Search must not silently start a Worker');
+    assert.equal(await page.getByText('Worker Python en cours d’initialisation...', { exact: false }).count(), 0);
+    console.log('PASS: unavailable readiness is explicit; idle Search never claims Python is initializing.');
+    browserReady = true;
+    job = { ...job, status: 'queued', checkpoint: { ...job.checkpoint, paused: true } };
+    await page.evaluate(async ({ job, userId }) => {
+      const { CheckpointManager } = await import('/checkpoint-test.js');
+      await new CheckpointManager().save({ userId, job, metrics: {}, power: 'normal', logs: [] });
+    }, { job, userId });
+    await page.route('**/scan-runtime/manifest.json', route => route.fulfill({ contentType: 'text/html', body: '<html>Preview auth or SPA fallback</html>' }));
+    await page.reload();
+    await page.getByRole('button', { name: 'Reprendre', exact: true }).click();
+    await page.getByRole('alert').filter({ hasText: 'Le manifest du moteur ne renvoie pas du JSON' }).waitFor({ timeout: 45000 });
+    await page.getByRole('button', { name: 'Réessayer', exact: true }).waitFor();
+    await page.unroute('**/scan-runtime/manifest.json');
+    await page.getByRole('button', { name: 'Réessayer', exact: true }).click();
+    await page.waitForFunction(() => !document.querySelector('[aria-label="Scan global"]'), null, { timeout: 45000 });
+    console.log('PASS: invalid Preview asset propagates to visible error and retry reaches READY/completion.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error.message); process.exitCode = 1; });
