@@ -1,5 +1,6 @@
 import { WorkerPool, powerBudget } from './WorkerPool.js';
 import { CheckpointManager } from './CheckpointManager.js';
+import { InitializationAttempt, BROWSER_SCAN_BUILD, traceInitialization } from './InitializationAttempt.js';
 
 const terminal = job => ['completed', 'cancelled', 'failed'].includes(job?.status);
 const blankMetrics = () => ({ backendRequests: 0, transferredBytes: 0, serverCpuMs: 0,
@@ -15,7 +16,9 @@ export class ScanController {
     this.onSettled = onSettled;
     this.initializationTimeout = initializationTimeout;
     this.listeners = new Set();
-    this.snapshot = { userId, status: 'idle', job: null, metrics: blankMetrics(), power: 'normal', logs: [], error: '' };
+    this.snapshot = { userId, status: 'idle', initializationState: 'idle', job: null,
+      metrics: blankMetrics(), power: 'normal', logs: [], error: '', build: BROWSER_SCAN_BUILD };
+    this.initializationSequence = 0;
     this.generation = 0;
     this.writes = Promise.resolve();
     this.lockRelease = null;
@@ -23,6 +26,32 @@ export class ScanController {
   }
   subscribe = listener => { this.listeners.add(listener); return () => this.listeners.delete(listener); };
   getSnapshot = () => this.snapshot;
+  reserveInitializationId = () => `init#${++this.initializationSequence}`;
+  beginInitialization(id = this.reserveInitializationId()) {
+    this.pendingControl = true;
+    const attempt = new InitializationAttempt(id, this.initializationTimeout, error => {
+      if (this.attempt !== attempt) return;
+      console.error(`[BrowserScan:${id}] failed`, error);
+      this.pool?.terminate(error);
+      this.pendingControl = false;
+      this.publish({ status: 'recoverable', workers: 0, error: error.message,
+        initializationState: error.name === 'InitializationTimeoutError' ? 'timeout' : 'error',
+        metrics: { ...this.snapshot.metrics, errors: this.snapshot.metrics.errors + 1 } });
+      // UI/retry must never await whichever operation is blocked.
+      this.releaseLock().catch(() => {});
+      if (this.snapshot.job) this.save().catch(() => {});
+    }, () => this.snapshot.initializationStage || 'préparation');
+    this.attempt = attempt;
+    this.publish({ status: 'starting', initializationState: 'starting', initializationId: id,
+      initializationStartedAt: Date.now(), initializationStage: 'Préparation du scan…', phaseLabel: 'Préparation du scan…', error: '' });
+    return attempt;
+  }
+  initializationStage(attempt, state, message) {
+    attempt.check();
+    if (this.attempt !== attempt) throw new DOMException('Tentative remplacée', 'AbortError');
+    traceInitialization(attempt.id, message);
+    this.publish({ initializationState: state, initializationStage: message, phaseLabel: message });
+  }
   publish(patch = {}) {
     const heap = globalThis.performance?.memory?.usedJSHeapSize;
     this.snapshot = { ...this.snapshot, ...patch, timestamp: Date.now() };
@@ -32,7 +61,9 @@ export class ScanController {
   }
   async api(body, signal) {
     const { access_token: accessToken } = await this.getSession();
+    signal?.throwIfAborted();
     const response = await this.transport({ ...body, job_id: body.job_id || this.snapshot.job?.id }, accessToken, signal);
+    signal?.throwIfAborted();
     this.publish({ metrics: { ...this.snapshot.metrics,
       backendRequests: this.snapshot.metrics.backendRequests + 1,
       serverCpuMs: this.snapshot.metrics.serverCpuMs + (response.metrics?.server_cpu_ms || 0) } });
@@ -45,15 +76,16 @@ export class ScanController {
   }
   async recover() {
     const saved = await this.checkpoints.load(this.userId);
-    if (!saved || saved.version !== 1 || saved.userId !== this.userId) return;
+    if (!saved || saved.version !== 1 || saved.userId !== this.userId || !saved.job) return;
     const job = await this.api({ action: 'state', job_id: saved.job.id });
     if (terminal(job)) { await this.checkpoints.remove(this.userId); return; }
-    this.publish({ ...saved, job, status: 'recoverable', error: '' });
+    if (this.snapshot.status === 'idle') this.publish({ ...saved, job, status: 'recoverable', error: '' });
   }
-  async acquireLock() {
+  async acquireLock(signal) {
     if (this.lockRelease || !globalThis.navigator?.locks) return;
     await new Promise((resolve, reject) => {
       this.lockDone = navigator.locks.request(`jobhunter-scan:${this.userId}`, { ifAvailable: true }, async lock => {
+        if (signal?.aborted) { reject(signal.reason); return; }
         if (!lock) { reject(new Error('Un autre onglet pilote déjà ce scan')); return; }
         const held = new Promise(release => { this.lockRelease = release; });
         resolve();
@@ -66,25 +98,33 @@ export class ScanController {
     this.lockRelease?.(); this.lockRelease = null; this.lockDone = null;
     return done || Promise.resolve();
   }
-  async start(profileId, mode) {
-    if (!['idle', 'completed', 'cancelled'].includes(this.snapshot.status) || this.pendingControl) {
+  async start(profileId, mode, initializationId) {
+    if ((!['idle', 'completed', 'cancelled'].includes(this.snapshot.status) &&
+        !(this.snapshot.status === 'recoverable' && !this.snapshot.job)) || this.pendingControl) {
       throw new Error('Un scan est déjà actif ou récupérable');
     }
-    this.pendingControl = true;
+    this.pendingRequest = { profileId, mode };
+    this.publish({ job: null, request: this.pendingRequest, metrics: blankMetrics(), logs: [] });
+    const attempt = this.beginInitialization(initializationId);
+    traceInitialization(attempt.id, 'controller start');
     try {
-      await this.acquireLock();
-      // Checkpoint capability is checked BEFORE creating an active durable job.
-      await this.checkpoints.load(this.userId);
-      const job = await this.api({ action: 'start', profile_id: profileId, mode });
-      this.publish({ job, status: 'starting', metrics: blankMetrics(), logs: [], error: '' });
-      await this.save();
-      this.launch();
+      await attempt.run(async () => {
+        this.initializationStage(attempt, 'starting', 'Réservation du scan…');
+        await this.acquireLock(attempt.abort.signal);
+        this.initializationStage(attempt, 'starting', 'Vérification du checkpoint local…');
+        await this.checkpoints.load(this.userId);
+        this.initializationStage(attempt, 'starting', 'Création du job — session et backend…');
+        const job = await this.api({ action: 'start', profile_id: profileId, mode }, attempt.abort.signal);
+        attempt.check();
+        this.publish({ job });
+        this.initializationStage(attempt, 'starting', 'Sauvegarde du checkpoint…');
+        await this.save();
+        attempt.check();
+        this.launch(attempt);
+        await attempt.readyPromise;
+      });
     } catch (error) {
-      // A storage failure after job creation must leave visible recovery controls.
-      if (this.snapshot.status === 'starting' && this.snapshot.job) {
-        this.publish({ status: 'recoverable', error: error.message, workers: 0 });
-      }
-      await this.releaseLock();
+      attempt.fail(error);
       throw error;
     }
     finally { this.pendingControl = false; }
@@ -94,12 +134,13 @@ export class ScanController {
     this.publish({ power });
     if (this.snapshot.job && !terminal(this.snapshot.job)) this.save().catch(error => this.publish({ error: error.message }));
   }
-  launch() {
+  launch(attempt = this.beginInitialization()) {
     const generation = ++this.generation;
-    this.abort = new AbortController();
+    this.abort = attempt.abort;
+    this.initializationStage(attempt, 'starting', 'initializing WorkerPool');
     const capacity = powerBudget(this.snapshot.power, navigator.hardwareConcurrency, navigator.deviceMemory);
-    this.pool = this.poolFactory({ capacity, onEvent: event => {
-      if (generation !== this.generation) return;
+    this.pool = this.poolFactory({ capacity, initializationId: attempt.id, onEvent: event => {
+      if (generation !== this.generation || attempt.failed) return;
       if (event.type === 'transport') {
         const m = this.snapshot.metrics;
         this.publish({ metrics: { ...m, backendRequests: m.backendRequests + event.requests,
@@ -111,41 +152,35 @@ export class ScanController {
         this.publish({ phaseLabel: event.message,
           logs: [...this.snapshot.logs.slice(-99), { message: event.message, created_at: new Date().toISOString() }] });
       } else if (event.type === 'initialization') {
-        this.publish({ initializationStage: event.stage, phaseLabel: `Initialisation : ${event.stage}` });
+        if (attempt.ready) return;
+        const states = { 'worker created': 'worker_created', 'worker script loaded': 'worker_created',
+          'loading runtime': 'runtime_loading', 'loading pyodide': 'pyodide_loading',
+          'pyodide loaded': 'python_loading', 'loading packages': 'python_loading',
+          'packages loaded': 'python_loading', 'loading Python files': 'python_loading', 'engine initialized': 'python_loading' };
+        this.initializationStage(attempt, states[event.stage] || 'python_loading', `[ScanWorker] ${event.stage}`);
       }
     } });
     const run = async () => {
       const signal = this.abort.signal;
       const pool = this.pool;
-      let initTimer, abortInit;
       const initialize = async () => {
-        console.info('[ScanController] loading session');
-        this.publish({ initializationStage: 'loading session', phaseLabel: 'Vérification de la session…' });
+        this.initializationStage(attempt, 'starting', 'Vérification de la session…');
         const session = await this.getSession();
         if (signal.aborted || generation !== this.generation) return;
-        console.info('[ScanController] loading scan state');
-        this.publish({ initializationStage: 'loading scan state', phaseLabel: 'Chargement du scan…' });
+        this.initializationStage(attempt, 'starting', 'Chargement du scan…');
         const job = await this.api({ action: 'state' }, signal);
         if (signal.aborted || generation !== this.generation) return;
-        this.publish({ initializationStage: 'creating worker', phaseLabel: 'Création du Worker…' });
-        await pool.execute('init', { config: { origin: location.origin,
-          accessToken: session.access_token, jobId: job.id, searchBackends: job.search_backends } }, this.initializationTimeout);
+        this.initializationStage(attempt, 'starting', 'creating Worker');
+        const result = await pool.execute('init', { config: { origin: location.origin, initializationId: attempt.id,
+          accessToken: session.access_token, jobId: job.id, searchBackends: job.search_backends } }, Math.max(1, attempt.deadline - Date.now()));
+        if (result?.ready !== true) throw new Error('Le Worker n’a pas confirmé READY');
       };
-      try {
-        await Promise.race([initialize(), new Promise((_, reject) => {
-          initTimer = setTimeout(() => reject(new Error(
-            `Initialisation du moteur navigateur interrompue après 30 secondes (étape : ${this.snapshot.initializationStage}). Vous pouvez réessayer.`
-          )), this.initializationTimeout);
-          abortInit = () => reject(new DOMException('Initialisation interrompue', 'AbortError'));
-          signal.addEventListener('abort', abortInit, { once: true });
-        })]);
-      } finally {
-        clearTimeout(initTimer);
-        signal.removeEventListener('abort', abortInit);
-      }
+      await initialize();
       if (generation !== this.generation) return;
-      console.info('[ScanController] READY');
-      this.publish({ status: 'running', workers: 1, initializationStage: 'READY', phaseLabel: 'Moteur prêt' });
+      attempt.markReady();
+      this.pendingControl = false;
+      traceInitialization(attempt.id, '[ScanController] READY');
+      this.publish({ status: 'running', workers: 1, initializationState: 'ready', initializationStage: 'READY', phaseLabel: 'Moteur prêt' });
       while (generation === this.generation) {
         const session = await this.getSession();
         if (generation !== this.generation) return;
@@ -170,15 +205,9 @@ export class ScanController {
         await this.delay(claimed ? Math.max(pace, due - Date.now()) : Math.max(1000, due - Date.now()), this.abort.signal);
       }
     };
-    this.running = run().catch(async error => {
+    this.running = attempt.run(run).catch(error => {
       if (generation !== this.generation) return;
-      console.error('[ScanController] scan failed', error);
-      this.abort.abort();
-      this.pool?.terminate();
-      this.publish({ status: 'recoverable', workers: 0, error: error.message,
-        metrics: { ...this.snapshot.metrics, errors: this.snapshot.metrics.errors + 1 } });
-      await this.save().catch(() => {});
-      await this.releaseLock();
+      attempt.fail(error);
     });
   }
   delay(ms, signal) {
@@ -192,6 +221,7 @@ export class ScanController {
   stopLocal() {
     ++this.generation;
     this.abort?.abort();
+    this.attempt?.cancel();
     this.pool?.terminate();
     this.publish({ workers: 0 });
   }
@@ -220,8 +250,35 @@ export class ScanController {
     } finally { this.pendingControl = false; }
   }
   pause = () => this.control('pause');
-  resume = () => this.control('resume');
-  cancel = () => this.control('cancel');
+  resume = async () => {
+    if (this.pendingControl) return;
+    if (!this.snapshot.job && this.pendingRequest) return this.start(this.pendingRequest.profileId, this.pendingRequest.mode);
+    if (!this.snapshot.job) return;
+    this.stopLocal();
+    const attempt = this.beginInitialization();
+    try {
+      await attempt.run(async () => {
+        this.initializationStage(attempt, 'starting', 'Reprise — verrou et backend…');
+        await this.acquireLock(attempt.abort.signal);
+        attempt.check();
+        const job = await this.api({ action: 'resume' }, attempt.abort.signal);
+        attempt.check(); this.publish({ job });
+        await this.save(); attempt.check();
+        this.launch(attempt);
+        await attempt.readyPromise;
+      });
+    } catch (error) { attempt.fail(error); throw error; }
+    finally { if (this.attempt === attempt) this.pendingControl = false; }
+  };
+  cancel = () => {
+    if (!this.snapshot.job) {
+      this.stopLocal(); this.pendingControl = false;
+      this.publish({ status: 'cancelled', initializationState: 'idle', error: '' });
+      return this.releaseLock();
+    }
+    this.pendingControl = false;
+    return this.control('cancel');
+  };
   dispose() { this.stopLocal(); this.listeners.clear(); return this.releaseLock(); }
 }
 

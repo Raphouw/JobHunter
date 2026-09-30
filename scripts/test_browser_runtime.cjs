@@ -13,7 +13,7 @@ const { chromium } = runtimeRequire('playwright');
     const startupLogs = [];
     const workerURLs = [];
     page.on('worker', worker => workerURLs.push(worker.url()));
-    page.on('console', message => { if (/\[ScanWorker\]|\[ScanController\]/.test(message.text())) startupLogs.push(message.text()); });
+    page.on('console', message => { if (/\[BrowserScan:|\[ScanWorker\]|\[ScanController\]/.test(message.text())) startupLogs.push(message.text()); });
     page.on('requestfailed', request => console.log('Request failed:', request.url(), request.failure()?.errorText));
     page.on('console', message => { if (message.type() === 'error') console.log('Browser:', message.text()); });
     const profileId = '22222222-2222-4222-8222-222222222222';
@@ -29,6 +29,7 @@ const { chromium } = runtimeRequire('playwright');
     const candidate = { id: 1, status: 'pending', payload: { url: 'https://careers.example.org/job/1', title: 'Embedded Systems Internship', source: 'careers.example.org' }, decision: {} };
     const missing = { id: 2, status: 'pending', payload: { url: 'https://careers.example.org/job/gone', title: 'Removed Internship', source: 'careers.example.org' }, decision: {} };
     const candidates = [candidate, missing];
+    let stallStart = false;
     job.checkpoint.direct_candidates = candidates.length;
     const offers = [];
     const networkActions = [];
@@ -40,7 +41,17 @@ const { chromium } = runtimeRequire('playwright');
       const body = route.request().postDataJSON();
       networkActions.push(body.action);
       let data;
-      if (body.action === 'resume') { job = { ...job, checkpoint: { ...job.checkpoint, paused: false } }; data = job; }
+      if (body.action === 'start') {
+        if (stallStart) return; // Real HTTP request remains pending until controller aborts it.
+        offers.length = 0;
+        for (const candidate of candidates) { candidate.status = 'pending'; candidate.decision = {}; }
+        job = { ...job, mode: body.mode, phase: 'analyze', status: 'queued', progress_percent: 45,
+          created_at: new Date().toISOString(), summary: {},
+          checkpoint: { executor: 'browser', discovery_complete: true, direct_candidates: 2, profile_config: config },
+          lease_token: null, lease_until: null };
+        data = { ...job };
+      }
+      else if (body.action === 'resume') { job = { ...job, checkpoint: { ...job.checkpoint, paused: false } }; data = job; }
       else if (body.action === 'mirror') data = [];
       else if (body.action === 'state') data = { ...job, search_backends: ['duckduckgo', 'yahoo'] };
       else if (body.action === 'rpc') {
@@ -159,7 +170,7 @@ print(json.dumps({'score':score,'confidence':confidence,'reasons':'\\n'.join(rea
     await page.route('**/rest/v1/**', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify(route.request().url().includes('/hunter_profiles') ? [{ id: profileId, name: 'Profil test', config }] : []) }));
     let browserReady = true;
     await page.route('**/api/scan', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ready: false, browser_ready: browserReady }) }));
-    await page.route('**/api/google**', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ connected: false }) }));
+    await page.route('**/api/google**', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ connected: false }) }));
     await page.evaluate(async ({ job, jwt, expires, user }) => {
       localStorage.setItem('sb-seacseklrbucmgxaykgc-auth-token', JSON.stringify({ access_token: jwt, refresh_token: 'fixture-refresh', expires_at: expires, expires_in: 3600, token_type: 'bearer', user }));
       const { CheckpointManager } = await import('/checkpoint-test.js');
@@ -187,7 +198,7 @@ print(json.dumps({'score':score,'confidence':confidence,'reasons':'\\n'.join(rea
     for (const stage of ['creating worker', 'worker created', 'loading runtime', 'loading pyodide', 'pyodide loaded', 'loading packages', 'loading Python files', 'engine initialized', 'READY']) {
       assert(startupLogs.some(line => line.includes(`[ScanWorker] ${stage}`)), `Missing startup stage ${stage}`);
     }
-    assert(startupLogs.includes('[ScanController] READY'));
+    assert(startupLogs.some(line => line.includes('[ScanController] READY')));
     assert.equal(await page.getByRole('alert').count(), 0);
     console.log('PASS: production CloudApp → ScanController → WorkerPool → real Worker → Pyodide → engine → READY.');
     browserReady = false;
@@ -212,5 +223,50 @@ print(json.dumps({'score':score,'confidence':confidence,'reasons':'\\n'.join(rea
     await page.getByRole('button', { name: 'Réessayer', exact: true }).click();
     await page.waitForFunction(() => !document.querySelector('[aria-label="Scan global"]'), null, { timeout: 45000 });
     console.log('PASS: invalid Preview asset propagates to visible error and retry reaches READY/completion.');
+    // Exact fresh-click path: no saved job, #search → Rapide → Lancer le scan.
+    await page.goto('http://127.0.0.1:5177/#search');
+    await page.getByLabel('Exécuter le scan sur cet appareil').waitFor();
+    await page.getByRole('button', { name: /^Rapide ·/ }).click();
+    const launch = page.getByRole('button', { name: 'Lancer le scan (Rapide)', exact: true });
+    await launch.waitFor();
+    stallStart = true;
+    const workersBeforeClick = workerURLs.length;
+    const logOffset = startupLogs.length;
+    const clickedAt = Date.now();
+    await launch.click();
+    const panel = page.getByRole('region', { name: 'Scan global' });
+    await panel.waitFor();
+    await panel.getByRole('status').filter({ hasText: 'Création du job' }).waitFor();
+    assert.equal(await panel.getAttribute('data-initialization-state'), 'starting');
+    const attemptId = await panel.getAttribute('data-initialization-id');
+    assert.equal(workerURLs.length, workersBeforeClick, 'No Worker exists while backend start is pending');
+    await panel.getByRole('alert').filter({ hasText: /Démarrage interrompu après 30 secondes/ }).waitFor({ timeout: 38000 });
+    const elapsed = Date.now() - clickedAt;
+    assert(elapsed >= 29000 && elapsed < 38000, `Timeout from click took ${elapsed} ms`);
+    assert.equal(await panel.getAttribute('data-initialization-state'), 'timeout');
+    await panel.getByRole('button', { name: 'Réessayer', exact: true }).waitFor();
+    // Keep observing past the 30s boundary: no late initialization escapes it.
+    await page.waitForTimeout(5000);
+    assert.equal(workerURLs.length, workersBeforeClick);
+    const attemptLogs = startupLogs.slice(logOffset).filter(line => line.includes(`[BrowserScan:${attemptId}]`));
+    assert(attemptLogs.some(line => line.includes('start requested')));
+    assert(attemptLogs.some(line => line.includes('selected engine: browser')));
+    const armed = attemptLogs.findIndex(line => line.includes('initialization timeout armed'));
+    const backend = attemptLogs.findIndex(line => line.includes('Création du job'));
+    assert(armed >= 0 && armed < backend, 'Deadline must be armed before any async start I/O');
+    assert(!attemptLogs.some(line => line.includes('[ScanWorker]')));
+    fs.mkdirSync(path.join(__dirname, '../.test_temp'), { recursive: true });
+    await page.screenshot({ path: path.join(__dirname, '../.test_temp/start-click-timeout.png'), fullPage: true });
+    console.log(`PASS: #search → Rapide → Lancer → backend pending → timeout in ${elapsed} ms → Réessayer; observed 35s, no Worker created.`);
+    stallStart = false;
+    await panel.getByRole('button', { name: 'Réessayer', exact: true }).click();
+    await page.waitForFunction(() => !document.querySelector('[aria-label="Scan global"]'), null, { timeout: 45000 });
+    assert.equal(job.mode, 'Rapide');
+    assert.equal(job.status, 'completed');
+    assert(workerURLs.length > workersBeforeClick);
+    const readyLog = startupLogs.slice(logOffset).find(line => line.includes('[ScanController] READY'));
+    assert(readyLog && !readyLog.includes(`[BrowserScan:${attemptId}]`), 'Retry gets its own ID');
+    assert.equal(offers.length, 1);
+    console.log('PASS: fresh-click retry → start API → checkpoint → WorkerPool → real Worker → Pyodide → READY → completed, with Google 503 independent.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error.message); process.exitCode = 1; });

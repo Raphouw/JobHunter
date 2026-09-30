@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { ScanController, browserTransport } from '../scan/ScanController.js';
 import { ScanPanel } from '../scan/ScanPanel.jsx';
+import { BROWSER_SCAN_BUILD, traceInitialization } from '../scan/InitializationAttempt.js';
 import { Icon } from '../components/Common/Icons';
 import { TinderDeck } from '../components/Swiper/TinderDeck';
 import { ProfileView } from '../components/Profile/ProfileView';
@@ -638,9 +639,14 @@ export function CloudApp() {
     goToPage('candidatures');
   };
 
-  const startScan = (mode) => run(async () => {
+  const startScan = (mode) => {
+    const initializationId = scanController?.reserveInitializationId() || 'server';
+    traceInitialization(initializationId, `start requested · build ${BROWSER_SCAN_BUILD}`);
+    traceInitialization(initializationId, `selected engine: ${useBrowser && browserReady ? 'browser' : 'server'}`);
+    traceInitialization(initializationId, `browser engine enabled: ${browserReady}`);
+    return run(async () => {
     if (browserReady && useBrowser && scanController) {
-      await scanController.start(profileId, mode);
+      await scanController.start(profileId, mode, initializationId);
       return;
     }
     if (!workerReady) throw new Error('Le worker Python doit être configuré avant le lancement.');
@@ -655,7 +661,8 @@ export function CloudApp() {
         'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobs[0].id }) })
         .then(() => loadData()).catch(() => {});
     }
-  }, 'Scan lancé. La progression reste visible pendant la navigation.');
+    }, 'Scan lancé. La progression reste visible pendant la navigation.');
+  };
 
   const cancelScan = (jobId) => run(async () => {
     if (scanController?.snapshot.job?.id === jobId) {

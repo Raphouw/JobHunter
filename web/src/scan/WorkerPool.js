@@ -9,26 +9,29 @@ export function powerBudget(mode = 'normal', hardware = 2, memory = 4) {
 // Lazily created: a sequential mutable scanner has one task in flight and
 // consequently one runtime. Capacity must never imply N unnecessary WASM VMs.
 export class WorkerPool {
-  constructor({ capacity = 1, factory, onEvent = () => {} } = {}) {
+  constructor({ capacity = 1, factory, onEvent = () => {}, initializationId = 'standalone' } = {}) {
     this.capacity = capacity;
     this.factory = factory || (() => new Worker(new URL('./scan.worker.js', import.meta.url), { type: 'module' }));
     this.onEvent = onEvent;
     this.worker = null;
     this.pending = null;
     this.sequence = 0;
+    this.initializationId = initializationId;
   }
+  log(message) { console.log(`[BrowserScan:${this.initializationId}] [ScanWorker] ${message}`); }
   execute(type, payload = {}, timeout = type === 'init' ? 30000 : 240000) {
     if (this.pending) return Promise.reject(new Error('File Worker occupée'));
     if (!this.worker) {
-      console.info('[ScanWorker] creating worker');
+      this.log('creating worker');
       try { this.worker = this.factory(); }
-      catch (error) { console.error('[ScanWorker] creation failed', error); return Promise.reject(error); }
-      console.info('[ScanWorker] worker created');
+      catch (error) { console.error(`[BrowserScan:${this.initializationId}] [ScanWorker] creation failed`, error); return Promise.reject(error); }
+      this.log('worker created');
+      this.onEvent({ type: 'initialization', stage: 'worker created' });
       this.worker.onmessage = ({ data }) => {
         if (!data || typeof data !== 'object') {
           this.fail(new Error('Message Worker invalide')); return;
         }
-        if (data.type === 'initialization') console.info(`[ScanWorker] ${data.stage}`);
+        if (data.type === 'initialization') this.log(data.stage);
         if (data.type) { this.onEvent(data); return; }
         if (data.id !== this.pending?.id) return;
         const task = this.pending;
@@ -36,7 +39,7 @@ export class WorkerPool {
         this.pending = null;
         if (data.error || (task.type === 'init' && data.result?.ready !== true)) {
           const error = new Error(data.error || 'Le Worker n’a pas confirmé READY');
-          console.error('[ScanWorker] task failed', error);
+          console.error(`[BrowserScan:${this.initializationId}] [ScanWorker] task failed`, error);
           this.terminate(error);
           task.reject(error);
         } else task.resolve(data.result);
@@ -46,15 +49,17 @@ export class WorkerPool {
     }
     return new Promise((resolve, reject) => {
       const id = ++this.sequence;
-      const timer = setTimeout(() => this.fail(new Error(type === 'init'
-        ? 'Initialisation du moteur navigateur interrompue : READY non reçu après 30 secondes. Vous pouvez réessayer.'
-        : 'Délai Worker dépassé')), timeout);
+      const timer = setTimeout(() => {
+        const error = new Error(type === 'init' ? 'Délai d’initialisation dépassé : READY non reçu. Vous pouvez réessayer.' : 'Délai Worker dépassé');
+        if (type === 'init') error.name = 'InitializationTimeoutError';
+        this.fail(error);
+      }, timeout);
       this.pending = { id, type, resolve, reject, timer };
       try { this.worker.postMessage({ id, type, ...payload }); }
       catch (error) { this.fail(error); }
     });
   }
-  fail(error) { console.error('[ScanWorker] failed', error); this.terminate(error); }
+  fail(error) { console.error(`[BrowserScan:${this.initializationId}] [ScanWorker] failed`, error); this.terminate(error); }
   session(accessToken) { this.worker?.postMessage({ type: 'session', accessToken }); }
   terminate(error = new DOMException('Tâche interrompue', 'AbortError')) {
     const task = this.pending;

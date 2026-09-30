@@ -8,8 +8,8 @@ export function ScanPanel({ controller, snapshot, onDetail }) {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, [snapshot.status]);
-  if (!snapshot.job || ['idle', 'completed', 'cancelled'].includes(snapshot.status)) return null;
-  const job = snapshot.job;
+  if (['idle', 'completed', 'cancelled'].includes(snapshot.status)) return null;
+  const job = snapshot.job || { mode: snapshot.request?.mode || 'Scan', created_at: new Date(snapshot.initializationStartedAt || now).toISOString() };
   const checkpoint = job.checkpoint || {};
   const totals = checkpoint.telemetry?.totals || {};
   const seconds = Math.max(1, (now - Date.parse(job.created_at)) / 1000);
@@ -17,7 +17,7 @@ export function ScanPanel({ controller, snapshot, onDetail }) {
   const total = (checkpoint.direct_candidates || 0) + (checkpoint.web_candidates || 0);
   const eta = snapshot.status === 'running' && checkpoint.discovery_complete && processed > 0 && processed < total ? Math.max(0, (total - processed) * seconds / processed) : null;
   const invoke = method => controller[method]().catch(() => {});
-  return <section className="sh-browser-scan" aria-label="Scan global">
+  return <section className="sh-browser-scan" aria-label="Scan global" data-initialization-state={snapshot.initializationState} data-initialization-id={snapshot.initializationId}>
     <div className="sh-browser-scan-heading"><strong>{job.mode} · {snapshot.status === 'recoverable' ? 'Scan interrompu détecté' : snapshot.status === 'paused' ? 'En pause' : 'Scan sur cet appareil'}</strong>
       <button className="sh-btn-secondary" onClick={onDetail}>Voir le détail</button></div>
     <progress max="100" value={job.progress_percent || 0} aria-label="Progression du scan" />
@@ -25,13 +25,14 @@ export function ScanPanel({ controller, snapshot, onDetail }) {
     <p>{checkpoint.new_offers || 0} nouvelles · {checkpoint.accepted || 0} pertinentes · {checkpoint.rejected || 0} rejetées · {Math.round(processed * 60 / seconds)} pistes/min</p>
     <p>{snapshot.workers || 0} Worker actif · {Math.floor(seconds / 60)} min{eta !== null ? ` · ≈ ${Math.ceil(eta / 60)} min restantes` : ''}</p>
     {snapshot.error && <p role="alert">{snapshot.error}</p>}
-    {snapshot.status === 'starting' && <p role="status">{snapshot.phaseLabel || 'Initialisation du moteur navigateur…'}</p>}
+    {snapshot.status === 'starting' && <p role="status">{snapshot.phaseLabel || 'Préparation du scan…'}</p>}
     <div className="sh-browser-scan-actions">
       {['paused', 'recoverable'].includes(snapshot.status) ? <button className="sh-btn-primary" onClick={() => invoke('resume')}>{snapshot.error ? 'Réessayer' : 'Reprendre'}</button> :
-        <button className="sh-btn-secondary" onClick={() => invoke('pause')}>Pause</button>}
+        <button className="sh-btn-secondary" disabled={snapshot.status === 'starting'} onClick={() => invoke('pause')}>Pause</button>}
       <button className="sh-btn-secondary" onClick={() => invoke('cancel')}>{snapshot.status === 'recoverable' ? 'Abandonner' : 'Arrêter'}</button>
     </div>
     <details><summary>Détails et puissance</summary>
+      <small>{snapshot.build} · {snapshot.initializationId} · {snapshot.initializationState}</small>
       <p className="sh-browser-scan-phase">{snapshot.phaseLabel || job.phase}</p>
       <label>Utilisation de cet appareil <select value={snapshot.power} onChange={e => controller.setPower(e.target.value)}>
         <option value="eco">Éco</option><option value="normal">Normal</option><option value="fast">Rapide</option><option value="maximum">Maximum</option>

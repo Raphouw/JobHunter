@@ -4,10 +4,10 @@ let config;
 let busy = false;
 let leaseToken = null;
 function stage(name) {
-  console.info(`[ScanWorker] ${name}`);
+  console.log(`[BrowserScan:${config?.initializationId || 'standalone'}] [ScanWorker] ${name}`);
   self.postMessage({ type: 'initialization', stage: name });
 }
-stage('worker script loaded');
+self.postMessage({ type: 'initialization', stage: 'worker script loaded' });
 async function asset(url) {
   const response = await fetch(url, { signal: AbortSignal.timeout(15000) });
   if (!response.ok) throw new Error(`Asset indisponible : HTTP ${response.status} (${url})`);
@@ -52,7 +52,7 @@ async function init(input) {
   const indexURL = 'https://cdn.jsdelivr.net/pyodide/v0.29.3/full/';
   stage('loading pyodide');
   const { loadPyodide } = await import(/* @vite-ignore */ `${indexURL}pyodide.mjs`);
-  runtime = await loadPyodide({ indexURL, stdout: () => {}, stderr: message => console.error('[ScanWorker] Python stderr', message) });
+  runtime = await loadPyodide({ indexURL, stdout: () => {}, stderr: message => console.error(`[BrowserScan:${config.initializationId || 'standalone'}] [ScanWorker] Python stderr`, message) });
   stage('pyodide loaded');
   stage('loading packages');
   await runtime.loadPackage(['micropip', 'beautifulsoup4', 'pyyaml', 'requests', 'rich', 'lxml', 'regex', 'sqlite3']);
@@ -124,7 +124,7 @@ self.onmessage = async ({ data }) => {
     } else throw new Error('Commande Worker invalide');
     self.postMessage({ id: data.id, result: { ready: true } });
   } catch (error) {
-    console.error('[ScanWorker] initialization/task failed', error);
+    console.error(`[BrowserScan:${config?.initializationId || 'standalone'}] [ScanWorker] initialization/task failed`, error);
     self.postMessage({ id: data.id, error: String(error.message || error).slice(-1200) });
   } finally {
     busy = false;

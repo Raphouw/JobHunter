@@ -129,7 +129,7 @@ for (const boundary of ['session', 'state', 'worker']) {
   controller.launch();
   await controller.running;
   assert.equal(controller.snapshot.status, 'recoverable');
-  assert.match(controller.snapshot.error, /Initialisation.*30 secondes/);
+  assert.match(controller.snapshot.error, /Démarrage interrompu/);
   assert(stopped);
   controller.dispose();
 }
@@ -153,3 +153,24 @@ for (const failure of ['error', 'messageerror', 'send', 'reply']) {
   assert(stopped);
 }
 console.log('PASS: initialization deadline covers session, backend and Worker; error/messageerror/send/reply/timeout terminate and reject.');
+
+for (const boundary of ['lock', 'checkpoint', 'session', 'start', 'save']) {
+  let pools = 0;
+  const checkpoints = new MemoryCheckpoints();
+  if (boundary === 'checkpoint') checkpoints.load = () => new Promise(() => {});
+  if (boundary === 'save') checkpoints.save = () => new Promise(() => {});
+  const controller = new ScanController({ userId: 'user', initializationTimeout: 25, checkpoints,
+    getSession: () => boundary === 'session' ? new Promise(() => {}) : getSession(),
+    transport: body => boundary === 'start' && body.action === 'start' ? new Promise(() => {}) : Promise.resolve({ data: fixture() }),
+    poolFactory: () => { pools++; throw new Error('Must not create pool before preparation finishes'); },
+  });
+  if (boundary === 'lock') controller.acquireLock = () => new Promise(() => {});
+  await assert.rejects(controller.start('profile', 'Rapide'), { name: 'InitializationTimeoutError' });
+  assert.equal(controller.snapshot.initializationState, 'timeout');
+  assert.equal(controller.snapshot.status, 'recoverable');
+  assert.equal(controller.pendingControl, false);
+  assert.equal(pools, 0);
+  assert(controller.attempt.abort.signal.aborted);
+  controller.dispose();
+}
+console.log('PASS: fresh start deadline covers lock, checkpoint read, session, start API and checkpoint save BEFORE WorkerPool.');
