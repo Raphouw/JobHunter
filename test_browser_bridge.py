@@ -71,6 +71,12 @@ class BridgeTests(unittest.TestCase):
                 'args': {'p_job_id': 'other', 'p_lease_token': 'lease', 'p_rows': []}})
         self.assertEqual(store.calls[-1][1]['p_job_id'], JOB['id'])
 
+    def test_browser_claim_uses_isolated_rpc(self):
+        store = FakeStore()
+        execute(store, JOB['user_id'], {'action': 'rpc', 'job_id': JOB['id'],
+                'name': 'hunter_claim_scan_job', 'args': {'p_job_id': 'other'}})
+        self.assertEqual(store.calls[-1], ('hunter_claim_browser_scan_job', {'p_job_id': JOB['id']}))
+
     def test_proxy_invokes_checked_network_path(self):
         with patch('site_network.fetch_preview', return_value=('<p>OK</p>', 'https://example.org/job')) as fetch:
             result = execute(FakeStore(), JOB['user_id'], {'action': 'fetch', 'job_id': JOB['id'],

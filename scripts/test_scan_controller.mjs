@@ -174,3 +174,29 @@ for (const boundary of ['lock', 'checkpoint', 'session', 'start', 'save']) {
   controller.dispose();
 }
 console.log('PASS: fresh start deadline covers lock, checkpoint read, session, start API and checkpoint save BEFORE WorkerPool.');
+
+// A lease owned elsewhere must refresh the UI, not sleep for 4m40s.
+{
+  const { controller } = setup();
+  const waits = [];
+  let steps = 0;
+  controller.poolFactory = () => ({
+    async execute(type) {
+      if (type === 'init') return { ready: true };
+      ++steps;
+      return { claimed: steps > 1, job: { ...fixture(), status: steps > 1 ? 'completed' : 'running',
+        progress_percent: steps > 1 ? 100 : 51, lease_until: new Date(Date.now() + 280000).toISOString() } };
+    }, session() {}, terminate() {},
+  });
+  controller.delay = async ms => {
+    waits.push(ms);
+    assert.match(controller.snapshot.phaseLabel, /attente de réservation/);
+    assert.equal(controller.snapshot.job.progress_percent, 51);
+  };
+  await controller.start('profile', 'Rapide');
+  await controller.running;
+  assert.deepEqual(waits, [5000]);
+  assert.equal(controller.snapshot.status, 'completed');
+  controller.dispose();
+}
+console.log('PASS: unavailable lease refreshes within 5 seconds and reports actual backend progress.');

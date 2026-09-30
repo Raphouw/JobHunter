@@ -189,7 +189,8 @@ export class ScanController {
         const { job, claimed } = await this.pool.execute('step', { power: this.snapshot.power });
         if (generation !== this.generation) return;
         if (!job) throw new Error('Scan introuvable');
-        this.publish({ job, workers: 0 });
+        this.publish({ job, workers: 0, ...(!claimed ? { phaseLabel: 'En attente de réservation du job — actualisation toutes les 5 secondes…' } : {}) });
+        if (!claimed) traceInitialization(attempt.id, `reservation unavailable · phase=${job.phase} · lease_until=${job.lease_until || 'none'} · next_run_at=${job.next_run_at || 'none'}`);
         await this.save();
         if (terminal(job)) {
           this.publish({ status: job.status, workers: 0 });
@@ -202,7 +203,7 @@ export class ScanController {
         }
         const due = Math.max(Date.parse(job.next_run_at || '') || 0, Date.parse(job.lease_until || '') || 0);
         const pace = { eco: 1500, normal: 250, fast: 50, maximum: 0 }[this.snapshot.power];
-        await this.delay(claimed ? Math.max(pace, due - Date.now()) : Math.max(1000, due - Date.now()), this.abort.signal);
+        await this.delay(claimed ? Math.max(pace, due - Date.now()) : Math.min(5000, Math.max(1000, due - Date.now())), this.abort.signal);
       }
     };
     this.running = attempt.run(run).catch(error => {

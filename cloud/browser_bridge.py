@@ -172,7 +172,8 @@ def execute(store, user_id, body):
         if name == 'hunter_claim_scan_job':
             if job.get('paused') or (job.get('checkpoint') or {}).get('paused'):
                 return []
-            return store.rpc(name, {'p_job_id': job['id']})
+            # Legacy server claims exclude browser jobs, including production main.
+            return store.rpc('hunter_claim_browser_scan_job', {'p_job_id': job['id']})
         if name == 'hunter_apply_scan_decisions':
             active_lease(job, args.get('p_lease_token'))
             rows = args.get('p_rows')

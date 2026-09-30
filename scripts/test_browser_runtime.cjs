@@ -30,6 +30,7 @@ const { chromium } = runtimeRequire('playwright');
     const missing = { id: 2, status: 'pending', payload: { url: 'https://careers.example.org/job/gone', title: 'Removed Internship', source: 'careers.example.org' }, decision: {} };
     const candidates = [candidate, missing];
     let stallStart = false;
+    let denyClaims = 0;
     job.checkpoint.direct_candidates = candidates.length;
     const offers = [];
     const networkActions = [];
@@ -55,7 +56,11 @@ const { chromium } = runtimeRequire('playwright');
       else if (body.action === 'mirror') data = [];
       else if (body.action === 'state') data = { ...job, search_backends: ['duckduckgo', 'yahoo'] };
       else if (body.action === 'rpc') {
-        if (body.name === 'hunter_claim_scan_job') {
+        if (body.name === 'hunter_claim_scan_job' && denyClaims > 0) {
+          denyClaims--;
+          job = { ...job, status: 'running', lease_until: new Date(Date.now() + 280000).toISOString() };
+          data = [];
+        } else if (body.name === 'hunter_claim_scan_job') {
           job = { ...job, status: 'running', lease_token: 'fixture-lease', lease_until: new Date(Date.now() + 280000).toISOString() };
           data = [{ ...job }];
         } else if (body.name === 'hunter_apply_scan_decisions') {
@@ -259,8 +264,13 @@ print(json.dumps({'score':score,'confidence':confidence,'reasons':'\\n'.join(rea
     await page.screenshot({ path: path.join(__dirname, '../.test_temp/start-click-timeout.png'), fullPage: true });
     console.log(`PASS: #search → Rapide → Lancer → backend pending → timeout in ${elapsed} ms → Réessayer; observed 35s, no Worker created.`);
     stallStart = false;
+    denyClaims = 2;
     await panel.getByRole('button', { name: 'Réessayer', exact: true }).click();
+    await panel.getByRole('status').filter({ hasText: /En attente de réservation du job/ }).waitFor({ timeout: 30000 });
+    assert.equal(await panel.getAttribute('data-initialization-state'), 'ready');
     await page.waitForFunction(() => !document.querySelector('[aria-label="Scan global"]'), null, { timeout: 45000 });
+    assert.equal(denyClaims, 0);
+    assert(startupLogs.some(line => line.includes('reservation unavailable')));
     assert.equal(job.mode, 'Rapide');
     assert.equal(job.status, 'completed');
     assert(workerURLs.length > workersBeforeClick);

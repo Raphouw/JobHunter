@@ -1,4 +1,4 @@
-export const BROWSER_SCAN_BUILD = 'click-watchdog-v3';
+export const BROWSER_SCAN_BUILD = 'browser-lease-v4';
 export const traceInitialization = (id, message) => console.log(`[BrowserScan:${id}] ${message}`);
 
 // Created synchronously at the user action, before locks/session/storage/backend.
