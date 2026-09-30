@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from cloud.scan_worker import Store
 from site_configs import (crawl_site, inspection_html, profile_listing_url, validate_site,
-                          country_matches, reference_sites, source_key, source_disabled)
+                          country_matches, reference_sites, source_key, source_disabled, SelectorValidationError)
 from site_network import fetch_preview
 
 
@@ -61,7 +61,7 @@ class handler(BaseHTTPRequestHandler):
         if not authorization.startswith('Bearer '):
             return self.respond(401, {'error': 'Authentification requise'})
         length = self.headers.get('Content-Length', '')
-        if not length.isdigit() or int(length) > 30_000:
+        if not length.isdigit() or int(length) > 100_000:
             return self.respond(400, {'error': 'Requête trop volumineuse'})
         try:
             body = json.loads(self.rfile.read(int(length)))
@@ -124,7 +124,7 @@ class handler(BaseHTTPRequestHandler):
                             {'status': 'disabled', 'updated_at': __import__('datetime').datetime.now(
                                 __import__('datetime').timezone.utc).isoformat()})
                 return self.respond(200, {'disabled': True})
-            site = validate_site(body.get('site'))
+            site = validate_site(body.get('site'), require_complete=not (action == 'save' and not (body.get('site') or {}).get('enabled')))
             site['id'] = str(uuid.UUID(site['id'])) if site['id'] else str(uuid.uuid4())
             if action == 'preview':
                 preview_site = {**site, 'limits': {**site['limits'],
@@ -144,7 +144,12 @@ class handler(BaseHTTPRequestHandler):
 
                 if not result['offers']:
                     tested_url = result.get('listing_url') or site.get('listing_url')
-                    return self.respond(422, {'error': f'Aucune offre avec lien de détail trouvée sur {tested_url}', 'preview': result})
+                    return self.respond(422, {'error': f'Aucune offre avec lien de détail trouvée sur {tested_url}', 'preview': result,
+                                              'field_errors': {'selectors.card': 'Aucune offre extraite : vérifie le conteneur de carte.',
+                                                               'selectors.detail_link': 'Aucun lien d’offre extrait : sélectionne un lien vers une fiche de détail.'}})
+                if not any(offer.get('title', '').strip() for offer in result['offers']):
+                    return self.respond(422, {'error': 'Aucun titre de poste extrait.', 'preview': result,
+                                              'field_errors': {'selectors.title': 'Aucun titre trouvé avec cette sélection. Clique sur l’intitulé du poste dans une carte.'}})
                 stamp = int(time.time())
                 return self.respond(200, {'preview': result, 'site': site, 'sample_tested': sample_tested,
                                           'preview_token': f'{stamp}.{signature(site, profile_id, user_id, stamp)}'})
@@ -166,6 +171,8 @@ class handler(BaseHTTPRequestHandler):
             new_config = merge_site(current_config, site)
             store.patch('hunter_profiles', f'id=eq.{profile_id}&user_id=eq.{user_id}', {'config': new_config})
             return self.respond(200, {'site': site})
+        except SelectorValidationError as exc:
+            return self.respond(400, {'error': str(exc), 'field_errors': exc.field_errors})
         except ValueError as exc:
             return self.respond(400, {'error': str(exc)})
         except Exception as exc:

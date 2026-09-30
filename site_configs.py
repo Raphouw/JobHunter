@@ -14,6 +14,18 @@ from site_network import public_http_url
 FIELDS = ('detail_link', 'title', 'company', 'location', 'contract', 'date',
           'description', 'application_link', 'salary', 'work_time', 'experience', 'sector', 'education')
 LINK_FIELDS = {'detail_link', 'application_link'}
+MAX_SELECTOR_LENGTH = 2048
+FIELD_LABELS = {'card': 'Carte d’offre', 'detail_link': 'Lien de détail', 'title': 'Titre',
+                'company': 'Entreprise', 'location': 'Lieu', 'contract': 'Contrat',
+                'date': 'Date', 'description': 'Description', 'application_link': 'Lien de candidature',
+                'salary': 'Rémunération', 'work_time': 'Temps de travail', 'experience': 'Expérience demandée',
+                'sector': 'Secteur d’activité', 'education': 'Diplôme demandé', 'next_selector': 'Page suivante'}
+
+
+class SelectorValidationError(ValueError):
+    def __init__(self, errors):
+        self.field_errors = errors
+        super().__init__('Corrige les sélecteurs signalés avant de continuer.')
 
 COUNTRIES = {
     'FR': ('france',), 'CH': ('suisse', 'switzerland', 'schweiz'),
@@ -86,20 +98,24 @@ def scan_sites(profile, shared):
 
 
 def validate_selector(value, label, required=False):
-    if not isinstance(value, str) or len(value) > 180 or any(x in value for x in ('\x00', ':has(', ':contains(')):
-        raise ValueError(f'Sélecteur {label} invalide')
+    if not isinstance(value, str):
+        raise ValueError(f'{label} : le sélecteur doit être du texte.')
+    if len(value) > MAX_SELECTOR_LENGTH:
+        raise ValueError(f'{label} : chemin trop long ({len(value)} caractères, maximum {MAX_SELECTOR_LENGTH}). Resélectionne cet élément.')
+    if any(x in value for x in ('\x00', ':has(', ':contains(')):
+        raise ValueError(f'{label} : ce sélecteur utilise une expression non prise en charge.')
     value = value.strip()
     if required and not value:
         raise ValueError(f'Sélecteur {label} requis')
-    if value:
+    if value and value not in ('self', 'this', '.'):
         try:
             BeautifulSoup('<html></html>', 'html.parser').select(value)
         except (SelectorSyntaxError, ValueError) as exc:
-            raise ValueError(f'Sélecteur {label} invalide : {exc}') from exc
+            raise ValueError(f'{label} : syntaxe CSS invalide. Resélectionne cet élément ou efface le champ.') from exc
     return value
 
 
-def validate_site(raw):
+def validate_site(raw, require_complete=True):
     if not isinstance(raw, dict):
         raise ValueError('Configuration de site invalide')
     name = str(raw.get('name') or '').strip()
@@ -120,11 +136,30 @@ def validate_site(raw):
     detail = raw.get('detail_selectors') or {}
     if not isinstance(selectors, dict) or not isinstance(detail, dict):
         raise ValueError('Sélecteurs invalides')
-    card = validate_selector(selectors.get('card', ''), 'carte', True)
+    errors = {}
+    absent = raw.get('absent_fields') or {}
+    if not isinstance(absent, dict): raise ValueError('Champs absents invalides')
+    absent_copy = {}
+    allowed = {'selectors': set(FIELDS) - {'title', 'detail_link'},
+               'detail_selectors': set(FIELDS) - {'detail_link'}, 'pagination': {'next_selector'}}
+    for section, keys in allowed.items():
+        values = absent.get(section) or []
+        if not isinstance(values, list) or any(not isinstance(key, str) or key not in keys for key in values):
+            raise ValueError('Champs absents invalides')
+        absent_copy[section] = list(dict.fromkeys(values))
+    def checked(section, key, value, required=False):
+        if key in absent_copy.get(section, []): value = ''
+        label = ('Fiche de détail — ' if section == 'detail_selectors' else '') + FIELD_LABELS.get(key, key)
+        try:
+            return validate_selector(value, label, required and require_complete)
+        except ValueError as exc:
+            errors[f'{section}.{key}'] = str(exc)
+            return ''
+    card = checked('selectors', 'card', selectors.get('card', ''), True)
     selectors_copy = dict(selectors)
     selectors_copy['detail_link'] = selectors.get('detail_link') or 'a'
-    fields = {key: validate_selector(selectors_copy.get(key, ''), key, key in ('title', 'detail_link')) for key in FIELDS}
-    details = {key: validate_selector(detail.get(key, ''), 'détail ' + key) for key in FIELDS if key != 'detail_link'}
+    fields = {key: checked('selectors', key, selectors_copy.get(key, ''), key in ('title', 'detail_link')) for key in FIELDS}
+    details = {key: checked('detail_selectors', key, detail.get(key, '')) for key in FIELDS if key != 'detail_link'}
     query = raw.get('query') or {}
     pagination = raw.get('pagination') or {}
     limits = raw.get('limits') or {}
@@ -138,7 +173,8 @@ def validate_site(raw):
     keyword = param(query.get('keyword_param'))
     location = param(query.get('location_param'))
     page_param = param(pagination.get('page_param'))
-    next_selector = validate_selector(pagination.get('next_selector', ''), 'page suivante')
+    next_selector = checked('pagination', 'next_selector', pagination.get('next_selector', ''))
+    if errors: raise SelectorValidationError(errors)
     if page_param and next_selector:
         raise ValueError('Choisir un paramètre de page ou un lien suivant')
     def integer(key, default, minimum, maximum, source):
@@ -149,6 +185,7 @@ def validate_site(raw):
     return {
         'id': str(raw.get('id') or '').strip()[:80], 'name': name, 'listing_url': url,
         'enabled': bool(raw.get('enabled', False)), 'countries': countries,
+        'absent_fields': absent_copy,
         'query': {'keyword_param': keyword, 'location_param': location},
         'selectors': {'card': card, **fields}, 'detail_selectors': details,
         'pagination': {'next_selector': next_selector, 'page_param': page_param,
@@ -252,7 +289,7 @@ def extract_detail(html, url, site):
     details = {key: _value(soup, selector, url, key in LINK_FIELDS)
                for key, selector in site.get('detail_selectors', {}).items() if selector}
     # Intelligent fallback for description if not captured by configured selector
-    if not details.get('description'):
+    if not details.get('description') and 'description' not in (site.get('absent_fields') or {}).get('detail_selectors', []):
         for cand in soup.select('[data-cy*="description"], [data-testid*="description"], .job-description, .vacancy-description, #job-description, article, .description, main'):
             text = cand.get_text(' ', strip=True)
             if len(text) > 80:

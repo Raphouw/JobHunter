@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { VisualSitePicker } from './VisualSitePicker';
 import { Icon } from '../components/Common/Icons';
 import './site-reference-list.css';
+import { selectorErrors } from './site-selector-utils';
 
 const fields = ['detail_link', 'title', 'company', 'location', 'contract', 'date', 'description', 'application_link', 'salary', 'work_time', 'experience', 'sector', 'education'];
 const labels = ['Lien de détail *', 'Titre *', 'Entreprise', 'Lieu', 'Contrat', 'Date', 'Description', 'Lien de candidature', 'Rémunération', 'Temps partiel / temps plein', 'Expérience demandée', 'Secteur d’activité', 'Diplôme demandé'];
@@ -17,12 +18,35 @@ const empty = () => ({
   listing_url: '',
   enabled: false,
   countries: [],
+  absent_fields: { selectors: [], detail_selectors: [], pagination: [] },
   query: { keyword_param: '', location_param: '' },
   selectors: { card: '', ...Object.fromEntries(fields.map((key) => [key, ''])) },
   detail_selectors: Object.fromEntries(fields.slice(1).map((key) => [key, ''])),
   pagination: { next_selector: '', page_param: '', start: 1, step: 1 },
   limits: { max_pages: 1, max_offers: 40, max_detail_pages: 3 },
 });
+
+function SelectorControl({ section, fieldKey, label, site, change, markAbsent, error, diagnostic, optional = true }) {
+  const value = site[section]?.[fieldKey] || '';
+  const absent = (site.absent_fields?.[section] || []).includes(fieldKey);
+  const id = `site-${section}-${fieldKey}`;
+  return <div className="sh-field">
+    <label htmlFor={id}>{label}</label>
+    <input id={id} type="text" value={value} aria-invalid={Boolean(error)} aria-describedby={`${id}-feedback`}
+      onChange={(event) => change(section, fieldKey, event.target.value)} placeholder={absent ? 'Absent sur cette page' : fieldKey.includes('link') ? 'a[href]' : '.champ'} />
+    <div id={`${id}-feedback`}>
+      {error && <small className="sh-selector-error" role="alert">{error}</small>}
+      {!error && absent && <small className="sh-label-hint">Absent sur cette page · facultatif</small>}
+      {!error && !absent && diagnostic && <small className={diagnostic.count && diagnostic.sample ? 'sh-selector-sample' : 'sh-selector-warning'}>
+        {diagnostic.count ? `${diagnostic.count} élément(s) trouvé(s) · ${diagnostic.sample || 'aucun texte ou lien extrait : vérifie la cible'}` : 'Aucun élément trouvé dans cet aperçu. Vérifie la sélection ou indique que ce champ est absent.'}
+      </small>}
+    </div>
+    <div className="sh-selector-actions">
+      {optional && <button type="button" className="sh-btn-secondary sm" onClick={() => markAbsent(section, fieldKey)}>Absent sur cette page</button>}
+      {(value || absent) && <button type="button" className="sh-btn-secondary sm" onClick={() => change(section, fieldKey, '')}>Effacer</button>}
+    </div>
+  </div>;
+}
 
 export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
   const [site, setSite] = useState(empty);
@@ -37,6 +61,9 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
   const [catalogVersion, setCatalogVersion] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
   const [detailUrl, setDetailUrl] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [diagnostics, setDiagnostics] = useState({});
+  const currentErrors = { ...fieldErrors, ...selectorErrors(site) };
 
   const profileKeywords = profile?.target?.job_titles?.[0] || 'Ingénieur / Développeur';
   const profileCountries = profile?.location?.countries || [];
@@ -67,6 +94,8 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
     setToken('');
     setInspection(null);
     setDetailUrl('');
+    setFieldErrors({});
+    setDiagnostics({});
     setCatalog([]);
     setReferences([]);
     setIsAdmin(false);
@@ -109,19 +138,38 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
     setInspection(null);
     setError('');
     setNotice('');
+    setFieldErrors({});
+    setDiagnostics({});
   };
 
   const change = (section, key, value) => {
     setSite((current) =>
       section
-        ? { ...current, [section]: { ...current[section], [key]: value }, enabled: false }
+        ? { ...current, [section]: { ...current[section], [key]: value }, enabled: false,
+            absent_fields: { ...current.absent_fields, [section]: (current.absent_fields?.[section] || []).filter((field) => field !== key) } }
         : { ...current, [key]: value, enabled: false }
     );
     setPreview(null);
     setToken('');
+    setFieldErrors((previous) => Object.fromEntries(Object.entries(previous).filter(([path]) => path !== `${section}.${key}`)));
+    setError('');
+  };
+
+  const markAbsent = (section, key) => {
+    change(section, key, '');
+    setSite((current) => ({ ...current, absent_fields: { ...current.absent_fields,
+      [section]: [...new Set([...(current.absent_fields?.[section] || []), key])] } }));
   };
 
   const run = async (action, nextSite) => {
+    if (['save', 'preview', 'publish'].includes(action)) {
+      const issues = selectorErrors(nextSite, action !== 'save' || Boolean(nextSite.enabled));
+      setFieldErrors(issues);
+      if (Object.keys(issues).length) {
+        setError('Corrige les champs signalés avant de continuer.');
+        return;
+      }
+    }
     setWorking(true);
     setError('');
     setNotice('');
@@ -139,6 +187,7 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
         }),
       });
       const result = await response.json();
+      if (result.field_errors) setFieldErrors(result.field_errors);
       if (result.preview) setPreview(result.preview);
       if (!response.ok) throw new Error(result.error || 'Opération impossible');
       if (result.site) setSite(result.site);
@@ -535,6 +584,8 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
           inspection={inspection}
           site={site}
           onSelector={change}
+          onAbsent={markAbsent}
+          onDiagnostics={setDiagnostics}
           onInspectDetail={(url) => {
             setDetailUrl(url);
             inspectPage('detail', url);
@@ -548,25 +599,11 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
           <h3>2. Sélecteurs CSS des cartes</h3>
           <p>Ces sélecteurs sont automatiquement remplis par les clics dans l'aperçu ci-dessus, mais restent ajustables à la main.</p>
           <div className="sh-form-grid">
-            <div className="sh-field">
-              <label>Carte d’offre complète (conteneur répétitif) *</label>
-              <input
-                type="text"
-                value={site.selectors.card}
-                onChange={(e) => change('selectors', 'card', e.target.value)}
-                placeholder="ex: article.job-card ou li.offer"
-              />
-            </div>
+            <SelectorControl section="selectors" fieldKey="card" label="Carte d’offre complète (conteneur répétitif) *" site={site}
+              change={change} markAbsent={markAbsent} optional={false} error={currentErrors['selectors.card']} diagnostic={diagnostics['selectors.card']} />
             {fields.map((key, index) => (
-              <div className="sh-field" key={key}>
-                <label>{labels[index]}</label>
-                <input
-                  type="text"
-                  value={site.selectors[key] || ''}
-                  onChange={(e) => change('selectors', key, e.target.value)}
-                  placeholder={key.includes('link') ? 'a[href]' : '.champ'}
-                />
-              </div>
+              <SelectorControl key={key} section="selectors" fieldKey={key} label={labels[index]} site={site} change={change} markAbsent={markAbsent}
+                optional={!['title', 'detail_link'].includes(key)} error={currentErrors[`selectors.${key}`]} diagnostic={diagnostics[`selectors.${key}`]} />
             ))}
           </div>
         </div>
@@ -580,15 +617,8 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
           </p>
           <div className="sh-form-grid">
             {fields.slice(1).map((key, index) => (
-              <div className="sh-field" key={`detail-${key}`}>
-                <label>{labels[index + 1]}</label>
-                <input
-                  type="text"
-                  value={site.detail_selectors[key] || ''}
-                  onChange={(e) => change('detail_selectors', key, e.target.value)}
-                  placeholder="ex: .description-body"
-                />
-              </div>
+              <SelectorControl key={key} section="detail_selectors" fieldKey={key} label={labels[index + 1].replace(' *', '')} site={site}
+                change={change} markAbsent={markAbsent} error={currentErrors[`detail_selectors.${key}`]} diagnostic={diagnostics[`detail_selectors.${key}`]} />
             ))}
           </div>
         </div>
@@ -597,15 +627,8 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
         <div className="sh-advanced-selectors-block">
           <h3>4. Pagination et limites de sécurité</h3>
           <div className="sh-form-grid">
-            <div className="sh-field">
-              <label>Sélecteur du lien Page Suivante</label>
-              <input
-                type="text"
-                value={site.pagination.next_selector}
-                onChange={(e) => change('pagination', 'next_selector', e.target.value)}
-                placeholder="ex: a.pagination-next"
-              />
-            </div>
+            <SelectorControl section="pagination" fieldKey="next_selector" label="Sélecteur du lien Page Suivante" site={site}
+              change={change} markAbsent={markAbsent} error={currentErrors['pagination.next_selector']} diagnostic={diagnostics['pagination.next_selector']} />
             <div className="sh-field">
               <label>OU paramètre de page URL</label>
               <input
@@ -639,6 +662,10 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
         </div>
 
         {/* Boutons d'action */}
+        {Object.keys(currentErrors).length > 0 && <div className="sh-selector-error-summary" role="alert">
+          <strong>{Object.keys(currentErrors).length} champ(s) à corriger</strong>
+          <ul>{Object.entries(currentErrors).map(([path, message]) => <li key={path}>{path.startsWith('detail_selectors.') ? 'Fiche de détail' : path.startsWith('pagination.') ? 'Pagination' : 'Carte'} · {path.endsWith('.card') ? 'Carte d’offre' : path.endsWith('.next_selector') ? 'Page suivante' : labels[fields.indexOf(path.split('.')[1])]} : {message}</li>)}</ul>
+        </div>}
         <div className="sh-site-actions-bar">
           <button
             type="button"

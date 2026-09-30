@@ -7,6 +7,7 @@ from unittest.mock import patch
 from api.sites import merge_site, signature, valid_preview_token
 from site_configs import (crawl_site, extract_cards, extract_detail, inspection_html, missing_fields,
                           profile_listing_url, validate_site, country_matches, reference_sites, scan_sites, source_disabled)
+from site_configs import SelectorValidationError, validate_selector, MAX_SELECTOR_LENGTH
 from site_network import _resolved_ip, public_http_url
 
 
@@ -25,6 +26,34 @@ def sample_site():
 
 
 class SiteConfigTests(unittest.TestCase):
+    def test_long_legacy_paths_and_aggregated_field_errors(self):
+        path = ' > '.join(['div:nth-of-type(1)'] * 20)
+        self.assertGreater(len(path), 180)
+        site = sample_site()
+        site['detail_selectors']['location'] = path
+        self.assertEqual(validate_site(site)['detail_selectors']['location'], path)
+        site['detail_selectors']['location'] = 'div['
+        site['detail_selectors']['contract'] = 'a' * (MAX_SELECTOR_LENGTH + 1)
+        with self.assertRaises(SelectorValidationError) as caught:
+            validate_site(site)
+        self.assertEqual(set(caught.exception.field_errors), {'detail_selectors.location', 'detail_selectors.contract'})
+        self.assertIn('chemin trop long', caught.exception.field_errors['detail_selectors.contract'])
+
+    def test_incomplete_draft_and_explicit_absence(self):
+        raw = sample_site()
+        raw['selectors'] = {}
+        draft = validate_site(raw, require_complete=False)
+        self.assertEqual(draft['selectors']['card'], '')
+        with self.assertRaises(SelectorValidationError): validate_site(raw)
+        raw = sample_site()
+        raw['detail_selectors']['location'] = 'div['
+        raw['absent_fields'] = {'detail_selectors': ['location', 'description']}
+        validated = validate_site(raw)
+        self.assertEqual(validated['detail_selectors']['location'], '')
+        self.assertNotIn('description', extract_detail('<main>' + 'Description longue ' * 20 + '</main>', 'https://example.org/1', validated))
+        raw['absent_fields'] = {'selectors': ['title']}
+        with self.assertRaises(ValueError): validate_site(raw)
+
     def test_country_catalog_and_private_precedence(self):
         profile = {'location': {'countries': ['France']}}
         site = validate_site({**sample_site(), 'countries': ['France'], 'enabled': True})

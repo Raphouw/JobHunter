@@ -1781,6 +1781,7 @@ def configured_site_candidates(profile,site):
                      'source':dom(url),'origin':'configured_site','_depth':1,
                      '_listing_url':report['listing_url'],
                      '_site_details':site['detail_selectors'],
+                     '_site_absent':site['absent_fields'],
                      '_site_fields':offer})
     log_event(f'SITE CONFIGURÉ · {site["name"]} · {report["pages"]} page(s) · {len(rows)} offre(s)','green' if rows else 'yellow')
     return rows
@@ -1791,7 +1792,7 @@ def configured_detail_data(row,html,url,structured):
     if not row.get('_site_fields'):return structured
     details={}
     if html and row.get('_site_details'):
-        details=extract_detail(html,url,{'detail_selectors':row['_site_details']})
+        details=extract_detail(html,url,{'detail_selectors':row['_site_details'], 'absent_fields': row.get('_site_absent') or {}})
     values={**row['_site_fields'],**{key:value for key,value in details.items() if value}}
     mapping={'title':'title','company':'company','location':'location',
              'contract':'employment_type','date':'date_posted',

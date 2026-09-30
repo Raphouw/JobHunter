@@ -1,5 +1,7 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Icon } from '../components/Common/Icons';
+import { MAX_SELECTOR_LENGTH, scrollSelectedStep } from './site-selector-utils';
+import './site-picker-feedback.css';
 
 const LISTING_FIELDS = [
   { id: 'card', label: 'Carte d’offre', required: true, hint: 'Clique sur le conteneur complet d’une offre d’emploi.' },
@@ -19,9 +21,7 @@ const LISTING_FIELDS = [
   { id: 'next', label: 'Page suivante', required: false, hint: 'Clique sur le bouton ou lien "Page suivante" de la pagination.' },
 ];
 
-const DETAIL_FIELDS = LISTING_FIELDS.filter((f) => !['card', 'detail_link', 'next'].includes(f.id));
-
-const SEQUENCE = LISTING_FIELDS.filter((item) => item.id !== 'next').map((item) => item.id);
+const DETAIL_FIELDS = LISTING_FIELDS.filter((f) => !['card', 'detail_link', 'next'].includes(f.id)).map((item) => ({ ...item, required: false }));
 
 function cleanClass(name) {
   if (!name || typeof name !== 'string') return '';
@@ -39,7 +39,7 @@ function cleanPart(node) {
     const val = node.getAttribute && node.getAttribute(attr);
     if (val !== null && val !== undefined) {
       if (!/\d{5,}/.test(val) && !val.includes('/') && !val.includes(':')) {
-        return `${tag}[${attr}="${val}"]`;
+        return `${tag}[${attr}="${CSS.escape(val)}"]`;
       }
       return `${tag}[${attr}]`;
     }
@@ -73,13 +73,15 @@ function cleanPart(node) {
 function selectorFor(node, root) {
   if (!node || !root) return '';
   if (node === root) return 'self';
+  if (!root.contains(node)) return '';
   const pieces = [];
   let current = node;
   while (current && current !== root && current.tagName && pieces.length < 5) {
     pieces.unshift(cleanPart(current));
     const candidate = pieces.join(' > ');
     try {
-      if (root.querySelectorAll(candidate).length === 1) return candidate;
+      const matches = root.querySelectorAll(candidate);
+      if (candidate.length <= MAX_SELECTOR_LENGTH && matches.length === 1 && matches[0] === node) return candidate;
     } catch (_) {}
     current = current.parentElement;
   }
@@ -88,8 +90,11 @@ function selectorFor(node, root) {
   for (let item = node; item && item !== root; item = item.parentElement) {
     const siblings = Array.from(item.parentElement?.children || []).filter((child) => child.tagName === item.tagName);
     path.unshift(`${item.tagName.toLowerCase()}:nth-of-type(${siblings.indexOf(item) + 1})`);
+    const candidate = path.join(' > ');
+    const matches = root.querySelectorAll(candidate);
+    if (candidate.length <= MAX_SELECTOR_LENGTH && matches.length === 1 && matches[0] === node) return candidate;
   }
-  return path.join(' > ');
+  return '';
 }
 
 function targetAtPoint(doc, event) {
@@ -135,11 +140,14 @@ export function VisualSitePicker({
   inspection,
   site,
   onSelector,
+  onAbsent,
+  onDiagnostics,
   onInspectDetail,
   onInspectListing,
   firstDetailLink,
 }) {
   const frame = useRef(null);
+  const stepper = useRef(null);
   const isDetail = inspection?.kind === 'detail';
   const [field, setField] = useState(isDetail ? 'description' : 'card');
   const [options, setOptions] = useState([]);
@@ -150,11 +158,53 @@ export function VisualSitePicker({
 
   const fieldsList = isDetail ? DETAIL_FIELDS : LISTING_FIELDS;
   const currentStep = fieldsList.find((f) => f.id === field) || fieldsList[0];
+  const activeSection = isDetail ? 'detail_selectors' : field === 'next' ? 'pagination' : 'selectors';
+  const activeKey = field === 'next' ? 'next_selector' : field;
+  const advance = () => {
+    const index = fieldsList.findIndex((item) => item.id === field);
+    if (index >= 0 && index < fieldsList.length - 1) setField(fieldsList[index + 1].id);
+  };
+
+  useEffect(() => {
+    const bar = stepper.current;
+    if (!bar) return undefined;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const update = () => scrollSelectedStep(bar, field, reducedMotion ? 'auto' : 'smooth');
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(bar);
+    return () => observer.disconnect();
+  }, [field, inspection, isDetail, site]);
+
+  useEffect(() => {
+    const doc = frame.current?.contentDocument;
+    if (!doc?.body || !inspection || !onDiagnostics) return;
+    const result = {};
+    let card = null;
+    try { card = doc.querySelector(site.selectors?.card); } catch (_) {}
+    fieldsList.forEach((item) => {
+      const section = isDetail ? 'detail_selectors' : item.id === 'next' ? 'pagination' : 'selectors';
+      const key = item.id === 'next' ? 'next_selector' : item.id;
+      const selector = site[section]?.[key];
+      if (!selector) return;
+      const root = isDetail || item.id === 'next' || item.id === 'card' ? doc.body : card;
+      if (!root) return;
+      try {
+        const nodes = ['self', 'this', '.'].includes(selector) ? [root] : root.querySelectorAll(selector);
+        const node = nodes[0];
+        result[`${section}.${key}`] = { count: nodes.length,
+          sample: node ? ((item.id.includes('link') || item.id === 'next') ? node.getAttribute('href') || node.getAttribute('data-url') || '' : node.textContent.trim()).slice(0, 180) : '' };
+      } catch (_) {}
+    });
+    onDiagnostics(result);
+  }, [site, version, inspection, isDetail, onDiagnostics]);
 
   useEffect(() => {
     setField(isDetail ? 'title' : 'card');
     setOptions([]);
     setFeedback('');
+    setSamples({});
+    setDetectedDetailUrl('');
   }, [inspection?.url, isDetail]);
 
   // Synchronize highlights in the iframe when site.selectors change
@@ -224,7 +274,7 @@ export function VisualSitePicker({
 
         for (let node = target; node && node !== doc.body && choices.length < 6; node = node.parentElement) {
           const sel = cleanPart(node);
-          if (!sel || sel === 'div' || sel === 'li' || sel === 'ul' || sel === 'body') continue;
+          if (!sel || sel.length > MAX_SELECTOR_LENGTH || sel === 'div' || sel === 'li' || sel === 'ul' || sel === 'body') continue;
           try {
             const count = doc.querySelectorAll(sel).length;
             if (count >= 1 && count <= 200) {
@@ -309,7 +359,10 @@ export function VisualSitePicker({
         relSelector = selectorFor(target, root);
       }
 
-      if (!relSelector) return;
+      if (!relSelector) {
+        setFeedback('Impossible de créer un chemin suffisamment court pour cet élément. Sélectionne un conteneur voisin ou renseigne le sélecteur à la main.');
+        return;
+      }
 
       const targetSection = isDetail ? 'detail_selectors' : field === 'next' ? 'pagination' : 'selectors';
       const targetKey = field === 'next' ? 'next_selector' : field;
@@ -336,11 +389,7 @@ export function VisualSitePicker({
       setOptions([]);
 
       // Auto-advance to the next field in sequence
-      const nextIdx = SEQUENCE.indexOf(field);
-      if (nextIdx >= 0 && nextIdx < SEQUENCE.length - 1) {
-        const nextId = SEQUENCE[nextIdx + 1];
-        setField(nextId);
-      }
+      advance();
     };
 
     doc.addEventListener('mouseover', hover, true);
@@ -390,7 +439,7 @@ export function VisualSitePicker({
       </div>
 
       {/* Stepper Navigation Pills */}
-      <div className="sh-picker-stepper-bar">
+      <div className="sh-picker-stepper-bar" ref={stepper}>
         {fieldsList.map((item, idx) => {
           const isSelected = field === item.id;
           const selectorVal = isDetail
@@ -399,24 +448,44 @@ export function VisualSitePicker({
             ? site?.pagination?.next_selector
             : site?.selectors?.[item.id];
           const hasVal = Boolean(selectorVal);
+          const absent = (site.absent_fields?.[isDetail ? 'detail_selectors' : item.id === 'next' ? 'pagination' : 'selectors'] || []).includes(item.id === 'next' ? 'next_selector' : item.id);
           const sample = samples[item.id];
 
           return (
             <button
               type="button"
               key={item.id}
+              data-field={item.id}
+              title={`${item.label}${sample ? ` : ${sample}` : ''}`}
+              aria-current={isSelected ? 'step' : undefined}
               className={`sh-picker-pill ${isSelected ? 'active' : ''} ${hasVal ? 'configured' : ''}`}
               onClick={() => {
                 setField(item.id);
                 setOptions([]);
               }}
             >
-              <span className="sh-picker-pill-num">{hasVal ? '✓' : idx + 1}</span>
+              <span className="sh-picker-pill-num">{hasVal ? '✓' : absent ? '—' : idx + 1}</span>
               <span className="sh-picker-pill-name">{item.label}</span>
+              {absent && <span className="sh-picker-pill-sample">Absent</span>}
               {hasVal && sample && <span className="sh-picker-pill-sample">"{sample}"</span>}
             </button>
           );
         })}
+      </div>
+
+      <div className="sh-picker-field-actions">
+        {!currentStep?.required && <button type="button" className="sh-btn-secondary sm" onClick={() => {
+          onAbsent(activeSection, activeKey);
+          setSamples((previous) => ({ ...previous, [field]: '' }));
+          setFeedback(`${currentStep.label} : absent sur cette page. Ce champ ne bloque pas la publication.`);
+          advance();
+        }}>Absent sur cette page</button>}
+        <button type="button" className="sh-btn-secondary sm" onClick={() => {
+          onSelector(activeSection, activeKey, '');
+          setSamples((previous) => ({ ...previous, [field]: '' }));
+          setFeedback(`${currentStep.label} : sélection effacée.`);
+          if (field === 'detail_link') setDetectedDetailUrl('');
+        }}>Effacer la sélection</button>
       </div>
 
       {/* Action / Guidance banner */}

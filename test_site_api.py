@@ -58,6 +58,24 @@ def post(body, admin=False):
 class SharedSiteApiTests(unittest.TestCase):
     def setUp(self): FakeStore.writes = []
 
+    def test_draft_can_be_saved_without_required_selectors(self):
+        raw = sample_site()
+        raw['selectors'] = {}
+        status, payload = post({'action': 'save', 'site': raw})
+        self.assertEqual(status, 200)
+        self.assertFalse(payload['site']['enabled'])
+        status, payload = post({'action': 'preview', 'site': raw})
+        self.assertEqual(status, 400)
+        self.assertEqual(set(payload['field_errors']), {'selectors.card', 'selectors.title'})
+
+    def test_all_selector_errors_are_returned_in_one_response(self):
+        raw = sample_site()
+        raw['detail_selectors'].update({'location': 'div[', 'contract': 'a['})
+        status, payload = post({'action': 'preview', 'site': raw})
+        self.assertEqual(status, 400)
+        self.assertEqual(set(payload['field_errors']), {'detail_selectors.location', 'detail_selectors.contract'})
+        self.assertEqual(FakeStore.writes, [])
+
     def test_personal_toggle_writes_only_owned_profile(self):
         status, payload = post({'action': 'toggle', 'listing_url': 'https://example.org/jobs', 'enabled': False})
         self.assertEqual(status, 200)
