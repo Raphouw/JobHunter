@@ -128,7 +128,11 @@ export function CloudApp() {
   const [scanJobs, setScanJobs] = useState([]);
   const [scanEvents, setScanEvents] = useState([]);
   const [workerReady, setWorkerReady] = useState(false);
-  const [page, setPage] = useState(window.location.pathname.replace(/\/$/, '') === '/design-lab/applications-map-v2' ? 'candidatures' : 'dashboard');
+  const [page, setPage] = useState(() => {
+    if (window.location.pathname.replace(/\/$/, '') === '/design-lab/applications-map-v2') return 'candidatures';
+    const hash = window.location.hash.slice(1);
+    return NAV_ITEMS.some(([id]) => id === hash) || hash === 'sites' ? hash : 'dashboard';
+  });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -156,10 +160,18 @@ export function CloudApp() {
   }, [isOwner]);
 
   useEffect(() => {
-    if (page === 'sites' && !isOwner) {
+    if (session && page === 'sites' && !isOwner) {
       setPage('dashboard');
     }
-  }, [page, isOwner]);
+  }, [page, isOwner, session]);
+
+  useEffect(() => {
+    // Wait for authentication so OAuth callback fragments can be consumed first.
+    if (!authReady || !session) return;
+    const url = new URL(window.location.href);
+    url.hash = page;
+    window.history.replaceState(window.history.state, '', url);
+  }, [page, authReady, session]);
   const [notice, setNotice] = useState('');
   const [newName, setNewName] = useState('');
   const [lastDecision, setLastDecision] = useState(null);
