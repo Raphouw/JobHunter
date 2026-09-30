@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { VisualSitePicker } from './VisualSitePicker';
 import { Icon } from '../components/Common/Icons';
 import './site-reference-list.css';
@@ -54,6 +54,13 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
   const [preview, setPreview] = useState(null);
   const [token, setToken] = useState('');
   const [working, setWorking] = useState(false);
+  const [activationOverrides, setActivationOverrides] = useState({});
+  const activationQueue = useRef(Promise.resolve());
+  const activationVersions = useRef({});
+  const confirmedActivations = useRef({});
+  const activeProfileId = useRef(profile?.id);
+  activeProfileId.current = profile?.id;
+  const siteHost = (url) => new URL(url).hostname.toLowerCase().replace(/^www\./, '');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [inspection, setInspection] = useState(null);
@@ -92,6 +99,9 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
   useEffect(() => {
     setSite(empty());
     setEditingShared(null);
+    setActivationOverrides({});
+    activationVersions.current = {};
+    confirmedActivations.current = {};
     setPreview(null);
     setToken('');
     setInspection(null);
@@ -165,7 +175,43 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
       [section]: [...new Set([...(current.absent_fields?.[section] || []), key])] } }));
   };
 
+  const toggleSite = (nextSite) => {
+    const host = siteHost(nextSite.listing_url);
+    const profileId = profile.id;
+    const version = (activationVersions.current[host] || 0) + 1;
+    activationVersions.current[host] = version;
+    if (!(host in confirmedActivations.current)) confirmedActivations.current[host] = !nextSite.enabled;
+    setActivationOverrides((current) => ({ ...current, [host]: nextSite.enabled }));
+    setError('');
+    // Serialize profile writes so rapid clicks on different sites cannot overwrite one another.
+    activationQueue.current = activationQueue.current.catch(() => {}).then(async () => {
+      if (activeProfileId.current !== profileId) return;
+      try {
+        const response = await fetch('/api/sites', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify({ action: 'toggle', profile_id: profileId, ...nextSite }),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Activation impossible');
+        if (activeProfileId.current !== profileId) return;
+        confirmedActivations.current[host] = nextSite.enabled;
+      } catch (failure) {
+        if (activeProfileId.current !== profileId) return;
+        if (activationVersions.current[host] === version) {
+          setActivationOverrides((current) => ({ ...current, [host]: confirmedActivations.current[host] }));
+        }
+        setError(failure.message);
+        return;
+      }
+      try { await onSaved(); } catch (failure) {
+        if (activeProfileId.current === profileId) setError(failure.message);
+      }
+    });
+  };
+
   const run = async (action, nextSite) => {
+    if (action === 'toggle') return toggleSite(nextSite);
     if (['save', 'preview', 'publish'].includes(action)) {
       const issues = selectorErrors(nextSite, action !== 'save' || Boolean(nextSite.enabled));
       setFieldErrors(issues);
@@ -266,7 +312,8 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
   const mySites = profile?.sources?.sites || [];
   const referenceGroups = new Map();
   const selectedCountries = new Set(profileCountries.map(countryCode));
-  const countrySites = [...references, ...catalog.map((row) => ({ ...row, countries: row.config?.countries || [] }))];
+  const countrySites = [...references, ...catalog.map((row) => ({ ...row, countries: row.config?.countries || [] }))]
+    .map((row) => ({ ...row, enabled: activationOverrides[siteHost(row.listing_url)] ?? row.enabled }));
   countrySites.forEach((row) => {
     const countries = row.countries?.length ? [...new Set(row.countries.map(countryCode))].filter((code) => selectedCountries.has(code)) : [...selectedCountries];
     countries.forEach((code) => {
@@ -281,6 +328,7 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
   const isDisabled = (url) => {
     try {
       const host = new URL(url).hostname.replace(/^www\./, '');
+      if (host in activationOverrides) return !activationOverrides[host];
       return (profile?.sources?.disabled_sites || []).some((entry) => new URL(entry).hostname.replace(/^www\./, '') === host);
     } catch (_) { return false; }
   };
@@ -374,7 +422,7 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
               <div className="sh-reference-list">
             {group.sites.toSorted((a, b) => a.name.localeCompare(b.name, 'fr')).map((row) => (
               <div key={row.listing_url} className={`sh-reference-row ${row.enabled ? '' : 'is-disabled'}`}>
-                <label><input type="checkbox" checked={Boolean(row.enabled)} disabled={busy || working || (row.status && row.status !== 'published')}
+                <label><input type="checkbox" checked={Boolean(row.enabled)} disabled={working || Boolean(row.status && row.status !== 'published')}
                   onChange={(event) => run('toggle', { listing_url: row.listing_url, enabled: event.target.checked })} />
                   <span title={row.name}>{row.name}</span>
                 </label>
@@ -410,7 +458,7 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
                 </span>
               </div>
               <span className="sh-recipe-card-url">{item.listing_url}</span>
-              {item.enabled && <label><input type="checkbox" checked={!isDisabled(item.listing_url)} disabled={busy || working}
+              {item.enabled && <label><input type="checkbox" checked={!isDisabled(item.listing_url)} disabled={working}
                 onChange={(event) => run('toggle', { listing_url: item.listing_url, enabled: event.target.checked })} /> Activer pour moi</label>}
               <button type="button" className="sh-btn-secondary sm" onClick={() => edit(item)}>Modifier</button>
               <button type="button" className="sh-site-edit-icon" disabled={busy || working} title={`Supprimer ${item.name}`} aria-label={`Supprimer ${item.name}`}
