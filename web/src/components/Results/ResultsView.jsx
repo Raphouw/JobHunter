@@ -20,7 +20,6 @@ function scanDate(offer) {
 export function ResultsView({ results = [], profileId, busy = false, onDecide, onRequeue, onCommand, onExport, onTransferCandidature, candidatures = [] }) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('not_applied');
-  const [expandedId, setExpandedId] = useState(null);
   const [drawerOffer, setDrawerOffer] = useState(null);
   const [undoToast, setUndoToast] = useState(null);
   const [pendingId, setPendingId] = useState(null);
@@ -41,7 +40,7 @@ export function ResultsView({ results = [], profileId, busy = false, onDecide, o
     try {
       await onDecide(offer, 'reject');
       setUndoToast({ offer, previousDecision: offer.review_decision || 'keep' });
-      setExpandedId(null);
+
       if (drawerOffer?.id === offer.id) setDrawerOffer(null);
     } catch { setError('Impossible de mettre cette offre à la poubelle. Réessaie.'); }
     finally { setPendingId(null); }
@@ -65,7 +64,7 @@ export function ResultsView({ results = [], profileId, busy = false, onDecide, o
     <div className="so-toolbar">
       <div className="so-tabs" aria-label="Statut des candidatures">
         {[['not_applied', 'À postuler', offers.length - appliedCount], ['applied', 'Déjà postulé', appliedCount]].map(([id, label, count]) =>
-          <button key={id} aria-pressed={filter === id} className={filter === id ? 'active' : ''} onClick={() => { setFilter(id); setExpandedId(null); }}>{label}<span>{count}</span></button>)}
+          <button key={id} aria-pressed={filter === id} className={filter === id ? 'active' : ''} onClick={() => { setFilter(id); }}>{label}<span>{count}</span></button>)}
       </div>
       <label className="so-search"><Icon name="search" size={17} /><input aria-label="Rechercher une offre" placeholder="Métier, entreprise, compétence…" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
     </div>
@@ -73,13 +72,12 @@ export function ResultsView({ results = [], profileId, busy = false, onDecide, o
     {error && <p role="alert" className="so-error">{error}</p>}
     <div className="so-grid">
       {visible.map((offer) => {
-        const expanded = expandedId === offer.id;
         const { strong, checks } = offerInsights(offer);
         const skills = offerSkills(offer).slice(0, 3);
         const score = Math.max(0, Math.min(100, Math.round(Number(offer.score) || 0)));
         const disabled = busy || pendingId !== null;
-        return <article key={offer.id} className={`so-card ${expanded ? 'is-expanded' : ''} ${offer._candidature ? 'is-applied' : ''}`}>
-          <button className="so-card-toggle" aria-expanded={expanded} aria-controls={`offer-actions-${offer.id}`} aria-label={`${expanded ? 'Masquer' : 'Afficher'} les actions pour ${offer.title || 'cette offre'}`} onClick={() => setExpandedId(expanded ? null : offer.id)} />
+        return <article key={offer.id} className={`so-card ${offer._candidature ? 'is-applied' : ''}`}>
+          <button className="so-card-toggle" aria-haspopup="dialog" aria-label={`Afficher la description de ${offer.title || 'cette offre'}`} onClick={() => setDrawerOffer(offer)} />
           <div className="so-card-top">
             <div className="so-identity"><h2>{offer.title || 'Offre sans titre'}</h2><p className="so-company">{offer.company || 'Entreprise non précisée'} · {[offer.location || offer.canton, offer.country].filter(Boolean).join(' · ') || 'Lieu non précisé'}</p><p className="so-contract">{[offer.contract_type, offer.duration].filter(Boolean).join(' · ') || 'Contrat et durée à confirmer'}</p></div>
             <div className={`so-score ${score >= 70 ? 'high' : ''}`}><strong>{score}<small>%</small></strong><span>Match profil</span></div>
@@ -89,10 +87,7 @@ export function ResultsView({ results = [], profileId, busy = false, onDecide, o
             {strong.length ? <ul>{strong.slice(0, 3).map((line, index) => <li key={index}><Icon name="check" size={14} /><span>{line}</span></li>)}</ul> : <p>Les points de correspondance ne sont pas encore disponibles.</p>}
             {checks.length > 0 && <p className="so-check">À vérifier : {checks[0]}</p>}
           </div>
-          <div className="so-reveal"><div id={`offer-actions-${offer.id}`} className="so-reveal-inner" inert={!expanded}>
-            <button className="so-description" onClick={() => setDrawerOffer(offer)}><Icon name="fileText" size={16} /> Afficher la description</button>
-            {onDecide && <button className="so-trash" disabled={disabled} onClick={() => reject(offer)}><Icon name="trash" size={16} /> Poubelle</button>}
-          </div></div>
+          {onDecide && <button className="so-trash so-hover-trash" aria-label={`Mettre ${offer.title || 'cette offre'} à la poubelle`} title="Mettre à la poubelle" disabled={disabled} onClick={() => reject(offer)}><Icon name="trash" size={16} /></button>}
           <footer className="so-footer"><div className="so-footer-actions">
             {onTransferCandidature && <button className="so-apply" disabled={disabled || Boolean(offer._candidature)} onClick={() => onTransferCandidature(offer)}>{offer._candidature ? 'Déjà postulé' : 'Postuler'}<Icon name={offer._candidature ? 'check' : 'external'} size={13} /></button>}
             {offer.url && <a href={offer.url} target="_blank" rel="noopener noreferrer">Site <Icon name="external" size={12} /></a>}
