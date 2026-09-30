@@ -61,7 +61,7 @@ def reference_sites(profile):
         elif key not in selected:
             continue
         for url in pack.get('fixed_urls') or []:
-            result.setdefault(source_key(url), {'name': urlsplit(url).netloc.removeprefix('www.'),
+            result.setdefault(url, {'name': urlsplit(url).netloc.removeprefix('www.'),
                               'listing_url': url, 'countries': pack.get('countries') or [],
                               'enabled': not source_disabled(url, profile)})
     return list(result.values())

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { VisualSitePicker } from './VisualSitePicker';
 import { Icon } from '../components/Common/Icons';
+import './site-reference-list.css';
 
 const fields = ['detail_link', 'title', 'company', 'location', 'contract', 'date', 'description', 'application_link', 'salary', 'work_time', 'experience', 'sector', 'education'];
 const labels = ['Lien de détail *', 'Titre *', 'Entreprise', 'Lieu', 'Contrat', 'Date', 'Description', 'Lien de candidature', 'Rémunération', 'Temps partiel / temps plein', 'Expérience demandée', 'Secteur d’activité', 'Diplôme demandé'];
@@ -201,6 +202,19 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
   };
 
   const mySites = profile?.sources?.sites || [];
+  const referenceGroups = new Map();
+  const selectedCountries = new Set(profileCountries.map(countryCode));
+  references.forEach((row) => {
+    const countries = row.countries?.length ? [...new Set(row.countries.map(countryCode))].filter((code) => selectedCountries.has(code)) : ['all'];
+    countries.forEach((code) => {
+      if (!referenceGroups.has(code)) referenceGroups.set(code, {
+        code, label: code === 'all' ? 'Tous les pays' : countryOptions.find(([key]) => key === code)?.[1] || code, sites: [],
+      });
+      referenceGroups.get(code).sites.push(row);
+    });
+  });
+  const sortedReferenceGroups = [...referenceGroups.values()].sort((a, b) =>
+    a.code === b.code ? 0 : a.code === 'all' ? 1 : b.code === 'all' ? -1 : a.label.localeCompare(b.label, 'fr'));
   const isDisabled = (url) => {
     try {
       const host = new URL(url).hostname.replace(/^www\./, '');
@@ -288,16 +302,22 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
         <div className="sh-catalog-box">
           <h4>Sites de référence pour les pays du profil</h4>
           <p>{(profile?.location?.countries || []).join(', ') || 'Configure les pays de recherche dans ton profil.'} · Chaque activation est propre à ce profil.</p>
-          <div className="sh-site-recipe-cards">
-            {references.map((row) => (
-              <div key={row.listing_url} className="sh-recipe-card">
-                <strong>{row.name}</strong>
-                <span className="sh-recipe-card-url">{row.listing_url}</span>
+          {sortedReferenceGroups.map((group) => (
+            <section key={group.code} className="sh-reference-country" aria-label={`Sites de référence : ${group.label}`}>
+              <h5>{group.label} · {group.sites.length} site{group.sites.length > 1 ? 's' : ''}</h5>
+              <div className="sh-reference-list">
+            {group.sites.toSorted((a, b) => a.name.localeCompare(b.name, 'fr')).map((row) => (
+              <div key={row.listing_url} className={`sh-reference-row ${row.enabled ? '' : 'is-disabled'}`}>
                 <label><input type="checkbox" checked={row.enabled} disabled={busy || working}
-                  onChange={(event) => run('toggle', { listing_url: row.listing_url, enabled: event.target.checked })} /> Activer pour moi</label>
+                  onChange={(event) => run('toggle', { listing_url: row.listing_url, enabled: event.target.checked })} />
+                  <span>{row.name}</span>
+                </label>
+                <a href={row.listing_url} target="_blank" rel="noreferrer" title={row.listing_url} aria-label={`Ouvrir ${row.name}`}><Icon name="external" size={14} /></a>
               </div>
             ))}
-          </div>
+              </div>
+            </section>
+          ))}
         </div>
 
         <div className="sh-site-recipe-cards">
