@@ -1,4 +1,7 @@
-import editor from './editor.html?raw';
+import rawEditor from './editor.html?raw';
+import { cvVectorBridge } from './cvVectorBridge';
+const headEnd = rawEditor.lastIndexOf('</head>');
+const editor = rawEditor.slice(0, headEnd) + cvVectorBridge + rawEditor.slice(headEnd);
 
 // Opaque-origin sandbox: the editor never receives the account token or access to the host DOM.
 const bridge = `<script>
@@ -26,6 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   const originalRecord = AppState.recordState.bind(AppState);
   AppState.recordState = () => {
+    CVIcons.upgrade(document.body);
     originalRecord();
     if (!loading) send('change', {data:JSON.parse(editorStorage.getItem('cv-data-v17'))});
   };
@@ -44,6 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
         clearTimeout(AppState.timeout);
         window.cvDocumentTitle = message.title;
         if (message.data) AppState.load(JSON.stringify(message.data));
+        CVIcons.upgrade(document.body);
         originalRecord();
         loading = false;
         send('initialized', {data:JSON.parse(editorStorage.getItem('cv-data-v17'))});

@@ -413,7 +413,7 @@ export function CloudApp() {
       payload.status_history = [{
         date: `${day}/${month}/${year} ${hours}:${minutes}`,
         status: data.status || 'Demande initiale',
-        text: `[${day}/${month}/${year} ${hours}:${minutes}] 🔄 Statut initial : ${data.status || 'Demande initiale'}`,
+        text: `[${day}/${month}/${year} ${hours}:${minutes}] Statut initial : ${data.status || 'Demande initiale'}`,
       }];
       payload.notes = [];
     }
@@ -437,7 +437,7 @@ export function CloudApp() {
     const hours = String(now.getHours()).padStart(2, '0');
     const minutes = String(now.getMinutes()).padStart(2, '0');
     const timestamp = `[${day}/${month}/${year} ${hours}:${minutes}]`;
-    const autoNote = `${timestamp} 🔄 Statut passé à : ${newStatus}`;
+    const autoNote = `${timestamp} Statut passé à : ${newStatus}`;
 
     setCandidatures((prev) => {
       const next = prev.map((c) => {
@@ -693,7 +693,7 @@ export function CloudApp() {
               ))}
             </nav>
             <div className="sh-sidebar-bottom">
-              <div className="sh-promo-card"><div className="sh-promo-star">✦</div>
+              <div className="sh-promo-card"><div className="sh-promo-star"><Icon name="spark" size={20} /></div>
                 <strong>Dating App Mode</strong><p>Glisse, découvre et sauvegarde les offres adaptées à ton profil.</p>
                 <button className="sh-promo-btn" onClick={() => goToPage('swipe')}>
                   <span>Ouvrir le Swiper</span><Icon name="arrow" size={14} /></button>

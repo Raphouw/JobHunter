@@ -9,6 +9,8 @@
     "build:cloud": "vite build --mode cloud --outDir dist-cloud"
   },
   "dependencies": {
+    "@fortawesome/free-brands-svg-icons": "^7.3.1",
+    "@fortawesome/free-solid-svg-icons": "^7.3.1",
     "@supabase/supabase-js": "^2.117.1",
     "framer-motion": "^13.4.3",
     "react": "^19.2.0",

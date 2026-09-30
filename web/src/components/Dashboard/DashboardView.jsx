@@ -99,7 +99,7 @@ export function DashboardView({ profile = {}, stats = {}, scan = {}, featuredOff
             <span className="sh-hero-dot" />
           </div>
           <h1>
-            Bonjour {firstName} <span className="sh-wave">✦</span>
+            Bonjour {firstName} <span className="sh-wave"><Icon name="spark" size={20} /></span>
           </h1>
           <p>
             {stats.pending > 0
@@ -131,7 +131,7 @@ export function DashboardView({ profile = {}, stats = {}, scan = {}, featuredOff
             <div className="sh-hero-card card-3" />
             <div className="sh-hero-card card-2" />
             <div className="sh-hero-card card-1">
-              <span className="sh-hero-badge">✦ MATCH {featuredOffer ? `${Math.round(Number(featuredOffer.score) || 0)}%` : '96%'}</span>
+              <span className="sh-hero-badge"><Icon name="target" size={14} /> MATCH {featuredOffer ? `${Math.round(Number(featuredOffer.score) || 0)}%` : '96%'}</span>
               <strong>{featuredOffer?.title || heroJobTitle}</strong>
               <small>{featuredOffer ? `${featuredOffer.company || 'Entreprise'} · ${featuredOffer.location || 'Lieu à confirmer'}` : heroSubtitle}</small>
             </div>

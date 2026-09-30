@@ -1,3 +1,5 @@
+import { IconText } from '../Common/IconText';
+import { CountryFlag } from '../Common/CountryFlag';
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Icon } from '../Common/Icons';
 import {
@@ -388,7 +390,7 @@ export function CandidaturesView({
       const data = await res.json();
       setGmailScanResults(data);
       if (data.updates && data.updates.length > 0) {
-        setGmailNotice(`🎉 ${data.updates.length} correspondance(s) détectée(s) dans tes emails !`);
+        setGmailNotice(`${data.updates.length} correspondance(s) détectée(s) dans tes emails !`);
       } else {
         setGmailNotice(`${data.scannedCount || 0} emails récents analysés. Aucun changement détecté.`);
       }
@@ -406,7 +408,7 @@ export function CandidaturesView({
       onAddNote(update.candidatureId, {
         id: `gmail_${Date.now()}`,
         date: new Date().toLocaleDateString('fr-FR'),
-        text: `📬 Email détecté : "${update.emailSubject}" de ${update.emailFrom} -> Statut passé à ${update.detectedStatus}`,
+        text: `Email détecté : "${update.emailSubject}" de ${update.emailFrom} -> Statut passé à ${update.detectedStatus}`,
       });
     }
     setGmailScanResults((prev) => ({
@@ -477,7 +479,7 @@ export function CandidaturesView({
       {/* ── STATS FUNNEL CARDS (LIGHT THEME) ── */}
       <div className="cand-funnel-grid">
         <div className="cand-stat-card">
-          <div className="cand-stat-icon purple">📬</div>
+          <div className="cand-stat-icon purple"><Icon name="send" size={22} /></div>
           <div>
             <span className="cand-stat-val">{funnel.total}</span>
             <span className="cand-stat-label">Candidatures envoyées</span>
@@ -485,7 +487,7 @@ export function CandidaturesView({
         </div>
 
         <div className="cand-stat-card">
-          <div className="cand-stat-icon blue">💬</div>
+          <div className="cand-stat-icon blue"><Icon name="message" size={22} /></div>
           <div>
             <span className="cand-stat-val">{funnel.replies}</span>
             <span className="cand-stat-label">
@@ -495,7 +497,7 @@ export function CandidaturesView({
         </div>
 
         <div className="cand-stat-card">
-          <div className="cand-stat-icon emerald">🎯</div>
+          <div className="cand-stat-icon emerald"><Icon name="target" size={22} /></div>
           <div>
             <span className="cand-stat-val">{funnel.interviews}</span>
             <span className="cand-stat-label">Entretiens planifiés</span>
@@ -503,7 +505,7 @@ export function CandidaturesView({
         </div>
 
         <div className="cand-stat-card">
-          <div className="cand-stat-icon gold">🏆</div>
+          <div className="cand-stat-icon gold"><Icon name="handshake" size={22} /></div>
           <div>
             <span className="cand-stat-val">{funnel.offers}</span>
             <span className="cand-stat-label">Offres & Validations</span>
@@ -516,7 +518,7 @@ export function CandidaturesView({
             onClick={() => setFilterStatus(filterStatus === 'urgent' ? 'all' : 'urgent')}
             title="Cliquer pour filtrer les candidatures en attente depuis plus de 10 jours"
           >
-            <div className="cand-stat-icon red">🚨</div>
+            <div className="cand-stat-icon red"><Icon name="alert" size={22} /></div>
             <div>
               <span className="cand-stat-val text-red">{funnel.urgentCount}</span>
               <span className="cand-stat-label text-red">À relancer (&gt; 10j)</span>
@@ -539,7 +541,7 @@ export function CandidaturesView({
                 className={`cand-country-tab ${isSelected ? 'active' : ''}`}
                 onClick={() => handleSelectCountry(c.code)}
               >
-                <span className="cand-tab-flag">{c.flag}</span>
+                <span className="cand-tab-flag"><CountryFlag code={c.code} /></span>
                 <span className="cand-tab-name">{c.name}</span>
                 <span className={`cand-tab-badge ${count > 0 ? 'has-cand' : ''}`}>{count}</span>
               </button>
@@ -576,31 +578,31 @@ export function CandidaturesView({
             className={`cand-pill urgent ${filterStatus === 'urgent' ? 'active' : ''}`}
             onClick={() => setFilterStatus('urgent')}
           >
-            🚨 À relancer ({funnel.urgentCount})
+            <Icon name="alert" size={14} /> À relancer ({funnel.urgentCount})
           </button>
           <button
             className={`cand-pill ${filterStatus === 'envoi' ? 'active' : ''}`}
             onClick={() => setFilterStatus('envoi')}
           >
-            ✉️ Envoyés ({enrichedCandidatures.filter((c) => String(c.status || '').includes('initiale') || String(c.status || '').includes('envoy') || !c.status).length})
+            <Icon name="send" size={14} /> Envoyés ({enrichedCandidatures.filter((c) => String(c.status || '').includes('initiale') || String(c.status || '').includes('envoy') || !c.status).length})
           </button>
           <button
             className={`cand-pill ${filterStatus === 'entretien' ? 'active' : ''}`}
             onClick={() => setFilterStatus('entretien')}
           >
-            💬 Entretiens ({funnel.interviews})
+            <Icon name="message" size={14} /> Entretiens ({funnel.interviews})
           </button>
           <button
             className={`cand-pill ${filterStatus === 'valide' ? 'active' : ''}`}
             onClick={() => setFilterStatus('valide')}
           >
-            ✅ Validés ({funnel.offers})
+            <Icon name="success" size={14} /> Validés ({funnel.offers})
           </button>
           <button
             className={`cand-pill ${filterStatus === 'refus' ? 'active' : ''}`}
             onClick={() => setFilterStatus('refus')}
           >
-            ❌ Refus ({enrichedCandidatures.filter((c) => String(c.status || '').includes('refus')).length})
+            <Icon name="reject" size={14} /> Refus ({enrichedCandidatures.filter((c) => String(c.status || '').includes('refus')).length})
           </button>
         </div>
 
@@ -609,9 +611,9 @@ export function CandidaturesView({
           value={sortOrder}
           onChange={(e) => setSortOrder(e.target.value)}
         >
-          <option value="recent">⏱️ Plus récentes</option>
-          <option value="note">⭐ Mieux notées</option>
-          <option value="urgent">⏳ Plus longue attente</option>
+          <option value="recent">Plus récentes</option>
+          <option value="note">Mieux notées</option>
+          <option value="urgent">Plus longue attente</option>
         </select>
       </div>
 
@@ -622,7 +624,7 @@ export function CandidaturesView({
           <div className="cand-map-card-header">
             <div className="cand-map-title">
               <strong>
-                {COUNTRIES.find((c) => c.code === selectedCountry)?.flag}{' '}
+                <CountryFlag code={selectedCountry} />{' '}
                 {COUNTRIES.find((c) => c.code === selectedCountry)?.name}
               </strong>
               <small>
@@ -716,7 +718,7 @@ export function CandidaturesView({
                             visible: true,
                             x: rect.left + rect.width / 2,
                             y: rect.top - 12,
-                            title: `${reg.flag} ${reg.name} (${reg.code})`,
+                            title: `${reg.name} (${reg.code})`,
                             subtitle: `${count} candidature${count > 1 ? 's' : ''}`,
                           });
                         }}
@@ -770,7 +772,7 @@ export function CandidaturesView({
                             visible: true,
                             x: rect.left + rect.width / 2,
                             y: rect.top - 16,
-                            title: `📍 ${pin.name} (${pin.count})`,
+                            title: `${pin.name} (${pin.count})`,
                             subtitle: compNames + (pin.items.length > 3 ? '…' : ''),
                           });
                         }}
@@ -829,11 +831,7 @@ export function CandidaturesView({
           <div className="cand-list-header">
             <div>
               <h3>
-                {selectedCountry === 'ALL'
-                  ? '🌍 Toute l’Europe'
-                  : `${COUNTRIES.find((c) => c.code === selectedCountry)?.flag} ${
-                      COUNTRIES.find((c) => c.code === selectedCountry)?.name
-                    }`}
+                <CountryFlag code={selectedCountry} /> {selectedCountry === 'ALL' ? 'Toute l’Europe' : COUNTRIES.find((c) => c.code === selectedCountry)?.name}
                 {activeRegionCode && <span className="cand-active-subfilter"> › Région {activeRegionCode}</span>}
                 {activeCityKey && <span className="cand-active-subfilter"> › {activeCityKey.split('---')[1]}</span>}
               </h3>
@@ -865,7 +863,7 @@ export function CandidaturesView({
           {urgentList.length > 0 && filterStatus !== 'urgent' && (
             <div className="cand-urgent-box">
               <div className="cand-urgent-head">
-                <span className="urgent-badge">🚨 ACTIONS REQUISES ({urgentList.length})</span>
+                <span className="urgent-badge"><Icon name="alert" size={14} /> ACTIONS REQUISES ({urgentList.length})</span>
                 <small>Plus de 10 jours sans réponse</small>
               </div>
               <div className="cand-urgent-items">
@@ -882,7 +880,7 @@ export function CandidaturesView({
                         href={`mailto:${u.contact_email}?subject=Relance candidature - ${encodeURIComponent(u.company)}`}
                         className="cand-urgent-action-btn"
                       >
-                        Relancer ✉️
+                        <Icon name="mail" size={14} /> Relancer
                       </a>
                     ) : (
                       <a
@@ -891,7 +889,7 @@ export function CandidaturesView({
                         rel="noopener noreferrer"
                         className="cand-urgent-action-btn linkedin"
                       >
-                        LinkedIn 💼
+                        <Icon name="linkedin" size={14} /> LinkedIn
                       </a>
                     )}
                   </div>
@@ -916,7 +914,7 @@ export function CandidaturesView({
             </div>
           ) : (
             <div className="cand-empty-card">
-              <span className="cand-empty-icon">📍</span>
+              <span className="cand-empty-icon"><Icon name="pin" size={28} /></span>
               <h4>Aucune candidature dans cette sélection</h4>
               <p>
                 Déplace-toi sur un autre pays ou clique sur le bouton pour enregistrer une nouvelle démarche.
@@ -929,7 +927,7 @@ export function CandidaturesView({
                   setShowAddModal(true);
                 }}
               >
-                ➕ Ajouter une candidature
+                <Icon name="plus" size={16} /> Ajouter une candidature
               </button>
             </div>
           )}
@@ -1003,7 +1001,7 @@ export function CandidaturesView({
           <div className="sh-modal-card gmail-scan-modal" onClick={(e) => e.stopPropagation()}>
             <div className="sh-modal-header">
               <div className="sh-modal-title">
-                <span className="sh-modal-icon">📬</span>
+                <span className="sh-modal-icon"><Icon name="inbox" size={22} /></span>
                 <div>
                   <h3>Synchronisation Gmail</h3>
                   <p>Détection intelligente des réponses RH et invitations d'entretien</p>
@@ -1050,7 +1048,7 @@ export function CandidaturesView({
                               className="sh-btn-primary sm"
                               onClick={() => applyGmailUpdate(upd)}
                             >
-                              Appliquer ✓
+                              <Icon name="check" size={14} /> Appliquer
                             </button>
                           </div>
                         </div>
@@ -1128,13 +1126,7 @@ function CandidatureCardNative({ candidature, onEdit, onStatusChange, onAddNote,
             <h4 className="cand-card-title">{candidature.company}</h4>
             <div className="cand-card-geo-tags">
               <span className="cand-tag country-tag">
-                {candidature._country === 'CH' ? '🇨🇭 CH' :
-                 candidature._country === 'FR' ? '🇫🇷 FR' :
-                 candidature._country === 'DE' ? '🇩🇪 DE' :
-                 candidature._country === 'BE' ? '🇧🇪 BE' :
-                 candidature._country === 'LU' ? '🇱🇺 LU' :
-                 candidature._country === 'IT' ? '🇮🇹 IT' :
-                 candidature._country === 'ES' ? '🇪🇸 ES' : '🇪🇺'} {candidature._region}
+                <CountryFlag code={candidature._country || "EU"} size={16} /> {candidature._country} {candidature._region}
               </span>
               {candidature.location && (
                 <span className="cand-tag city-tag">
@@ -1152,7 +1144,7 @@ function CandidatureCardNative({ candidature, onEdit, onStatusChange, onAddNote,
           <span className={`cand-status-pill ${badgeClass}`}>{status}</span>
           {candidature.rating > 0 && (
             <span className="cand-score-pill">
-              ⭐ {candidature.rating}/10
+              <Icon name="star" size={12} /> {candidature.rating}/10
             </span>
           )}
         </div>
@@ -1181,7 +1173,7 @@ function CandidatureCardNative({ candidature, onEdit, onStatusChange, onAddNote,
       {/* Waiting Days Alert */}
       <div className="cand-waiting-row">
         <span className={`cand-waiting-badge ${isUrgent ? 'urgent' : ''}`}>
-          ⏱️ {candidature._waitingDays === 0 ? "Envoyé aujourd'hui" : `Il y a ${candidature._waitingDays} jour${candidature._waitingDays > 1 ? 's' : ''}`}
+          <Icon name="clock" size={13} /> {candidature._waitingDays === 0 ? "Envoyé aujourd'hui" : `Il y a ${candidature._waitingDays} jour${candidature._waitingDays > 1 ? 's' : ''}`}
           {isUrgent && ' — Relance recommandée !'}
         </span>
       </div>
@@ -1236,7 +1228,7 @@ function CandidatureCardNative({ candidature, onEdit, onStatusChange, onAddNote,
             onClick={copyCompanyName}
             title="Copier le nom"
           >
-            {copied ? '✓ Copié' : '📋 Copier'}
+            <Icon name={copied ? "check" : "clipboard"} size={14} /> {copied ? 'Copié' : 'Copier'}
           </button>
 
           <a
@@ -1246,7 +1238,7 @@ function CandidatureCardNative({ candidature, onEdit, onStatusChange, onAddNote,
             className="cand-tool-btn"
             title="Chercher sur LinkedIn"
           >
-            💼 LinkedIn
+            <Icon name="linkedin" size={14} /> LinkedIn
           </a>
 
           {candidature.contact_email && (
@@ -1255,7 +1247,7 @@ function CandidatureCardNative({ candidature, onEdit, onStatusChange, onAddNote,
               className="cand-tool-btn email"
               title="Envoyer un email"
             >
-              ✉️ Email
+              <Icon name="mail" size={14} /> Email
             </a>
           )}
 
@@ -1265,7 +1257,7 @@ function CandidatureCardNative({ candidature, onEdit, onStatusChange, onAddNote,
             onClick={onAddNote}
             title="Ajouter un mémo Post-it"
           >
-            📝 Mémo
+            <Icon name="note" size={14} /> Mémo
           </button>
 
           <button
@@ -1281,8 +1273,9 @@ function CandidatureCardNative({ candidature, onEdit, onStatusChange, onAddNote,
             className="cand-tool-btn delete"
             onClick={onDelete}
             title="Supprimer la candidature"
+            aria-label="Supprimer la candidature"
           >
-            🗑️
+            <Icon name="trash" size={14} />
           </button>
         </div>
       </div>
@@ -1293,7 +1286,7 @@ function CandidatureCardNative({ candidature, onEdit, onStatusChange, onAddNote,
           {/* Post-it Notes Section */}
           <div className="cand-drawer-notes">
             <div className="drawer-header">
-              <h5>📝 Mémos Post-it ({(candidature.notes || []).length})</h5>
+              <h5><Icon name="note" size={14} /> Mémos Post-it ({(candidature.notes || []).length})</h5>
               <button type="button" className="drawer-add-note-btn" onClick={onAddNote}>
                 + Nouveau mémo
               </button>
@@ -1304,7 +1297,7 @@ function CandidatureCardNative({ candidature, onEdit, onStatusChange, onAddNote,
                 {candidature.notes.map((n, idx) => (
                   <div key={idx} className="cand-postit-card">
                     <span className="postit-date">{n.date || 'Mémo'}</span>
-                    <p className="postit-text">{n.text || n}</p>
+                    <p className="postit-text"><IconText>{n.text || n}</IconText></p>
                   </div>
                 ))}
               </div>
@@ -1316,14 +1309,14 @@ function CandidatureCardNative({ candidature, onEdit, onStatusChange, onAddNote,
           {/* Status History Timeline */}
           {(candidature.status_history || []).length > 0 && (
             <div className="cand-drawer-history">
-              <h5>⏱️ Historique des statuts</h5>
+              <h5><Icon name="clock" size={14} /> Historique des statuts</h5>
               <div className="cand-history-track">
                 {candidature.status_history.map((sh, idx) => (
                   <div key={idx} className="cand-history-item">
                     <div className="cand-history-item-dot" />
                     <div>
                       <span className="cand-history-item-date">{sh.date || 'Date'}</span>
-                      <p className="cand-history-item-text">{sh.text || sh.status}</p>
+                      <p className="cand-history-item-text"><IconText>{sh.text || sh.status}</IconText></p>
                     </div>
                   </div>
                 ))}

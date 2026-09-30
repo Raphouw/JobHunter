@@ -653,7 +653,7 @@ def run_scheduler_command(profile_path: Path, command: str, at: str = "07:00", f
     return result.returncode == 0, (result.stdout + "\n" + result.stderr).strip()
 
 
-st.set_page_config(page_title=f"{hunter.PRODUCT_NAME} V{hunter.VERSION}", page_icon="🎯", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title=f"{hunter.PRODUCT_NAME} V{hunter.VERSION}", page_icon=str(ROOT / "web" / "public" / "job-hunter.svg"), layout="wide", initial_sidebar_state="expanded")
 st.markdown(
     """
     <style>
@@ -720,7 +720,7 @@ if not files:
     files = profile_files()
 
 labels = {path: load_yaml(path).get("name", path.stem) for path in files}
-st.sidebar.markdown(f"## 🎯 {hunter.PRODUCT_NAME}")
+st.sidebar.markdown(f"## {hunter.PRODUCT_NAME}")
 st.sidebar.caption("V6.2.7 · exploration exhaustive stable")
 requested_profile = str(st.query_params.get("profile", "") or "").strip()
 preferred_path = st.session_state.get("preferred_profile_path")
@@ -749,7 +749,7 @@ with st.sidebar.expander("＋ Créer un profil"):
             st.query_params["profile"] = destination.stem
             st.rerun()
 
-with st.sidebar.expander("🗑️ Supprimer un profil"):
+with st.sidebar.expander("Supprimer un profil"):
     st.caption("Le profil disparaîtra de l’interface, mais ses résultats locaux, ses identifiants Google et son Sheet ne seront pas supprimés.")
     can_delete = len(files) > 1
     if not can_delete:
@@ -785,7 +785,7 @@ st.markdown(
 )
 
 dashboard_tab, tinder_tab, profile_tab, search_tab, diagnostic_tab, connections_tab, automation_tab, results_tab = st.tabs(
-    ["🚀 Vue d’ensemble", "🔥 Tinder", "👤 Profil", "🔎 Recherche", "🩺 Diagnostic", "🔌 Connexions", "⏱ Automatisation", "📊 Résultats"]
+    ["Vue d’ensemble", "Tinder", "Profil", "Recherche", "Diagnostic", "Connexions", "Automatisation", "Résultats"]
 )
 
 with dashboard_tab:
@@ -793,7 +793,7 @@ with dashboard_tab:
     if scan_flash:
         st.success(scan_flash)
     if st.session_state.get("profile_onboarding") == str(selected):
-        st.success("Profil créé 🎉 Commence par renseigner ses métiers et compétences, puis ouvre Connexions pour créer son Google Sheet.")
+        st.success("Profil créé Commence par renseigner ses métiers et compétences, puis ouvre Connexions pour créer son Google Sheet.")
         st.session_state.pop("profile_onboarding", None)
     frame = read_results(profile)
     current_review_stats = review_stats(profile)
@@ -804,7 +804,7 @@ with dashboard_tab:
     col4.metric("Score ≥ 70", int((frame["score"] >= 70).sum()) if not frame.empty else 0)
     col5.metric("Sources actives", frame["source"].nunique() if not frame.empty else 0)
     if current_review_stats["pending"]:
-        st.info(f"🔥 {current_review_stats['pending']} nouvelle(s) offre(s) attendent ton tri dans Tinder des offres.")
+        st.info(f"{current_review_stats['pending']} nouvelle(s) offre(s) attendent ton tri dans Tinder des offres.")
     diagnostics = read_diagnostics(profile)
     if diagnostics:
         with st.expander("Diagnostic du dernier scan"):
@@ -834,7 +834,7 @@ with dashboard_tab:
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 )
     if not google_cfg.get("sheets_enabled"):
-        st.info("💡 Ce profil fonctionne en local. Pour retrouver et trier les offres à plusieurs endroits, tu peux créer automatiquement son Google Sheet dans l’onglet Connexions.")
+        st.info("Ce profil fonctionne en local. Pour retrouver et trier les offres à plusieurs endroits, tu peux créer automatiquement son Google Sheet dans l’onglet Connexions.")
 
     st.markdown("### Nouveau scan")
     st.markdown('<p class="section-note">Choisis la profondeur. Exhaustif 1h explore toutes les variantes métier × compétence × contrat et ne coupe pas le web après une sonde vide.</p>', unsafe_allow_html=True)
@@ -850,8 +850,8 @@ with dashboard_tab:
     saved_overrides = ((profile.get("search") or {}).get("mode_overrides") or {}).get(mode.lower(), {})
     settings.update({key: str(value) for key, value in saved_overrides.items() if key in settings})
     if mode == "Exhaustif 1h":
-        st.info(f"🔭 Scan de fond ponctuel : jusqu’à {settings['SEARCH_QUERY_BUDGET']} requêtes ciblées, {settings['MAX_TOTAL_DETAIL_PAGES']} pages candidates téléchargées après la découverte, {settings['MAX_RECURSIVE_LEADS']} fiches récursives au maximum et arrêt avant {int(settings['SCAN_TIME_BUDGET_SECONDS'])//60} minutes pour conserver le temps d’exporter les résultats.")
-    with st.expander("⚙️ Régler l’effort et le parallélisme", expanded=False):
+        st.info(f"Scan de fond ponctuel : jusqu’à {settings['SEARCH_QUERY_BUDGET']} requêtes ciblées, {settings['MAX_TOTAL_DETAIL_PAGES']} pages candidates téléchargées après la découverte, {settings['MAX_RECURSIVE_LEADS']} fiches récursives au maximum et arrêt avant {int(settings['SCAN_TIME_BUDGET_SECONDS'])//60} minutes pour conserver le temps d’exporter les résultats.")
+    with st.expander("Régler l’effort et le parallélisme", expanded=False):
         st.caption("Plus de workers réduit la durée, mais une valeur très élevée peut provoquer des limitations temporaires des moteurs.")
         a1, a2, a3 = st.columns(3)
         settings["SEARCH_QUERY_BUDGET"] = str(a1.slider("Requêtes ciblées", 10, 300, int(settings["SEARCH_QUERY_BUDGET"]), 5))
@@ -924,7 +924,7 @@ with tinder_tab:
     if tinder_flash:
         st.success(tinder_flash)
     stats = review_stats(profile)
-    st.markdown("### 🔥 Tinder des offres")
+    st.markdown("### Tinder des offres")
     st.markdown('<p class="section-note">Les décisions sont sauvegardées immédiatement dans la base locale du profil. Rien n’est envoyé au Sheet avant validation.</p>', unsafe_allow_html=True)
     r1, r2, r3, r4 = st.columns(4)
     r1.metric("À examiner", stats["pending"])
@@ -940,7 +940,7 @@ with tinder_tab:
     )
 
     learning_enabled, learning_reset_at = learning_settings(profile)
-    with st.expander("🧠 Apprentissage à partir de mes choix", expanded=False):
+    with st.expander("Apprentissage à partir de mes choix", expanded=False):
         st.caption("Le prochain scan ajuste légèrement les scores selon les thèmes que tu gardes ou rejettes. L’ajustement est plafonné à ±12 points et reste visible dans les raisons du score.")
         new_learning_enabled = st.toggle("Activer l’apprentissage Tinder", value=learning_enabled)
         if new_learning_enabled != learning_enabled:
@@ -967,29 +967,29 @@ with tinder_tab:
 
         with st.expander("Le swipe ne répond pas ? Afficher les boutons de secours"):
             f1, f2, f3 = st.columns(3)
-            if f1.button("❌ Supprimer", width="stretch", key=f"reject-{offer['id']}"):
+            if f1.button("Supprimer", width="stretch", key=f"reject-{offer['id']}"):
                 save_review_decision(profile, int(offer["id"]), "reject");st.rerun()
-            if f2.button("🤔 Je ne sais pas", width="stretch", key=f"unsure-{offer['id']}"):
+            if f2.button("Je ne sais pas", width="stretch", key=f"unsure-{offer['id']}"):
                 save_review_decision(profile, int(offer["id"]), "unsure");st.rerun()
-            if f3.button("💚 Garder", type="primary", width="stretch", key=f"keep-{offer['id']}"):
+            if f3.button("Garder", type="primary", width="stretch", key=f"keep-{offer['id']}"):
                 save_review_decision(profile, int(offer["id"]), "keep");st.rerun()
     elif stats["pending"]:
         st.warning(f"Il reste {stats['pending']} offre(s), mais elles sont sous le score minimum sélectionné.")
     else:
-        st.success("Toutes les nouvelles offres ont été examinées 🎉")
+        st.success("Toutes les nouvelles offres ont été examinées ")
 
     st.markdown("#### Validation vers Google Sheets")
     if stats["ready"]:
         st.info(f"{stats['ready']} décision(s) Garder/À revoir sont prêtes à rejoindre l’onglet Opportunités. Les offres supprimées resteront uniquement dans l’historique local.")
     elif not stats["pending"]:
         st.caption("Aucune nouvelle décision n’attend d’être synchronisée.")
-    if st.button("📤 Envoyer Garder + À revoir vers le Sheet", type="primary", width="stretch", disabled=not bool(sheet_id and stats["ready"])):
+    if st.button("Envoyer Garder + À revoir vers le Sheet", type="primary", width="stretch", disabled=not bool(sheet_id and stats["ready"])):
         ok, output = run_google_command(selected, "review-sync")
         (st.success if ok else st.error)(output or ("Décisions synchronisées" if ok else "Synchronisation impossible"))
     if not sheet_id:
         st.caption("Aucun Google Sheet n’est lié à ce profil. Les décisions restent sauvegardées localement et pourront être exportées après la connexion.")
 
-    with st.expander("🧪 Réinitialiser des offres pour tester le Tinder", expanded=False):
+    with st.expander("Réinitialiser des offres pour tester le Tinder", expanded=False):
         catalog = review_offer_catalog(profile)
         labels_by_id = {
             int(item["id"]): f'#{item["id"]} · {item.get("company") or "Entreprise inconnue"} — {item.get("title") or "Sans titre"} · {float(item.get("score") or 0):.0f}/100 · {item.get("review_decision") or "sans décision"}'
@@ -1008,7 +1008,7 @@ with tinder_tab:
             st.session_state["tinder_flash"] = f"{count} offre(s) remise(s) dans la file Tinder."
             st.rerun()
         confirm_delete = st.checkbox("Je confirme la suppression locale des offres sélectionnées", disabled=not selected_offer_ids)
-        if delete_col.button("🗑 Supprimer localement", width="stretch", disabled=not (selected_offer_ids and confirm_delete)):
+        if delete_col.button("Supprimer localement", width="stretch", disabled=not (selected_offer_ids and confirm_delete)):
             count = delete_local_offers(profile, selected_offer_ids)
             st.session_state["tinder_flash"] = f"{count} offre(s) supprimée(s) de la base locale."
             st.rerun()
@@ -1186,7 +1186,7 @@ with search_tab:
         else:
             st.info("Aucun listing fixe sélectionné.")
 
-    st.markdown("#### 🧪 Banc de test du moteur web")
+    st.markdown("#### Banc de test du moteur web")
     st.caption("Teste une seule requête sans toucher à Gmail, Google Sheets ni à l’historique. Le rapport suit désormais tout le tunnel : moteur → listing → liens d’offres → décision simulée.")
     ranked_queries = ranked_queries_for_profile(profile, queries)
     if ranked_queries:
@@ -1316,7 +1316,7 @@ with search_tab:
         st.download_button("Télécharger le rapport de test JSON", report_bytes, file_name=f"web_debug_{selected.stem}.json", mime="application/json")
 
 with diagnostic_tab:
-    st.markdown("### 🩺 Santé du moteur")
+    st.markdown("### Santé du moteur")
     st.markdown('<p class="section-note">Le tunnel complet du dernier scan : où le temps est dépensé, quelles sources produisent et pourquoi les pages sont rejetées.</p>', unsafe_allow_html=True)
     diagnostics = read_diagnostics(profile)
     if not diagnostics:
@@ -1430,15 +1430,15 @@ with connections_tab:
         (st.success if ok else st.error)(output or ("Tableau créé" if ok else "Création impossible"))
         if ok:st.rerun()
     b4, b5 = st.columns(2)
-    if b4.button("🎨 Mettre en forme / réparer le Sheet", width="stretch", disabled=not bool(sheet_id)):
+    if b4.button("Mettre en forme / réparer le Sheet", width="stretch", disabled=not bool(sheet_id)):
         ok, output = run_google_command(selected, "google-setup-sheet")
         (st.success if ok else st.error)(output or ("Mise en forme appliquée" if ok else "Mise en forme impossible"))
-    if b5.button("⚡ Synchroniser les actions maintenant", type="primary", width="stretch", disabled=not bool(sheet_id)):
+    if b5.button("Synchroniser les actions maintenant", type="primary", width="stretch", disabled=not bool(sheet_id)):
         ok, output = run_google_command(selected, "actions")
         (st.success if ok else st.error)(output or ("Actions synchronisées" if ok else "Synchronisation impossible"))
 
 with automation_tab:
-    st.markdown("### ⏱ Scans récurrents")
+    st.markdown("### Scans récurrents")
     st.markdown('<p class="section-note">Programme un scan Windows pour ce profil. La tâche utilise exactement cette installation et conserve les résultats dans sa base locale.</p>', unsafe_allow_html=True)
     if os.name != "nt":
         st.info(f"La création automatique d’une tâche planifiée est disponible sous Windows. Le reste de {hunter.PRODUCT_NAME} fonctionne normalement sur ce système.")
@@ -1470,8 +1470,8 @@ with results_tab:
         status_values = sorted(frame["status"].dropna().unique().tolist())
         statuses = right.multiselect("Statuts", status_values, default=status_values)
         shown = frame[(frame["score"] >= minimum) & frame["status"].isin(statuses)].copy()
-        shown["review_decision"] = shown["review_decision"].map({"keep": "💚 Garder", "unsure": "🤔 À revoir"}).fillna(shown["review_decision"])
-        shown["availability_status"] = shown["availability_status"].map({"open": "🟢 Ouverte", "unknown": "🟠 À confirmer", "closed": "🔴 Fermée"}).fillna("🟠 À confirmer")
+        shown["review_decision"] = shown["review_decision"].map({"keep": "Garder", "unsure": "À revoir"}).fillna(shown["review_decision"])
+        shown["availability_status"] = shown["availability_status"].map({"open": "Ouverte", "unknown": "À confirmer", "closed": "Fermée"}).fillna("À confirmer")
         display_columns = ["score", "confidence", "learned_adjustment", "availability_status", "review_decision", "company", "title", "location", "canton", "language", "duration", "source", "url", "status"]
         st.dataframe(
             shown[display_columns],

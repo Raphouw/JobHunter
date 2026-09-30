@@ -836,9 +836,9 @@ def analyze(store, job, engine, profile):
             rejection_types = dict(checkpoint.get("rejection_types") or {})
             rejection_types[category] = rejection_types.get(category, 0) + 1
             checkpoint["rejection_types"] = rejection_types
-        status_tag = {"accepted": "✅ RETENUE", "rejected": "❌ ÉCARTÉE", "known": "♻️ DÉJÀ CONNUE",
-                      "deferred": "⏳ DIFFÉRÉE", "unexamined": "⏳ NON EXAMINÉE",
-                      "retry": "🔄 ACCÈS TEMPORAIRE", "unavailable": "⚠️ INACCESSIBLE"}[status]
+        status_tag = {"accepted": "RETENUE", "rejected": "ÉCARTÉE", "known": "DÉJÀ CONNUE",
+                      "deferred": "DIFFÉRÉE", "unexamined": "NON EXAMINÉE",
+                      "retry": "ACCÈS TEMPORAIRE", "unavailable": "INACCESSIBLE"}[status]
         title_tag = decision.get('title') or candidate_url[:80]
         score_val = decision.get('score')
         score_tag = f"score {score_val}/100" if score_val is not None else "sans score"

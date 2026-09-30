@@ -42,7 +42,7 @@ export function ProfileSwitcher({ profiles, activeId, onSelect, onCreate, onDele
             onClick={() => { onSelect(profile.id); setOpen(false); }}>
             <span className="brand-avatar xs">{profile.name.slice(0, 1).toUpperCase()}</span>
             <span className="cloud-profile-entry-name"><strong>{profile.name}</strong><small>{profile.id === activeId ? 'Profil actif' : 'Afficher ce profil'}</small></span>
-            {profile.id === activeId && <span className="cloud-profile-check">✓</span>}
+            {profile.id === activeId && <span className="cloud-profile-check"><Icon name="check" size={14} /></span>}
           </button>
           <button type="button" className="cloud-profile-remove" title={`Supprimer ${profile.name}`}
             aria-label={`Supprimer le profil ${profile.name}`} disabled={busy}

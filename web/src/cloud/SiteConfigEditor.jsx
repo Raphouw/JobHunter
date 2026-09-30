@@ -198,12 +198,12 @@ export function SiteConfigEditor({ profile, accessToken, onSaved, busy }) {
           setDetailUrl(result.preview.offers[0].detail_link);
         }
         if (result.sample_tested) {
-          setNotice(`✓ Test réussi sur l'URL d'exemple : ${result.preview.offers.length} offre(s) extraite(s). Note : avec les critères actuels de ton profil, ce site ne renvoie aucune offre pour le moment, mais les sélecteurs sont validés et le site est activable !`);
+          setNotice(`Test réussi sur l'URL d'exemple : ${result.preview.offers.length} offre(s) extraite(s). Note : avec les critères actuels de ton profil, ce site ne renvoie aucune offre pour le moment, mais les sélecteurs sont validés et le site est activable !`);
         } else {
           setNotice(`Test réussi : ${result.preview.offers.length} offre(s) extraite(s). Tu peux maintenant activer le site.`);
         }
       } else if (action === 'save') {
-        setNotice(result.site.enabled ? '✓ Site validé et activé pour les scans.' : 'Brouillon enregistré.');
+        setNotice(result.site.enabled ? 'Site validé et activé pour les scans.' : 'Brouillon enregistré.');
         await onSaved();
       } else if (action === 'toggle') {
         setNotice(nextSite.enabled ? 'Site réactivé pour ce profil.' : 'Site désactivé pour ce profil.');

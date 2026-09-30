@@ -3274,7 +3274,12 @@ a {
 }
 
 .insight-list li::before {
-  content: '✦ ';
+  content: '';
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  background: currentColor;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m5 12 5 5L20 7' fill='none' stroke='black' stroke-width='3'/%3E%3C/svg%3E") center / contain no-repeat;
   color: var(--salmon);
 }
 
@@ -9089,3 +9094,10 @@ a {
   flex-wrap: wrap;
 }
 
+
+/* Shared vector icons keep their proportions in dense controls and badges. */
+.sh-icon, .jh-country-flag { flex-shrink: 0; vertical-align: -0.125em; }
+.jh-country-flag { display: inline-block; border-radius: 2px; box-shadow: 0 0 0 1px rgba(15,23,42,.12); }
+.cand-tool-btn, .cand-filter-pill, .urgent-badge, .sh-hero-badge, .cand-tag.country-tag { display: inline-flex; align-items: center; gap: 6px; }
+.cand-stat-icon, .sh-modal-icon, .cand-empty-icon, .sh-promo-star { display: inline-flex; align-items: center; justify-content: center; }
+.cand-list-header h3, .cand-map-title strong, .drawer-header h5 { display: flex; align-items: center; gap: 7px; }

@@ -36,7 +36,7 @@ export function AddNoteModal({ candidature, onClose, onSave, busy = false }) {
       <div className="sh-modal-card note-modal" onClick={(e) => e.stopPropagation()}>
         <div className="sh-modal-header">
           <div className="sh-modal-title">
-            <span className="sh-modal-icon">📝</span>
+            <span className="sh-modal-icon"><Icon name="note" size={22} /></span>
             <div>
               <h3>Ajouter un mémo Post-it</h3>
               <p>{candidature?.company || 'Candidature'}</p>

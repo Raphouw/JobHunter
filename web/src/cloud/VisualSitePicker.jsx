@@ -319,7 +319,7 @@ export function VisualSitePicker({
           onSelector('detail_selectors', 'description', paneSelector);
           const sample = (target.innerText || target.textContent || '').trim().slice(0, 60);
           setSamples((prev) => ({ ...prev, description: sample + '…' }));
-          setFeedback(`✓ Description (Volet latéral cockpit) : "${sample || paneSelector}" enregistrée !`);
+          setFeedback(`Description (Volet latéral cockpit) : "${sample || paneSelector}" enregistrée !`);
           setOptions([]);
           setField('application_link');
           return;
@@ -385,7 +385,7 @@ export function VisualSitePicker({
       if (sampleVal.length > 55) sampleVal = sampleVal.slice(0, 55) + '…';
 
       setSamples((prev) => ({ ...prev, [field]: sampleVal }));
-      setFeedback(`✓ ${currentStep?.label} : "${sampleVal || relSelector}" enregistré.`);
+      setFeedback(`${currentStep?.label} : "${sampleVal || relSelector}" enregistré.`);
       setOptions([]);
 
       // Auto-advance to the next field in sequence
@@ -464,7 +464,7 @@ export function VisualSitePicker({
                 setOptions([]);
               }}
             >
-              <span className="sh-picker-pill-num">{hasVal ? '✓' : absent ? '—' : idx + 1}</span>
+              <span className="sh-picker-pill-num">{hasVal ? <Icon name="check" size={14} /> : absent ? '—' : idx + 1}</span>
               <span className="sh-picker-pill-name">{item.label}</span>
               {absent && <span className="sh-picker-pill-sample">Absent</span>}
               {hasVal && sample && <span className="sh-picker-pill-sample">"{sample}"</span>}

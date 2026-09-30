@@ -1,3 +1,4 @@
+import { Icon } from '../components/Common/Icons';
 import React, { useEffect, useRef, useState } from 'react';
 import offer from './offer.json';
 import './swiper-lab.css';
@@ -8,15 +9,15 @@ const selectedReasons = [reasons[0], reasons[2], reasons[6]];
 const checks = [reasons[8], reasons[9]];
 const skills = offer.skills_found.split(',').map((skill) => skill.trim()).slice(0, 4);
 const actions = [
-  ['undo', 'Undo', '↶'],
-  ['pass', 'Pass', '×'],
-  ['later', 'Later', '⌄'],
-  ['keep', 'Keep', '✓'],
+  ['undo', 'Undo', 'undo'],
+  ['pass', 'Pass', 'x'],
+  ['later', 'Later', 'clock'],
+  ['keep', 'Keep', 'check'],
 ];
 
 function ActionSet({ variant, onPreview }) {
   return <div className={`lab-actions lab-actions-${variant}`} aria-label="Aperçu des actions">
-    {actions.map(([key, label, glyph]) => <button type="button" key={key} className={`lab-action lab-action-${key}`} onClick={() => onPreview(label)} aria-label={`${label} — aperçu visuel uniquement`}><span aria-hidden="true">{glyph}</span><strong>{label}</strong></button>)}
+    {actions.map(([key, label, glyph]) => <button type="button" key={key} className={`lab-action lab-action-${key}`} onClick={() => onPreview(label)} aria-label={`${label} — aperçu visuel uniquement`}><span aria-hidden="true"><Icon name={glyph} size={22} /></span><strong>{label}</strong></button>)}
   </div>;
 }
 
@@ -56,7 +57,7 @@ function VariantC({ onPreview }) {
     <h3>{offer.title}</h3>
     <div className="lab-c-meta"><span>{offer.duration}</span><span>{offer.language}</span></div>
     <div className="lab-c-skills"><span className="lab-label">Compétences</span><p>{skills.join(' · ')}</p></div>
-    <div className="lab-c-reasons"><span className="lab-label">Ce qui correspond</span>{selectedReasons.map((reason) => <p key={reason}><span aria-hidden="true">✓</span>{reason}</p>)}</div>
+    <div className="lab-c-reasons"><span className="lab-label">Ce qui correspond</span>{selectedReasons.map((reason) => <p key={reason}><span aria-hidden="true"><Icon name="check" size={14} /></span>{reason}</p>)}</div>
     <div className="lab-c-check"><span className="lab-label">À vérifier</span><p>{checks.join(' · ')}</p></div>
     <button className="lab-c-details" type="button" onClick={() => onPreview('Détails')}>Détails de l’offre <span aria-hidden="true">→</span></button>
   </div><ActionSet variant="c" onPreview={onPreview} /></div>;

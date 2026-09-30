@@ -1,4 +1,5 @@
 import React from 'react';
+import { vectorIcons } from './vectorIcons';
 
 export function Icon({ name, size = 20, className = '' }) {
   const common = {
@@ -55,6 +56,11 @@ export function Icon({ name, size = 20, className = '' }) {
     eye: <><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></>,
     send: <><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></>,
   };
+
+  if (vectorIcons[name]) {
+    const [width, height, , , paths] = vectorIcons[name].icon;
+    return <svg width={size} height={size} viewBox={`0 0 ${width} ${height}`} fill="currentColor" className={`sh-icon ${className}`.trim()} aria-hidden="true" focusable="false">{[].concat(paths).map((d, i) => <path key={i} d={d} />)}</svg>;
+  }
 
   return <svg {...common} aria-hidden="true">{shapes[name] || shapes.spark}</svg>;
 }

@@ -49,7 +49,7 @@ function optimiserCantons() {
 
 function onOpen() {
   SpreadsheetApp.getUi()
-    .createMenu('📍 Carte Suisse')
+    .createMenu('Carte Suisse')
     .addItem('Ouvrir le panneau carte', 'showSidebar')
     .addToUi();
 
@@ -74,7 +74,7 @@ function showSidebar() {
     .setWidth(1000)
     .setHeight(700);
       
-  SpreadsheetApp.getUi().showModalDialog(html, '📍 Candidatures · Suisse');
+  SpreadsheetApp.getUi().showModalDialog(html, 'Candidatures · Suisse');
 }
 
 /**
@@ -134,7 +134,7 @@ function updateJobStatus(rowIndex, newStatus) {
       var minutes = ("0" + now.getMinutes()).slice(-2);
       
       var timestamp = "[" + day + "/" + month + "/" + year + " " + hours + ":" + minutes + "]";
-      var autoNote = timestamp + " 🔄 Statut passé à : " + newStatus;
+      var autoNote = timestamp + " Statut passé à : " + newStatus;
       
       var cellRange = sheet.getRange(rowIndex, colRetours);
       var currentNote = String(cellRange.getValue()).trim();
@@ -233,7 +233,7 @@ function onEdit(e) {
     var minutes = ("0" + now.getMinutes()).slice(-2);
     
     var timestamp = "[" + day + "/" + month + "/" + year + " " + hours + ":" + minutes + "]";
-    var autoNote = timestamp + " 🔄 Statut passé à : " + newStatus;
+    var autoNote = timestamp + " Statut passé à : " + newStatus;
     
     // 7. Ajout à l'historique existant dans la colonne "Retours"
     var cellRange = sheet.getRange(row, colRetours);
@@ -290,7 +290,7 @@ function scanGmailForResponses() {
         if (colRet !== -1) {
           var now = new Date();
           var timestamp = "[" + ("0"+now.getDate()).slice(-2) + "/" + ("0"+(now.getMonth()+1)).slice(-2) + "/" + now.getFullYear() + "]";
-          var autoNote = timestamp + " 🤖 Mail détecté pour : " + company;
+          var autoNote = timestamp + " Mail détecté pour : " + company;
           
           var noteRange = sheet.getRange(i + 1, colRet + 1);
           var oldNote = noteRange.getValue();
@@ -393,7 +393,7 @@ function addNewJob(data) {
     
     if (cols.retours > 0) {
       var noteTimestamp = "[" + day + "/" + month + "/" + year + " " + hours + ":" + minutes + "]";
-      newRow[cols.retours - 1] = noteTimestamp + " 🔄 Statut passé à : " + initialStatut;
+      newRow[cols.retours - 1] = noteTimestamp + " Statut passé à : " + initialStatut;
     }
   }
 
@@ -483,7 +483,7 @@ function ouvrirSaisieDirecte() {
     .setWidth(550)
     .setHeight(600);
       
-  SpreadsheetApp.getUi().showModalDialog(html, '✨ Nouvelle Candidature');
+  SpreadsheetApp.getUi().showModalDialog(html, 'Nouvelle Candidature');
 }
 
 
@@ -525,7 +525,7 @@ var STAGE_HUNTER_CANTONS_ = {
 
 function installStageHunterMenu_() {
   SpreadsheetApp.getUi()
-    .createMenu('🎯 Job Hunter')
+    .createMenu('Job Hunter')
     .addItem('Configurer / remettre en forme', 'configurerStageHunter')
     .addItem('Activer les actions immédiates', 'installerActionsImmediatesStageHunter')
     .addItem('Traiter les actions déjà choisies', 'traiterActionsStageHunter')
@@ -994,7 +994,7 @@ function openStageHunterTransferForm_(sheet, row, headers) {
     .replace(/\u2028/g, '\\u2028')
     .replace(/\u2029/g, '\\u2029');
   var html = template.evaluate().setWidth(650).setHeight(720);
-  SpreadsheetApp.getUi().showModalDialog(html, '📥 Vérifier puis transférer la candidature');
+  SpreadsheetApp.getUi().showModalDialog(html, 'Vérifier puis transférer la candidature');
 }
 
 function finalizeStageHunterTransfer_(meta) {

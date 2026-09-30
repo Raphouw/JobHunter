@@ -119,7 +119,7 @@ export function AddCandidatureModal({ prefill = null, isEdit = false, onClose, o
       <div className="sh-modal-card candidature-modal" onClick={(e) => e.stopPropagation()}>
         <div className="sh-modal-header">
           <div className="sh-modal-title">
-            <span className="sh-modal-icon">💼</span>
+            <span className="sh-modal-icon"><Icon name="briefcase" size={22} /></span>
             <div>
               <h3>
                 {isEditing
@@ -197,13 +197,13 @@ export function AddCandidatureModal({ prefill = null, isEdit = false, onClose, o
             <div className="cand-field">
               <label>Note d'intérêt (/10)</label>
               <select value={rating} onChange={(e) => setRating(e.target.value)}>
-                <option value="10">⭐⭐⭐⭐⭐ 10/10 (Top Priorité)</option>
-                <option value="9">⭐⭐⭐⭐ 9/10</option>
-                <option value="8">⭐⭐⭐⭐ 8/10 (Très intéressé)</option>
-                <option value="7">⭐⭐⭐ 7/10</option>
-                <option value="6">⭐⭐⭐ 6/10</option>
-                <option value="5">⭐⭐ 5/10 (Moyen)</option>
-                <option value="3">⭐ 3/10 (File d'attente)</option>
+                <option value="10">10/10 (Top Priorité)</option>
+                <option value="9">9/10</option>
+                <option value="8">8/10 (Très intéressé)</option>
+                <option value="7">7/10</option>
+                <option value="6">6/10</option>
+                <option value="5">5/10 (Moyen)</option>
+                <option value="3">3/10 (File d'attente)</option>
               </select>
             </div>
           </div>
@@ -276,7 +276,7 @@ export function AddCandidatureModal({ prefill = null, isEdit = false, onClose, o
               Annuler
             </button>
             <button type="submit" className="sh-btn-primary" disabled={busy}>
-              {busy ? 'Enregistrement…' : isEditing ? 'Mettre à jour' : '🚀 Ajouter & Placer sur la carte'}
+              {busy ? 'Enregistrement…' : isEditing ? 'Mettre à jour' : <><Icon name="pin" size={16} /> Ajouter & Placer sur la carte</>}
             </button>
           </div>
         </form>

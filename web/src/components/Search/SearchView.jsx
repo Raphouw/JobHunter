@@ -425,7 +425,7 @@ export function SearchView({
                       title={checked ? 'Désactiver ce pack' : 'Activer ce pack'}
                     >
                       <span className={`sh-pack-check ${checked ? 'on' : ''}`}>
-                        {checked ? '✓' : ''}
+                        {checked && <Icon name="check" size={14} />}
                       </span>
                       <div className="sh-pack-info">
                         <strong>{pack.label || id}</strong>
